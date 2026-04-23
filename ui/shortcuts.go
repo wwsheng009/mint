@@ -26,22 +26,57 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 
 	"github.com/wwsheng009/mint/ui/components/absolute"
+	"github.com/wwsheng009/mint/ui/components/alert"
+	anchorcomp "github.com/wwsheng009/mint/ui/components/anchor"
+	"github.com/wwsheng009/mint/ui/components/badge"
+	"github.com/wwsheng009/mint/ui/components/breadcrumb"
 	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/cascader"
 	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/clock"
+	"github.com/wwsheng009/mint/ui/components/collapse"
+	"github.com/wwsheng009/mint/ui/components/datepicker"
+	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/divider"
+	"github.com/wwsheng009/mint/ui/components/drawer"
+	"github.com/wwsheng009/mint/ui/components/empty"
+	formcomp "github.com/wwsheng009/mint/ui/components/form"
 	"github.com/wwsheng009/mint/ui/components/grid"
 	"github.com/wwsheng009/mint/ui/components/input"
+	layoutcomp "github.com/wwsheng009/mint/ui/components/layout"
 	"github.com/wwsheng009/mint/ui/components/list"
 	"github.com/wwsheng009/mint/ui/components/modal"
+	"github.com/wwsheng009/mint/ui/components/notification"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
+	"github.com/wwsheng009/mint/ui/components/pagination"
 	"github.com/wwsheng009/mint/ui/components/panel"
+	"github.com/wwsheng009/mint/ui/components/popconfirm"
+	"github.com/wwsheng009/mint/ui/components/popover"
 	"github.com/wwsheng009/mint/ui/components/progress"
+	"github.com/wwsheng009/mint/ui/components/radio"
+	"github.com/wwsheng009/mint/ui/components/rate"
+	"github.com/wwsheng009/mint/ui/components/result"
+	rowcolcomp "github.com/wwsheng009/mint/ui/components/rowcol"
 	"github.com/wwsheng009/mint/ui/components/scrollview"
 	selectcomp "github.com/wwsheng009/mint/ui/components/select"
+	"github.com/wwsheng009/mint/ui/components/skeleton"
+	"github.com/wwsheng009/mint/ui/components/slider"
+	spacecomp "github.com/wwsheng009/mint/ui/components/space"
+	"github.com/wwsheng009/mint/ui/components/spin"
+	"github.com/wwsheng009/mint/ui/components/statistic"
+	"github.com/wwsheng009/mint/ui/components/statusbar"
+	"github.com/wwsheng009/mint/ui/components/steps"
+	switchcomp "github.com/wwsheng009/mint/ui/components/switch"
 	"github.com/wwsheng009/mint/ui/components/table"
 	"github.com/wwsheng009/mint/ui/components/tabs"
+	"github.com/wwsheng009/mint/ui/components/tag"
 	"github.com/wwsheng009/mint/ui/components/text"
 	"github.com/wwsheng009/mint/ui/components/textarea"
+	"github.com/wwsheng009/mint/ui/components/timeline"
+	"github.com/wwsheng009/mint/ui/components/timepicker"
+	"github.com/wwsheng009/mint/ui/components/toast"
 	"github.com/wwsheng009/mint/ui/components/tooltip"
+	"github.com/wwsheng009/mint/ui/components/transfer"
 	"github.com/wwsheng009/mint/ui/components/treeview"
 	"github.com/wwsheng009/mint/ui/components/virtuallist"
 	"github.com/wwsheng009/mint/ui/components/wrap"
@@ -56,12 +91,72 @@ func NewInputBuilder() *input.Builder {
 	return input.NewBuilder()
 }
 
+func NewSearchInputBuilder() *input.Builder {
+	return input.NewBuilder().Search()
+}
+
 func NewTextareaBuilder() *textarea.Builder {
 	return textarea.NewBuilder()
 }
 
+func NewDatePickerBuilder() *datepicker.Builder {
+	return datepicker.NewBuilder()
+}
+
+func NewFormBuilder() formcomp.Builder {
+	return formcomp.NewBuilder()
+}
+
+func NewTimePickerBuilder() *timepicker.Builder {
+	return timepicker.NewBuilder()
+}
+
+func NewAnchorBuilder() *anchorcomp.Builder {
+	return anchorcomp.NewBuilder()
+}
+
+func NewCascaderBuilder() *cascader.Builder {
+	return cascader.NewBuilder()
+}
+
+func NewTransferBuilder() *transfer.Builder {
+	return transfer.NewBuilder()
+}
+
+func NewSpaceBuilder() *spacecomp.Builder {
+	return spacecomp.NewBuilder()
+}
+
+func NewLayoutBuilder() *layoutcomp.Builder {
+	return layoutcomp.NewBuilder()
+}
+
+func NewRowBuilder() *rowcolcomp.RowBuilder {
+	return rowcolcomp.NewRowBuilder()
+}
+
+func NewColBuilder() *rowcolcomp.ColBuilder {
+	return rowcolcomp.NewColBuilder()
+}
+
 func NewCheckboxBuilder() *checkbox.Builder {
 	return checkbox.NewBuilder()
+}
+
+func NewCheckboxGroupBuilder(options []checkbox.Option) *checkbox.GroupBuilder {
+	return checkbox.NewGroupBuilder(options)
+}
+
+func NewRadioBuilder() *radio.Builder {
+	return radio.NewBuilder()
+}
+
+func NewSwitchBuilder() *switchcomp.Builder {
+	return switchcomp.NewBuilder()
+}
+
+func NewRadioGroupBuilder(options []radio.Option) *radio.GroupBuilder {
+	return radio.NewGroupBuilder(options)
 }
 
 // Button Components
@@ -73,7 +168,6 @@ func NewButtonBuilder(label string) *button.Builder {
 func NewTextBuilder(content string) *text.Builder {
 	return text.NewBuilder(content)
 }
-
 
 func NewWrapBuilder() *wrap.Builder {
 	return wrap.NewBuilder()
@@ -90,18 +184,88 @@ func NewAbsoluteBuilder(child rtui.VNode) *absolute.Builder {
 // Container Components
 
 // NewBorderBuilder creates a border builder.
-//
 func NewPanelBuilder() *panel.Builder {
 	return panel.NewBuilder()
+}
+
+func NewPaginationBuilder() *pagination.Builder {
+	return pagination.NewBuilder()
 }
 
 func NewScrollViewBuilder() *scrollview.Builder {
 	return scrollview.NewBuilder()
 }
 
+func NewEmptyBuilder() *empty.Builder {
+	return empty.NewBuilder()
+}
+
+func NewAlertBuilder(message string) *alert.Builder {
+	return alert.NewBuilder(message)
+}
+
+func NewStatusBarBuilder() *statusbar.Builder {
+	return statusbar.NewBuilder()
+}
+
+func StatusBar(left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		Build()
+}
+
+func StatusBarWithHelp(theme statusbar.Theme, helpFallback string, left, center, right []statusbar.Section) rtui.VNode {
+	return StatusBarWithHelpMode(theme, helpFallback, statusbar.HelpDisplayInline, left, center, right)
+}
+
+func StatusBarWithHelpMode(theme statusbar.Theme, helpFallback string, mode statusbar.HelpDisplayMode, left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		Theme(theme).
+		HelpFallback(helpFallback).
+		HelpDisplayMode(mode).
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		BuildWithHelp()
+}
+
 // Data Display Components
 func NewListBuilder() *list.Builder {
 	return list.NewBuilder()
+}
+
+func NewBadgeBuilder(label string) *badge.Builder {
+	return badge.NewBuilder(label)
+}
+
+func NewTagBuilder(text string) *tag.Builder {
+	return tag.NewBuilder(text)
+}
+
+func NewCollapseBuilder() *collapse.Builder {
+	return collapse.NewBuilder()
+}
+
+func NewDescriptionsBuilder() *descriptions.Builder {
+	return descriptions.NewBuilder()
+}
+
+func NewPopoverBuilder(content rtui.VNode) *popover.Builder {
+	return popover.NewBuilder(content)
+}
+
+func NewPopconfirmBuilder(content rtui.VNode) *popconfirm.Builder {
+	return popconfirm.NewBuilder(content)
+}
+
+func NewStatisticBuilder() *statistic.Builder {
+	return statistic.NewBuilder()
+}
+
+func NewSkeletonBuilder() *skeleton.Builder {
+	return skeleton.NewBuilder()
 }
 
 func NewTableBuilder() *table.Builder {
@@ -115,12 +279,39 @@ func NewTreeViewBuilder() *treeview.Builder {
 func NewVirtualListBuilder() *virtuallist.Builder {
 	return virtuallist.NewBuilder()
 }
+
+func NewSliderBuilder() *slider.Builder {
+	return slider.NewBuilder()
+}
+
+func NewRateBuilder() *rate.Builder {
+	return rate.NewBuilder()
+}
+
+func NewOptionGroupBuilder(options []optiongroup.Option) *optiongroup.Builder {
+	return optiongroup.NewBuilder(options)
+}
+
 func NewTabsBuilder() *tabs.Builder {
 	return tabs.NewBuilder()
 }
+
+func NewBreadcrumbBuilder() *breadcrumb.Builder {
+	return breadcrumb.NewBuilder()
+}
+
+func NewStepsBuilder() *steps.Builder {
+	return steps.NewBuilder()
+}
+
+func NewTimelineBuilder() *timeline.Builder {
+	return timeline.NewBuilder()
+}
+
 func NewSelectBuilder() *selectcomp.Builder {
 	return selectcomp.NewBuilder()
 }
+
 // Navigation Components
 // Note: NewTabsBuilder() is declared above
 
@@ -134,9 +325,29 @@ func NewProgressBuilder() *progress.Builder {
 	return progress.NewBuilder()
 }
 
+func NewClockBuilder() *clock.Builder {
+	return clock.NewBuilder()
+}
+
+func NewSpinBuilder() *spin.Builder {
+	return spin.NewBuilder()
+}
+
+func NewResultBuilder() *result.Builder {
+	return result.NewBuilder()
+}
+
+func NewNotificationBuilder(message string) *notification.Builder {
+	return notification.NewBuilder(message)
+}
+
 // Modal Components
 func NewModalBuilder() *modal.Builder {
 	return modal.NewBuilder()
+}
+
+func NewDrawerBuilder() *drawer.Builder {
+	return drawer.NewBuilder()
 }
 
 // Tooltip Components
@@ -144,8 +355,8 @@ func NewTooltipBuilder(content rtui.VNode, tooltipText string) *tooltip.Builder 
 	return tooltip.NewBuilder(content, tooltipText)
 }
 
-func NewToastBuilder(message string) *tooltip.ToastBuilder {
-	return tooltip.NewToastBuilder(message)
+func NewToastBuilder(message string) *toast.ToastBuilder {
+	return toast.NewToastBuilder(message)
 }
 
 // =============================================================================
@@ -183,13 +394,40 @@ type (
 )
 
 const (
-	DividerSolid   = divider.StyleSolid
-	DividerDashed  = divider.StyleDashed
-	DividerDotted  = divider.StyleDotted
-	DividerDouble  = divider.StyleDouble
+	DividerSolid  = divider.StyleSolid
+	DividerDashed = divider.StyleDashed
+	DividerDotted = divider.StyleDotted
+	DividerDouble = divider.StyleDouble
 
 	HorizontalDivider = divider.Horizontal
 	VerticalDivider   = divider.Vertical
+)
+
+// StatusBar Types
+type (
+	StatusBarSection           = statusbar.Section
+	StatusBarTheme             = statusbar.Theme
+	StatusBarOverflow          = statusbar.OverflowMode
+	StatusBarHelpDisplay       = statusbar.HelpDisplayMode
+	StatusBarTooltipPlacement  = statusbar.TooltipPlacement
+	StatusBarTooltipArrowStyle = statusbar.TooltipArrowStyle
+)
+
+const (
+	StatusBarOverflowEllipsis = statusbar.OverflowEllipsis
+	StatusBarOverflowClip     = statusbar.OverflowClip
+
+	StatusBarHelpInline  = statusbar.HelpDisplayInline
+	StatusBarHelpOverlay = statusbar.HelpDisplayOverlay
+	StatusBarHelpBoth    = statusbar.HelpDisplayBoth
+
+	StatusBarTooltipAuto   = statusbar.TooltipPlacementAuto
+	StatusBarTooltipTop    = statusbar.TooltipPlacementTop
+	StatusBarTooltipBottom = statusbar.TooltipPlacementBottom
+
+	StatusBarTooltipArrowDefault = statusbar.TooltipArrowStyleDefault
+	StatusBarTooltipArrowSharp   = statusbar.TooltipArrowStyleSharp
+	StatusBarTooltipArrowRounded = statusbar.TooltipArrowStyleRounded
 )
 
 // Grid Types
@@ -203,7 +441,7 @@ type (
 // Grid dimension helper functions - avoid conflict with ui.Flex function
 func FixedDim(size int) grid.Fixed { return grid.Fixed(size) }
 func FlexDim(factor int) grid.Flex { return grid.Flex{Factor: factor} }
-func AutoDim() grid.Auto          { return grid.Auto{} }
+func AutoDim() grid.Auto           { return grid.Auto{} }
 
 // Absolute Position Types
 type PositionValue = absolute.PositionValue
@@ -212,12 +450,140 @@ type Anchor = absolute.Anchor
 // Tab Types
 type TabPosition = tabs.TabPosition
 type TabItem = tabs.TabItem
+type FormLayout = formcomp.FormLayout
+type InputType = input.Type
+type AlertType = alert.AlertType
+type BreadcrumbItem = breadcrumb.Item
+type BadgeStatus = badge.Status
+type DrawerPlacement = drawer.Placement
+type NotificationType = notification.NotificationType
+type NotificationPlacement = notification.Placement
+type CollapseItem = collapse.Item
+type DescriptionsItem = descriptions.Item
+type DescriptionsLayout = descriptions.Layout
+type TagColor = tag.TagColor
+type TimelineItem = timeline.Item
+type TimelineStatus = timeline.Status
+type ResultStatus = result.Status
+type SkeletonShape = skeleton.Shape
+type SpinSize = spin.Size
+type PopoverPlacement = popover.Placement
+type PopoverTriggerMode = popover.TriggerMode
+type PopconfirmPlacement = popconfirm.Placement
+type PopconfirmTriggerMode = popconfirm.TriggerMode
+type StatisticTrend = statistic.Trend
+type StepsDirection = steps.Direction
+type StepsStatus = steps.Status
+type StepsItem = steps.Item
 
 const (
+	FormVertical   = formcomp.LayoutVertical
+	FormHorizontal = formcomp.LayoutHorizontal
+	FormInline     = formcomp.LayoutInline
+
+	InputText     = input.TypeText
+	InputPassword = input.TypePassword
+	InputNumber   = input.TypeNumber
+	InputEmail    = input.TypeEmail
+
+	AlertInfo    = alert.AlertInfo
+	AlertSuccess = alert.AlertSuccess
+	AlertWarning = alert.AlertWarning
+	AlertError   = alert.AlertError
+
 	TabPositionTop    = tabs.TabPositionTop
 	TabPositionBottom = tabs.TabPositionBottom
 	TabPositionLeft   = tabs.TabPositionLeft
 	TabPositionRight  = tabs.TabPositionRight
+
+	DrawerRight  = drawer.PlacementRight
+	DrawerLeft   = drawer.PlacementLeft
+	DrawerTop    = drawer.PlacementTop
+	DrawerBottom = drawer.PlacementBottom
+
+	NotificationInfo        = notification.NotificationInfo
+	NotificationSuccess     = notification.NotificationSuccess
+	NotificationWarning     = notification.NotificationWarning
+	NotificationError       = notification.NotificationError
+	NotificationTopRight    = notification.PlacementTopRight
+	NotificationTopLeft     = notification.PlacementTopLeft
+	NotificationBottomRight = notification.PlacementBottomRight
+	NotificationBottomLeft  = notification.PlacementBottomLeft
+
+	BadgeStatusDefault    = badge.StatusDefault
+	BadgeStatusPrimary    = badge.StatusPrimary
+	BadgeStatusSuccess    = badge.StatusSuccess
+	BadgeStatusWarning    = badge.StatusWarning
+	BadgeStatusError      = badge.StatusError
+	BadgeStatusProcessing = badge.StatusProcessing
+
+	TagColorDefault    = tag.ColorDefault
+	TagColorPrimary    = tag.ColorPrimary
+	TagColorSuccess    = tag.ColorSuccess
+	TagColorWarning    = tag.ColorWarning
+	TagColorError      = tag.ColorError
+	TagColorProcessing = tag.ColorProcessing
+
+	DescriptionsHorizontal = descriptions.LayoutHorizontal
+	DescriptionsVertical   = descriptions.LayoutVertical
+
+	TimelineStatusDefault = timeline.StatusDefault
+	TimelineStatusSuccess = timeline.StatusSuccess
+	TimelineStatusWarning = timeline.StatusWarning
+	TimelineStatusError   = timeline.StatusError
+	TimelineStatusPending = timeline.StatusPending
+
+	ResultStatusInfo    = result.StatusInfo
+	ResultStatusSuccess = result.StatusSuccess
+	ResultStatusWarning = result.StatusWarning
+	ResultStatusError   = result.StatusError
+	ResultStatus403     = result.Status403
+	ResultStatus404     = result.Status404
+	ResultStatus500     = result.Status500
+
+	SkeletonShapeSquare = skeleton.ShapeSquare
+	SkeletonShapeRound  = skeleton.ShapeRound
+
+	SpinSizeSmall   = spin.SizeSmall
+	SpinSizeDefault = spin.SizeDefault
+	SpinSizeLarge   = spin.SizeLarge
+
+	PopoverPlacementAuto        = popover.PlacementAuto
+	PopoverPlacementTop         = popover.PlacementTop
+	PopoverPlacementTopLeft     = popover.PlacementTopLeft
+	PopoverPlacementTopRight    = popover.PlacementTopRight
+	PopoverPlacementBottom      = popover.PlacementBottom
+	PopoverPlacementBottomLeft  = popover.PlacementBottomLeft
+	PopoverPlacementBottomRight = popover.PlacementBottomRight
+
+	PopoverTriggerClick  = popover.TriggerClick
+	PopoverTriggerHover  = popover.TriggerHover
+	PopoverTriggerManual = popover.TriggerManual
+
+	PopconfirmPlacementAuto        = popconfirm.PlacementAuto
+	PopconfirmPlacementTop         = popconfirm.PlacementTop
+	PopconfirmPlacementTopLeft     = popconfirm.PlacementTopLeft
+	PopconfirmPlacementTopRight    = popconfirm.PlacementTopRight
+	PopconfirmPlacementBottom      = popconfirm.PlacementBottom
+	PopconfirmPlacementBottomLeft  = popconfirm.PlacementBottomLeft
+	PopconfirmPlacementBottomRight = popconfirm.PlacementBottomRight
+
+	PopconfirmTriggerClick  = popconfirm.TriggerClick
+	PopconfirmTriggerHover  = popconfirm.TriggerHover
+	PopconfirmTriggerManual = popconfirm.TriggerManual
+
+	StatisticTrendNone = statistic.TrendNone
+	StatisticTrendUp   = statistic.TrendUp
+	StatisticTrendDown = statistic.TrendDown
+
+	StepsHorizontal = steps.DirectionHorizontal
+	StepsVertical   = steps.DirectionVertical
+
+	StepsStatusAuto    = steps.StatusAuto
+	StepsStatusWait    = steps.StatusWait
+	StepsStatusProcess = steps.StatusProcess
+	StepsStatusFinish  = steps.StatusFinish
+	StepsStatusError   = steps.StatusError
 )
 
 // Table Types
@@ -225,23 +591,202 @@ type TableColumn = table.TableColumn
 
 // Tree Types
 type TreeNode = treeview.TreeNode
-
-// Toast Types
-type ToastType = tooltip.ToastType
+type TreeSelectionMode = treeview.SelectionMode
 
 const (
-	ToastTypeInfo    = tooltip.ToastInfo
-	ToastTypeSuccess = tooltip.ToastSuccess
-	ToastTypeWarning = tooltip.ToastWarning
-	ToastTypeError   = tooltip.ToastError
+	TreeSelectionNone     = treeview.SelectionNone
+	TreeSelectionSingle   = treeview.SelectionSingle
+	TreeSelectionMultiple = treeview.SelectionMultiple
+)
+
+// Toast Types
+type ToastType = toast.ToastType
+
+const (
+	ToastTypeInfo    = toast.ToastInfo
+	ToastTypeSuccess = toast.ToastSuccess
+	ToastTypeWarning = toast.ToastWarning
+	ToastTypeError   = toast.ToastError
 )
 
 // Select Types
 type SelectOption = selectcomp.Option
+type OptionGroupOption = optiongroup.Option
+type OptionGroupMode = optiongroup.SelectMode
+type OptionGroupOrientation = optiongroup.Orientation
+type AnchorItem = anchorcomp.Item
+type CascaderOption = cascader.Option
+type TransferItem = transfer.Item
+type SpaceDirection = spacecomp.Direction
+
+const (
+	OptionGroupSingle     = optiongroup.ModeSingle
+	OptionGroupMultiple   = optiongroup.ModeMultiple
+	OptionGroupVertical   = optiongroup.OrientationVertical
+	OptionGroupHorizontal = optiongroup.OrientationHorizontal
+
+	SpaceHorizontal = spacecomp.DirectionHorizontal
+	SpaceVertical   = spacecomp.DirectionVertical
+
+	SpaceSizeSmall  = spacecomp.SizeSmall
+	SpaceSizeMiddle = spacecomp.SizeMiddle
+	SpaceSizeLarge  = spacecomp.SizeLarge
+)
+
+// Radio Types
+type (
+	CheckboxOption      = checkbox.Option
+	CheckboxOrientation = checkbox.Orientation
+	RadioOption         = radio.Option
+	RadioOrientation    = radio.Orientation
+)
+
+const (
+	CheckboxVertical   = checkbox.OrientationVertical
+	CheckboxHorizontal = checkbox.OrientationHorizontal
+
+	RadioVertical   = radio.OrientationVertical
+	RadioHorizontal = radio.OrientationHorizontal
+)
 
 // NewSelectOption creates a new select option with value and label
 func NewSelectOption(value, label string) selectcomp.Option {
 	return selectcomp.Option{Value: value, Label: label}
+}
+
+// NewOptionGroupOption creates a new option group option with value and label.
+func NewOptionGroupOption(value, label string) optiongroup.Option {
+	return optiongroup.Option{Value: value, Label: label}
+}
+
+// NewAnchorItem creates an anchor item with optional child items.
+func NewAnchorItem(key, title string, children ...anchorcomp.Item) anchorcomp.Item {
+	return anchorcomp.NewItem(key, title, children...)
+}
+
+// NewCascaderOption creates a cascader option with optional child options.
+func NewCascaderOption(value, label string, children ...cascader.Option) cascader.Option {
+	return cascader.Node(value, label, children...)
+}
+
+// NewTransferItem creates a transfer item with key and title.
+func NewTransferItem(key, title string) transfer.Item {
+	return transfer.NewItem(key, title)
+}
+
+// NewBreadcrumbItem creates a breadcrumb item with the given label.
+func NewBreadcrumbItem(label string) breadcrumb.Item {
+	return breadcrumb.Crumb(label)
+}
+
+// NewCollapseItem creates a collapse item with the given header and content.
+func NewCollapseItem(header string, content rtui.VNode) collapse.Item {
+	return collapse.Section(header, content)
+}
+
+// NewDescriptionsItem creates a descriptions item with the given label and content.
+func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
+	return descriptions.Entry(label, content)
+}
+
+// NewTimelineItem creates a timeline item with content text.
+func NewTimelineItem(content string) timeline.Item {
+	return timeline.Event(content)
+}
+
+// NewResult creates a result builder with a status.
+func NewResult(status result.Status) *result.VNode {
+	return result.New().SetStatus(status)
+}
+
+// NewPopover creates a popover builder with anchor content.
+func NewPopover(content rtui.VNode) *popover.VNode {
+	return popover.New(content)
+}
+
+// NewPopconfirm creates a popconfirm builder around an anchor content node.
+func NewPopconfirm(content rtui.VNode) *popconfirm.VNode {
+	return popconfirm.New(content)
+}
+
+// NewStatistic creates a statistic builder with title and value.
+func NewStatistic(title string, value interface{}) *statistic.VNode {
+	return statistic.New().SetTitle(title).SetValue(value)
+}
+
+// NewBadge creates a badge builder seed with the given label.
+func NewBadge(label string) *badge.VNode {
+	return badge.New(label)
+}
+
+// NewEmpty creates an empty-state builder seed.
+func NewEmpty() *empty.VNode {
+	return empty.New()
+}
+
+// NewForm creates a form builder seed with the given key.
+func NewForm(key string) *formcomp.VNode {
+	return formcomp.NewForm(key)
+}
+
+// NewFormItem creates a FormItem wrapper around a field component.
+func NewFormItem(field string, child rtui.VNode) *formcomp.ItemBuilder {
+	return formcomp.NewItem(field, child)
+}
+
+// NewSlider creates a slider builder seed.
+func NewSlider() *slider.VNode {
+	return slider.NewSlider()
+}
+
+// NewRate creates a rate builder seed.
+func NewRate() *rate.VNode {
+	return rate.NewRate()
+}
+
+// NewOptionGroup creates an option group builder seed.
+func NewOptionGroup(options []optiongroup.Option) *optiongroup.VNode {
+	return optiongroup.New(options)
+}
+
+// NewAlert creates an alert builder seed with the given message.
+func NewAlert(message string) *alert.VNode {
+	return alert.New().SetMessage(message)
+}
+
+// NewNotification creates a notification builder seed with the given message.
+func NewNotification(message string) *notification.VNode {
+	return notification.New().SetMessage(message)
+}
+
+// NewTag creates a tag builder seed with the given text.
+func NewTag(text string) *tag.VNode {
+	return tag.New(text)
+}
+
+// NewSpin creates a spin builder seed in spinning state.
+func NewSpin() *spin.VNode {
+	return spin.New()
+}
+
+// NewToast creates a toast builder seed with the given message.
+func NewToast(message string) *toast.ToastVNode {
+	return toast.NewToast(message)
+}
+
+// NewStepsItem creates a steps item with the given title.
+func NewStepsItem(title string) steps.Item {
+	return steps.Step(title)
+}
+
+// NewRadioOption creates a new radio option with value and label.
+func NewRadioOption(value, label string) radio.Option {
+	return radio.Option{Value: value, Label: label}
+}
+
+// NewCheckboxOption creates a new checkbox option with value and label.
+func NewCheckboxOption(value, label string) checkbox.Option {
+	return checkbox.Option{Value: value, Label: label}
 }
 
 // =============================================================================
@@ -256,9 +801,19 @@ func NewSelectOption(value, label string) selectcomp.Option {
 
 // Form Components shortcuts
 
+// Form creates a form containing the provided children.
+func Form(children ...rtui.VNode) rtui.VNode {
+	return formcomp.NewBuilder().AddChildren(children...)
+}
+
 // Input creates an input field with placeholder
 func Input(placeholder string) rtui.VNode {
 	return input.NewBuilder().Placeholder(placeholder).Build()
+}
+
+// SearchInput creates a search input field with placeholder.
+func SearchInput(placeholder string) rtui.VNode {
+	return input.NewBuilder().Search().Placeholder(placeholder).Build()
 }
 
 // InputWithValue creates an input field with initial value and placeholder
@@ -281,6 +836,26 @@ func Checkbox(label string, checked bool) rtui.VNode {
 	return checkbox.NewBuilder().Label(label).Checked(checked).Build()
 }
 
+// CheckboxGroup creates a checkbox group builder.
+func CheckboxGroup(options []checkbox.Option) *checkbox.GroupBuilder {
+	return checkbox.NewGroupBuilder(options)
+}
+
+// Radio creates a radio button.
+func Radio(label string, checked bool) rtui.VNode {
+	return radio.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// Switch creates a switch.
+func Switch(label string, checked bool) rtui.VNode {
+	return switchcomp.NewBuilder().Label(label).Checked(checked).Build()
+}
+
+// RadioGroup creates a radio group builder.
+func RadioGroup(options []radio.Option) *radio.GroupBuilder {
+	return radio.NewGroupBuilder(options)
+}
+
 // Select creates a select dropdown with options
 func Select(options []map[string]interface{}) rtui.VNode {
 	// Convert options to selectcomp.Option format
@@ -291,6 +866,46 @@ func Select(options []map[string]interface{}) rtui.VNode {
 		opts[i] = selectcomp.Option{Value: value, Label: label}
 	}
 	return selectcomp.NewBuilder().Options(opts).Build()
+}
+
+// Slider creates a slider builder.
+func Slider() *slider.Builder {
+	return slider.NewBuilder()
+}
+
+// Rate creates a rate builder.
+func Rate() *rate.Builder {
+	return rate.NewBuilder()
+}
+
+// OptionGroup creates an option group builder with the provided options.
+func OptionGroup(options []optiongroup.Option) *optiongroup.Builder {
+	return optiongroup.NewBuilder(options)
+}
+
+// Cascader creates a cascader with hierarchical options.
+func Cascader(options []cascader.Option) rtui.VNode {
+	return cascader.NewBuilder().Options(options).Build()
+}
+
+// AnchorNav creates an anchor navigation component from the provided items.
+func AnchorNav(items []anchorcomp.Item) rtui.VNode {
+	return anchorcomp.Of(items)
+}
+
+// Transfer creates a transfer component from the provided items.
+func Transfer(items []transfer.Item) rtui.VNode {
+	return transfer.Of(items)
+}
+
+// Space creates a horizontal spacing layout from the provided children.
+func Space(children ...rtui.VNode) rtui.VNode {
+	return spacecomp.NewBuilder().Children(children...).Build()
+}
+
+// Layout creates a layout shell with a single content section.
+func Layout(content rtui.VNode) rtui.VNode {
+	return layoutcomp.NewBuilder().Content(content).Build()
 }
 
 // Button shortcuts
@@ -336,6 +951,59 @@ func TextColored(content string, fg style.Color) rtui.VNode {
 	return text.Colored(content, fg)
 }
 
+// StatusBarText creates a plain status bar section.
+func StatusBarText(content string) statusbar.Section {
+	return statusbar.Text(content)
+}
+
+// StatusBarActionText creates a clickable plain status bar section.
+func StatusBarActionText(content string, pressIntent intent.Intent) statusbar.Section {
+	return statusbar.ActionText(content, pressIntent)
+}
+
+func StatusBarSections(sections ...statusbar.Section) []statusbar.Section {
+	return statusbar.Sections(sections...)
+}
+
+// StatusBarBadge creates a highlighted status bar section.
+func StatusBarBadge(content, fgColor, bgColor string) statusbar.Section {
+	return statusbar.Badge(content, fgColor, bgColor)
+}
+
+// StatusBarActionBadge creates a clickable highlighted status bar section.
+func StatusBarActionBadge(content, fgColor, bgColor string, pressIntent intent.Intent) statusbar.Section {
+	return statusbar.ActionBadge(content, fgColor, bgColor, pressIntent)
+}
+
+// StatusBarHelp creates a help/tooltip text for a section.
+func StatusBarHelp(section statusbar.Section, helpText string) statusbar.Section {
+	return section.WithHelp(helpText)
+}
+
+// StatusBarThemeDefault returns the default status bar theme.
+func StatusBarThemeDefault() statusbar.Theme {
+	return statusbar.DefaultTheme()
+}
+
+// StatusBarThemeMuted returns the muted status bar theme.
+func StatusBarThemeMuted() statusbar.Theme {
+	return statusbar.MutedTheme()
+}
+
+// StatusBarThemeContrast returns the contrast status bar theme.
+func StatusBarThemeContrast() statusbar.Theme {
+	return statusbar.ContrastTheme()
+}
+
+func StatusBarWithTheme(theme statusbar.Theme, left, center, right []statusbar.Section) rtui.VNode {
+	return statusbar.NewBuilder().
+		Theme(theme).
+		LeftSections(left...).
+		CenterSections(center...).
+		RightSections(right...).
+		Build()
+}
+
 // TextAlign creates a text VNode with horizontal alignment
 func TextAlign(content string, align string) rtui.VNode {
 	var a rtui.Align
@@ -360,6 +1028,56 @@ func TextRight(content string) rtui.VNode {
 	return TextAlign(content, "right")
 }
 
+// Badge creates an inline badge with a numeric count.
+func Badge(label string, count int) rtui.VNode {
+	return badge.NewBuilder(label).Count(count).Build()
+}
+
+// Collapse creates a collapse component from items.
+func Collapse(items []collapse.Item) rtui.VNode {
+	return collapse.Of(items)
+}
+
+// Descriptions creates a descriptions component from items.
+func Descriptions(items []descriptions.Item) rtui.VNode {
+	return descriptions.Of(items)
+}
+
+// Timeline creates a timeline component from items.
+func Timeline(items []timeline.Item) rtui.VNode {
+	return timeline.Of(items)
+}
+
+// Result creates a result component with status, title, and subtitle.
+func Result(status result.Status, title, subtitle string) rtui.VNode {
+	return result.New().SetStatus(status).SetTitle(title).SetSubtitle(subtitle)
+}
+
+// Popover creates a popover component with anchor, title, and body.
+func Popover(anchor rtui.VNode, title, body string) rtui.VNode {
+	return popover.New(anchor).SetTitle(title).SetBody(body)
+}
+
+// Popconfirm creates a popconfirm component with anchor, title, and description.
+func Popconfirm(anchor rtui.VNode, title, description string) rtui.VNode {
+	return popconfirm.New(anchor).SetTitle(title).SetDescription(description)
+}
+
+// Statistic creates a statistic component with title and value.
+func Statistic(title string, value interface{}) rtui.VNode {
+	return statistic.New().SetTitle(title).SetValue(value)
+}
+
+// Alert creates an inline alert with a message.
+func Alert(message string) rtui.VNode {
+	return alert.NewBuilder(message).Build()
+}
+
+// Notification creates a notification with a message.
+func Notification(message string) rtui.VNode {
+	return notification.NewBuilder(message).Build()
+}
+
 // Progress shortcuts
 
 // Progress creates a progress bar
@@ -370,6 +1088,26 @@ func Progress(value, max int) rtui.VNode {
 // ProgressPercent creates a progress bar with percentage
 func ProgressPercent(percent int) rtui.VNode {
 	return progress.NewBuilder().Value(percent).Max(100).Build()
+}
+
+// Clock creates a realtime clock with the requested radius.
+func Clock(radius int) rtui.VNode {
+	return clock.NewBuilder().Radius(radius).Build()
+}
+
+// Spin creates a spinner with an optional tip.
+func Spin(tip string) rtui.VNode {
+	return spin.NewBuilder().Tip(tip).Build()
+}
+
+// Steps creates a steps component from items.
+func Steps(items []steps.Item) rtui.VNode {
+	return steps.NewBuilder().Items(items).Build()
+}
+
+// Tag creates a tag with text.
+func Tag(text string) rtui.VNode {
+	return tag.NewBuilder(text).Build()
 }
 
 // Wrap shortcuts
@@ -516,6 +1254,22 @@ func TableOf(columns []string, rows [][]string) rtui.VNode {
 	return table.Of(cols, rows)
 }
 
+// Pagination shortcuts
+
+// Pagination creates a pagination component builder.
+func Pagination() *pagination.Builder {
+	return pagination.NewBuilder()
+}
+
+// PaginationOf creates a pagination component with the provided state.
+func PaginationOf(total, pageSize, currentPage int) rtui.VNode {
+	return pagination.NewBuilder().
+		Total(total).
+		PageSize(pageSize).
+		CurrentPage(currentPage).
+		Build()
+}
+
 // TreeView shortcuts
 
 // TreeView creates a tree view
@@ -535,9 +1289,9 @@ func VirtualList() *virtuallist.Builder {
 	return virtuallist.NewBuilder()
 }
 
-// VirtualListOfSize creates a virtual list with items
+// VirtualListOfSize creates a virtual list with items and explicit dimensions.
 func VirtualListOfSize(items []string, width, height int) rtui.VNode {
-	return virtuallist.Of(items)
+	return virtuallist.OfSize(items, width, height)
 }
 
 // =============================================================================
@@ -549,6 +1303,11 @@ func Tabs(tabItems []tabs.TabItem) rtui.VNode {
 	return tabs.Of(tabItems)
 }
 
+// Breadcrumb creates a breadcrumb component from the provided items.
+func Breadcrumb(items []breadcrumb.Item) rtui.VNode {
+	return breadcrumb.Of(items)
+}
+
 // =============================================================================
 // Divider shortcuts
 // =============================================================================
@@ -556,6 +1315,15 @@ func Tabs(tabItems []tabs.TabItem) rtui.VNode {
 // Divider creates a simple horizontal divider
 func Divider() rtui.VNode {
 	return divider.D()
+}
+
+// Empty creates an empty-state component with an optional description override.
+func Empty(description string) rtui.VNode {
+	builder := empty.NewBuilder()
+	if description != "" {
+		builder.Description(description)
+	}
+	return builder.Build()
 }
 
 // DividerWithLabel creates a horizontal divider with label
@@ -590,6 +1358,16 @@ func ModalOfSize(content rtui.VNode, width, height int) rtui.VNode {
 	return modal.OfSize(content, width, height)
 }
 
+// Drawer creates a drawer with the provided content.
+func Drawer(content rtui.VNode) rtui.VNode {
+	return drawer.Of(content)
+}
+
+// DrawerTitled creates a titled drawer.
+func DrawerTitled(title string, content rtui.VNode) rtui.VNode {
+	return drawer.Titled(title, content)
+}
+
 // ModalTitled creates a modal with title
 func ModalTitled(title string, content rtui.VNode) rtui.VNode {
 	return modal.Titled(title, content)
@@ -597,12 +1375,32 @@ func ModalTitled(title string, content rtui.VNode) rtui.VNode {
 
 // ModalAlert creates an alert modal dialog
 func ModalAlert(title, message string) rtui.VNode {
-	return modal.Alert(title, message)
+	return modal.Alert(title, message).Build()
 }
 
 // ModalConfirm creates a confirm modal dialog
 func ModalConfirm(title, message string) rtui.VNode {
-	return modal.Confirm(title, message)
+	return modal.Confirm(title, message).Build()
+}
+
+// ModalInfo creates an informational modal dialog.
+func ModalInfo(message string) rtui.VNode {
+	return modal.Info(message).Build()
+}
+
+// ModalSuccess creates a success modal dialog.
+func ModalSuccess(message string) rtui.VNode {
+	return modal.Success(message).Build()
+}
+
+// ModalWarning creates a warning modal dialog.
+func ModalWarning(message string) rtui.VNode {
+	return modal.Warning(message).Build()
+}
+
+// ModalError creates an error modal dialog.
+func ModalError(message string) rtui.VNode {
+	return modal.Error(message).Build()
 }
 
 // =============================================================================
@@ -796,24 +1594,29 @@ func PureComponentWithProps(name string, fn rtui.ComponentFuncWithProps) rtui.VN
 // Toast Notifications shortcuts
 // =============================================================================
 
+// Toast creates a default info toast notification.
+func Toast(message string) rtui.VNode {
+	return toast.Toast(message)
+}
+
 // ToastInfo creates an info toast notification
 func ToastInfo(message string) rtui.VNode {
-	return tooltip.Info(message)
+	return toast.Info(message)
 }
 
 // ToastSuccess creates a success toast notification
 func ToastSuccess(message string) rtui.VNode {
-	return tooltip.Success(message)
+	return toast.Success(message)
 }
 
 // ToastWarning creates a warning toast notification
 func ToastWarning(message string) rtui.VNode {
-	return tooltip.Warning(message)
+	return toast.Warning(message)
 }
 
 // ToastError creates an error toast notification
 func ToastError(message string) rtui.VNode {
-	return tooltip.Error(message)
+	return toast.Error(message)
 }
 
 // Tooltip shortcut

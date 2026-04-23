@@ -304,4 +304,4 @@ func HoverButton() ui.VNode {
 
 - [组件开发指南](../guide/component-development-guide.md)
 - [内存安全工具](./memory-safety.md)
-- [组件状态持久化](../issue/2026-02-01-component-state-persistence.md)
+- [组件状态持久化](/docsArchive/issue/2026-02-01-component-state-persistence.md)

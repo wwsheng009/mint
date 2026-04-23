@@ -498,4 +498,4 @@ func TestSandboxIntegration(t *testing.T) {
 - framework/app.go - 添加 NewAppWithSource()
 - ui/test.go - 添加 RunTestWithSandbox() 和 GetSandbox()
 - framework/event/pump.go - 并发安全修复
-- ui/test_integration_test.go - 测试验证
+- sandbox/events_test.go - 测试验证

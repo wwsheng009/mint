@@ -335,7 +335,7 @@ func (e *PaintEngine) PaintLayers(layouts LayerLayouts, buffer Buffer) {
 
 **修复**：
 ```go
-// runtime/compute/engine.go - getChildConstraints()
+// runtime/layout/layout_engine.go - getChildConstraints()
 case "vstack":
     // ...
     // Non-flex child
@@ -380,7 +380,7 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 遵循"layout不参与计算"的设计原则，由Engine负责处理Props并创建约束：
 
 ```go
-// runtime/compute/engine.go - measureVNode()
+// runtime/layout/layout_engine.go - measureVNode()
 func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
     // SPECIAL CASE: Bordered nodes use Engine's measureBordered
     if isBordered(vnode) {
@@ -389,7 +389,7 @@ func (e *Engine) measureVNode(vnode VNode, constraints runtime.BoxConstraints) r
     // ...
 }
 
-// runtime/compute/engine.go - measureBordered()
+// runtime/layout/layout_engine.go - measureBordered()
 func (e *Engine) measureBordered(vnode VNode, constraints runtime.BoxConstraints) runtime.Size {
     // 检查 Props["width"]
     if props := vnode.Props(); props != nil {
@@ -712,7 +712,7 @@ runtime/layer/
 
 ui/layer.go          # Layer API - Modal, Overlay, Tooltip 构建器
 
-runtime/compute/engine.go  # ComputeEngine - 布局计算引擎
+runtime/layout/layout_engine.go  # ComputeEngine - 布局计算引擎
 runtime/ui/layout.go       # LayoutNode - 布局节点实现
 ```
 
@@ -721,7 +721,7 @@ runtime/ui/layout.go       # LayoutNode - 布局节点实现
 #### Collector.Collect()
 
 ```go
-// runtime/layer/collector.go
+// internal/render/rendering_pipeline.go
 func (c *Collector) Collect(vnode VNode) {
     c.layers.Clear()      // 清空之前的收集
     c.walk(vnode)         // 递归遍历
@@ -731,7 +731,7 @@ func (c *Collector) Collect(vnode VNode) {
 #### Collector.StripLayers()
 
 ```go
-// runtime/layer/collector.go
+// internal/render/rendering_pipeline.go
 func (c *Collector) StripLayers(vnode VNode) VNode {
     // 返回移除了 layer 节点的基础树
     // 这是纯净的基础内容，不包含任何 layer 节点
@@ -741,7 +741,7 @@ func (c *Collector) StripLayers(vnode VNode) VNode {
 #### LayerManager.layoutLayer()
 
 ```go
-// runtime/layer/manager.go
+// runtime/layout/layer_manager.go
 func (m *Manager) layoutLayer(
     node *LayerNode,
     layer Layer,
@@ -758,7 +758,7 @@ func (m *Manager) layoutLayer(
 #### ComputeEngine.getChildConstraints()
 
 ```go
-// runtime/compute/engine.go
+// runtime/layout/layout_engine.go
 func (e *Engine) getChildConstraints(
     parent, child VNode,
     parentConstraints BoxConstraints,

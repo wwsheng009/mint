@@ -1,0 +1,13 @@
+Charts Bar Label Fold Fixture
+Dense Vertical Labels
+    █
+█   █
+█ █ █
+█ █ █
+─────
+N L A
+Dense Horizontal Labels
+NA    ████
+
+LA    ███
+      ────

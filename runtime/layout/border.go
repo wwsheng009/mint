@@ -123,12 +123,15 @@ func (b Border) ContentOffset() (x, y int) {
 }
 
 // LabelPadding returns the extra horizontal padding needed for labels
-// Labels require an additional 2 characters of horizontal space for visual balance
+// DEPRECATED: This value should NOT be used for width calculation.
+// The border.Render method automatically expands the border to fit the label
+// when label is wider than content. Use HorizontalPadding() instead.
+// Keeping this method for backward compatibility with TotalHorizontalPadding().
 func (b Border) LabelPadding() int {
 	if !b.HasBorder() || b.Label == "" {
 		return 0
 	}
-	return 2
+	return 0 // Changed from 2 to 0 - label width is handled by renderer expansion
 }
 
 // TotalHorizontalPadding returns the total horizontal space taken by border including label

@@ -5,21 +5,80 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// 自定义 Intent 类型 - 用于计时器控制
+// =============================================================================
+// AppState - Timer 状态
+// =============================================================================
+
+type AppState struct {
+	Elapsed int  // 经过的秒数
+	Running bool // 是否正在运行
+}
+
+// =============================================================================
+// Intent Types
+// =============================================================================
+
 type StartTimerIntent struct{}
 func (StartTimerIntent) IntentType() string { return "StartTimer" }
 func (StartTimerIntent) StayPressed() bool  { return true }
 
 type StopTimerIntent struct{}
-func (StopTimerIntent) IntentType() string { return "StopTimer" }
-func (StopTimerIntent) StayPressed() bool  { return true }
+func (StopTimerIntent) IntentType() string  { return "StopTimer" }
+func (StopTimerIntent) StayPressed() bool   { return true }
 
 type ResetTimerIntent struct{}
 func (ResetTimerIntent) IntentType() string { return "ResetTimer" }
 func (ResetTimerIntent) StayPressed() bool  { return true }
+
+type TickTimerIntent struct{}
+func (TickTimerIntent) IntentType() string  { return "TickTimer" }
+func (TickTimerIntent) StayPressed() bool   { return false } // 非用户操作
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var timerStore = store.NewStore(AppState{
+	Elapsed: 0,
+	Running: false,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(StartTimerIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Running = true
+			return s
+		}).
+		On(StopTimerIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Running = false
+			return s
+		}).
+		On(ResetTimerIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Running = false
+			s.Elapsed = 0
+			return s
+		}).
+		On(TickTimerIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Running {
+				s.Elapsed++
+			}
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), timerStore)
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 func formatDuration(d time.Duration) string {
 	hours := int(d.Hours())
@@ -32,19 +91,36 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
-func TimerDemo() ui.VNode {
-	// 1. 定义状态（hooks 必须在顶部）
-	elapsed, setElapsed, _ := ui.UseStateInt(0) // 经过的秒数
-	running, setRunning := ui.UseStateBool(false)
+// =============================================================================
+// Main
+// =============================================================================
 
-	// 2. 使用 Effect 实现定时器
+func main() {
+	err := ui.Run(TimerDemo,
+		ui.WithWidth(50),
+		ui.WithHeight(14),
+		ui.WithTitle("Timer Demo (Store 模式)"),
+	)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// =============================================================================
+// Timer Demo Component
+// =============================================================================
+
+func TimerDemo() ui.VNode {
+	// ✅ 订阅 timer 状态
+	elapsed := ui.UseStoreSelector(timerStore, func(s AppState) int { return s.Elapsed })
+	running := ui.UseStoreSelector(timerStore, func(s AppState) bool { return s.Running })
+
+	// ✅ UseEffect 实现定时器 - 依赖 running 状态
 	ui.UseEffect(func() ui.CleanupFunc {
 		if !running {
-			// 定时器未运行，返回空清理函数
 			return func() {}
 		}
 
-		// 启动 ticker
 		ticker := time.NewTicker(time.Second)
 		done := make(chan struct{})
 
@@ -52,8 +128,11 @@ func TimerDemo() ui.VNode {
 			for {
 				select {
 				case <-ticker.C:
-					// 每秒更新 elapsed
-					setElapsed(func(e int) int { return e + 1 })
+					// ✅ 通过 Store 更新状态
+					timerStore.Update(func(s AppState) AppState {
+						s.Elapsed++
+						return s
+					})
 				case <-done:
 					ticker.Stop()
 					return
@@ -61,48 +140,12 @@ func TimerDemo() ui.VNode {
 			}
 		}()
 
-		// 清理函数：停止 ticker
 		return func() {
 			close(done)
 		}
-	}, []interface{}{running}) // 依赖 running 状态
+	}, []interface{}{running})
 
-	// 3. 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setRunning"] = setRunning
-		ctx.GlobalState["setElapsed"] = setElapsed
-	}
-
-	// 4. 注册 Intent handler
-	ui.On(StartTimerIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setRunning"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(true)
-			}
-		}
-	})
-	ui.On(StopTimerIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setRunning"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(false)
-			}
-		}
-	})
-	ui.On(ResetTimerIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setRunning"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(false)
-			}
-		}
-		if fn, ok := actx.GetState("setElapsed"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(0)
-			}
-		}
-	})
-
-	// 4. 计算显示状态
+	// 计算显示状态
 	elapsedDuration := time.Duration(elapsed) * time.Second
 	timeStr := formatDuration(elapsedDuration)
 
@@ -113,7 +156,6 @@ func TimerDemo() ui.VNode {
 		statusColor = "green"
 	}
 
-	// 5. 返回 VNode
 	return ui.VStack(
 		ui.NewTextBuilder("⏱ Timer").Bold(true).FgColor("cyan").Build(),
 		ui.Text(""),
@@ -131,15 +173,4 @@ func TimerDemo() ui.VNode {
 		ui.Text(""),
 		ui.NewTextBuilder("Tab: focus | Enter: click | q: quit").FgColor("bright-black").Build(),
 	)
-}
-
-func main() {
-	err := ui.Run(TimerDemo,
-		ui.WithWidth(50),
-		ui.WithHeight(14),
-		ui.WithTitle("Timer Demo"),
-	)
-	if err != nil {
-		panic(err)
-	}
 }

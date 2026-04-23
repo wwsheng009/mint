@@ -15,12 +15,13 @@ func TestOverlayTabsMouse(t *testing.T) {
 	si.Enable()
 	si.ToggleVisibility() // make visible
 
-	// Default position (0,0), overlayWidth/Height default from constructor (80,25).
+	// Default position (80,5), overlayWidth/Height default from constructor (80,25).
 	// Tab bar rendered at localY = 1. Click on second tab label.
 	// Tab rendering: "[Elements(1)] | Console(2) | ..."
 	// Position: Elements=[0,13), sep=[13,16), Console=[16,27)
-	x := 18 // position inside "Console(2)" label
-	y := 1
+	// Global coords = floatX + localX = 80+18 = 98, floatY + localY = 5+1 = 6
+	x := 80 + 18 // position inside "Console(2)" label (global coords)
+	y := 5 + 1
 
 	ev := &frameworkevent.MouseEvent{
 		BaseEvent: frameworkevent.NewBaseEvent(event.EventMousePress),

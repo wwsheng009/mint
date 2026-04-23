@@ -1,0 +1,11 @@
+Charts ScatterPlot Fixture
+ScatterPlot Density
+● API
+◆ Worker
+  ┆  ┆ ┆ ●
+┈┈┈┈●┈┈┈┈┈◆
+┈●┈┈┈┈┈◆┈┈┈
+┈◆┈◆┈┈┈┈┈┈┈
+● ┆  ┆ ┆
+───────────
+x:1..8 y:2..9

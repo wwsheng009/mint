@@ -23,32 +23,24 @@ func (a *App) registerInspectorHook(inspector interface{}) {
 
 	// Get the root's renderer (which should be a PipelineRendererAdapter)
 	if a.root == nil {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Cannot register Inspector hook: root not set")
-		}
+			log.UILogger.IfEnabled().Debug("[APP] Cannot register Inspector hook: root not set")
 		return
 	}
 
 	// Try to get HookManager from the root node
 	hookManager := a.getHookManager()
 	if hookManager == nil {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Cannot register Inspector hook: no HookManager found")
-		}
+		  log.UILogger.IfEnabled().Debug("[APP] Cannot register Inspector hook: no HookManager found")
 		return
 	}
 
 	// Register hook using interface to avoid import cycle
 	if registrar, ok := inspector.(HookRegistrar); ok {
 		registrar.RegisterWithHookManager(hookManager)
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector hook registered via HookRegistrar interface")
-		}
+		  log.UILogger.IfEnabled().Debug("[APP] Inspector hook registered via HookRegistrar interface")
 	} else {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector does not implement HookRegistrar interface")
-			log.UILogger.Debug("[APP] Inspector will not be automatically injected into render tree")
-		}
+		  log.UILogger.IfEnabled().Debug("[APP] Inspector does not implement HookRegistrar interface")
+  log.UILogger.IfEnabled().Debug("[APP] Inspector will not be automatically injected into render tree")
 	}
 }
 
@@ -57,13 +49,13 @@ func (a *App) registerInspectorHook(inspector interface{}) {
 func (a *App) getHookManager() interface{} {
 	if a.root == nil {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] getHookManager: root is nil")
+			log.UILogger.IfEnabled().Debug("[APP] getHookManager: root is nil")
 		}
 		return nil
 	}
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] getHookManager: root type=%T", a.root)
+		log.UILogger.IfEnabled().Debug("[APP] getHookManager: root type=%T", a.root)
 	}
 
 	// Use reflection to call GetHooks() method dynamically
@@ -73,27 +65,27 @@ func (a *App) getHookManager() interface{} {
 
 	if !getHooksMethod.IsValid() {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] getHookManager: root does not have GetHooks() method")
+			log.UILogger.IfEnabled().Debug("[APP] getHookManager: root does not have GetHooks() method")
 		}
 		return nil
 	}
 
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] getHookManager: found GetHooks() method via reflection")
+		log.UILogger.IfEnabled().Debug("[APP] getHookManager: found GetHooks() method via reflection")
 	}
 
 	// Call GetHooks() method (no parameters, returns interface{})
 	results := getHooksMethod.Call(nil)
 	if len(results) == 0 {
 		if os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[APP] getHookManager: GetHooks() returned no value")
+			log.UILogger.IfEnabled().Debug("[APP] getHookManager: GetHooks() returned no value")
 		}
 		return nil
 	}
 
 	hooks := results[0].Interface()
 	if os.Getenv("TUI_DEBUG_UI") == "true" {
-		log.UILogger.Debug("[APP] getHookManager: got hooks type=%T", hooks)
+		log.UILogger.IfEnabled().Debug("[APP] getHookManager: got hooks type=%T", hooks)
 	}
 
 	return hooks

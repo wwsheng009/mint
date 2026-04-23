@@ -11,42 +11,45 @@ import (
 // SetupBuiltinHandlers registers handlers for all built-in intent types.
 // This should be called during application initialization.
 //
+// All builtin handlers are marked as OVERRIDABLE, allowing applications using
+// Store + Reducer pattern to customize the behavior.
+//
 // Example:
 //
 //	rt := intent.NewRuntime()
 //	intent.SetupBuiltinHandlers(rt)
 func SetupBuiltinHandlers(rt *Runtime) {
-	// State handlers
-	RegisterTypedRuntime(rt, handleSetState)
-	RegisterTypedRuntime(rt, handleToggle)
-	RegisterTypedRuntime(rt, handleIncrement)
+	// State handlers (overridable for Store-based apps)
+	RegisterTypedRuntimeWithOpts(rt, handleSetState, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleToggle, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleIncrement, WithOverridable(true))
 
-	// Navigation handlers
-	RegisterTypedRuntime(rt, handleNavigate)
+	// Navigation handlers (overridable)
+	RegisterTypedRuntimeWithOpts(rt, handleNavigate, WithOverridable(true))
 
-	// Focus handlers
-	RegisterTypedRuntime(rt, handleFocus)
-	RegisterTypedRuntime(rt, handleBlur)
+	// Focus handlers (overridable)
+	RegisterTypedRuntimeWithOpts(rt, handleFocus, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleBlur, WithOverridable(true))
 
-	// Modal handlers
-	RegisterTypedRuntime(rt, handleOpenModal)
-	RegisterTypedRuntime(rt, handleCloseModal)
+	// Modal handlers (overridable - critical for Store-based modal state)
+	RegisterTypedRuntimeWithOpts(rt, handleOpenModal, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleCloseModal, WithOverridable(true))
 
-	// Tooltip handlers
-	RegisterTypedRuntime(rt, handleShowTooltip)
-	RegisterTypedRuntime(rt, handleHideTooltip)
+	// Tooltip handlers (overridable)
+	RegisterTypedRuntimeWithOpts(rt, handleShowTooltip, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleHideTooltip, WithOverridable(true))
 
-	// Form handlers
-	RegisterTypedRuntime(rt, handleSubmitForm)
-	RegisterTypedRuntime(rt, handleValidateForm)
+	// Form handlers (overridable)
+	RegisterTypedRuntimeWithOpts(rt, handleSubmitForm, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleValidateForm, WithOverridable(true))
 
 	// ✨ MVP: Field Change handler - marked as overridable
 	// Users can override this with their own Store-based handler
 	RegisterTypedWithOpts(rt.Registry, handleFieldChange, WithOverridable(true))
 
-	// Data handlers (async)
-	RegisterTypedRuntime(rt, handleLoadData)
-	RegisterTypedRuntime(rt, handleRefresh)
+	// Data handlers (overridable)
+	RegisterTypedRuntimeWithOpts(rt, handleLoadData, WithOverridable(true))
+	RegisterTypedRuntimeWithOpts(rt, handleRefresh, WithOverridable(true))
 }
 
 // =============================================================================

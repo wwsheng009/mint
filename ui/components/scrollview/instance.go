@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -18,18 +19,20 @@ import (
 // Instance manages scrollview runtime state and behavior.
 type Instance struct {
 	// === Props (from VNode) ===
-	child         rtui.VNode
-	width         int
-	height        int
-	scrollOffset  int
-	showBorder    bool
-	showIndicator bool
-	instStyle     style.Style
+	child                  rtui.VNode
+	width                  int
+	height                 int
+	scrollOffset           int
+	scrollOffsetControlled bool
+	showBorder             bool
+	showIndicator          bool
+	instStyle              style.Style
 
 	// === Runtime State ===
-	dirty      bool
-	bounds     [4]int // x, y, w, h
-	totalLines int    // total content lines
+	dirty                   bool
+	bounds                  [4]int // x, y, w, h
+	totalLines              int    // total content lines
+	scrollOffsetInitialized bool
 
 	// === Cached Content ===
 	contentLines []string // cached content lines
@@ -37,10 +40,12 @@ type Instance struct {
 
 // Ensure Instance implements required interfaces
 var (
-	_ rtui.ComponentInstance        = (*Instance)(nil)
-	_ rtui.PaintableInstance        = (*Instance)(nil)
+	_ rtui.ComponentInstance = (*Instance)(nil)
+	_ rtui.PaintableInstance = (*Instance)(nil)
 	// Note: control.Instance intentionally not implemented - ScrollView doesn't need behaviors
-	_ interface{ Measure(layout.Constraints) layout.Size } = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // =============================================================================
@@ -63,31 +68,56 @@ func NewInstance(props rtui.Props) *Instance {
 
 // SetProps sets properties from VNode.
 func (inst *Instance) SetProps(props rtui.Props) bool {
+	oldChild := inst.child
+	oldWidth := inst.width
+	oldHeight := inst.height
+	oldScrollOffset := inst.scrollOffset
+	oldScrollOffsetControlled := inst.scrollOffsetControlled
+	oldShowBorder := inst.showBorder
+	oldShowIndicator := inst.showIndicator
+	oldStyle := inst.instStyle
+
 	inst.dirty = true
 
-	if val, ok := props["style"].(style.Style); ok {
+	if val, ok := props[propStyle].(style.Style); ok {
 		inst.instStyle = val
 	}
-	if val, ok := props["width"].(int); ok {
+	if val, ok := props[propWidth].(int); ok {
 		inst.width = val
 	}
-	if val, ok := props["height"].(int); ok {
+	if val, ok := props[propHeight].(int); ok {
 		inst.height = val
 	}
-	if val, ok := props["scrollOffset"].(int); ok {
-		inst.scrollOffset = val
+	if val, ok := props[propScrollOffsetControlled].(bool); ok {
+		inst.scrollOffsetControlled = val
 	}
-	if val, ok := props["showBorder"].(bool); ok {
+	if inst.scrollOffsetControlled {
+		if val, ok := props[propScrollOffset].(int); ok {
+			inst.scrollOffset = val
+		}
+		inst.scrollOffsetInitialized = true
+	} else if val, ok := props[propScrollOffset].(int); ok && !inst.scrollOffsetInitialized {
+		inst.scrollOffset = val
+		inst.scrollOffsetInitialized = true
+	}
+	if val, ok := props[propShowBorder].(bool); ok {
 		inst.showBorder = val
 	}
-	if val, ok := props["showIndicator"].(bool); ok {
+	if val, ok := props[propShowIndicator].(bool); ok {
 		inst.showIndicator = val
 	}
-	if val, ok := props["child"].(rtui.VNode); ok {
+	if val, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = val
 		inst.extractContent()
 	}
-	return true
+	return oldChild != inst.child ||
+		oldWidth != inst.width ||
+		oldHeight != inst.height ||
+		oldScrollOffset != inst.scrollOffset ||
+		oldScrollOffsetControlled != inst.scrollOffsetControlled ||
+		oldShowBorder != inst.showBorder ||
+		oldShowIndicator != inst.showIndicator ||
+		oldStyle != inst.instStyle
 }
 
 // GetStyle returns the instance style.
@@ -114,16 +144,18 @@ func (inst *Instance) IsDirty() bool {
 // Clone creates a copy of the instance.
 func (inst *Instance) Clone() rtui.ComponentInstance {
 	return &Instance{
-		child:         inst.child,
-		width:         inst.width,
-		height:        inst.height,
-		scrollOffset:  inst.scrollOffset,
-		showBorder:    inst.showBorder,
-		showIndicator: inst.showIndicator,
-		instStyle:     inst.instStyle,
-		dirty:         true,
-		totalLines:    inst.totalLines,
-		contentLines:  inst.contentLines,
+		child:                   inst.child,
+		width:                   inst.width,
+		height:                  inst.height,
+		scrollOffset:            inst.scrollOffset,
+		scrollOffsetControlled:  inst.scrollOffsetControlled,
+		showBorder:              inst.showBorder,
+		showIndicator:           inst.showIndicator,
+		instStyle:               inst.instStyle,
+		dirty:                   true,
+		totalLines:              inst.totalLines,
+		scrollOffsetInitialized: inst.scrollOffsetInitialized,
+		contentLines:            inst.contentLines,
 	}
 }
 
@@ -164,11 +196,12 @@ func (inst *Instance) OnUnmount() {
 // GetProps returns current props.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"width":         inst.width,
-		"height":        inst.height,
-		"scrollOffset":  inst.scrollOffset,
-		"showBorder":    inst.showBorder,
-		"showIndicator": inst.showIndicator,
+		propWidth:                  inst.width,
+		propHeight:                 inst.height,
+		propScrollOffset:           inst.scrollOffset,
+		propScrollOffsetControlled: inst.scrollOffsetControlled,
+		propShowBorder:             inst.showBorder,
+		propShowIndicator:          inst.showIndicator,
 	}
 }
 
@@ -567,7 +600,7 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 	switch act.Type {
 	case action.ActionScroll:
-		if delta, ok := act.GetPayloadInt(); ok {
+		if delta, ok := scrollutil.DeltaFromAction(act); ok {
 			inst.ScrollBy(delta)
 			return true
 		}

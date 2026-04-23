@@ -1,0 +1,13 @@
+Charts Candlestick Fixture
+Candlestick Trend
+▓ Up
+█ Down
+■ Flat
+    │
+│┈│┈│┈┈
+▓┈█┈│┈▓
+▓┈█┈■┈▓
+▓ │ │ │
+│
+───────
+M T W T

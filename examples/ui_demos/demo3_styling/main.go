@@ -1,4 +1,4 @@
-// Demo 3: Styling System (TUI CSS)
+// Demo 3: Styling System (TUI CSS) (Store 模式)
 //
 // This demo demonstrates the styling system, which is essentially
 // CSS Box Model + Terminal color/attribute system + inheritance rules.
@@ -16,21 +16,43 @@ package main
 
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Intent Types
-type SetStylingTabIntent struct {
-	TabID string
+const stylingTabsComponentID = "styling-demo-tabs"
+
+// AppState - 定义应用状态
+type AppState struct {
+	CurrentTab string // 当前标签: colors, attributes, borders...
 }
-func (SetStylingTabIntent) IntentType() string { return "SetStylingTab" }
-func (SetStylingTabIntent) StayPressed() bool  { return true }
+
+// Store 初始化
+var stylingStore = store.NewStore(AppState{
+	CurrentTab: "colors",
+})
+
+// Reducer 注册
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != stylingTabsComponentID {
+				return s
+			}
+			s.CurrentTab = change.TabID
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), stylingStore)
+}
 
 func main() {
 	err := ui.Run(StylingDemo,
 		ui.WithWidth(100),
 		ui.WithHeight(40),
-		ui.WithTitle("Mint TUI - Styling System"),
+		ui.WithTitle("Mint TUI - Styling System (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
@@ -39,22 +61,8 @@ func main() {
 
 // StylingDemo is the root component
 func StylingDemo() ui.VNode {
-	currentTab, setCurrentTab := ui.UseStateString("colors")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCurrentTab"] = setCurrentTab
-	}
-
-	// Register tab change handler
-	ui.On(SetStylingTabIntent{TabID: currentTab}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentTab"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(currentTab)
-			}
-		}
-	})
+	// ✅ 订阅 currentTab 状态
+	currentTab := ui.UseStoreSelector(stylingStore, func(s AppState) string { return s.CurrentTab })
 
 	return ui.VStack(
 		HeaderPanel(),
@@ -90,38 +98,23 @@ func HeaderPanel() ui.VNode {
 
 // TabNavigation provides tab buttons
 func TabNavigation(currentTab string) ui.VNode {
-	tabs := []struct {
-		id    string
-		label string
-		color string
-	}{
-		{"colors", "Colors", "red"},
-		{"attributes", "Attributes", "yellow"},
-		{"borders", "Borders", "green"},
-		{"inheritance", "Inheritance", "blue"},
-		{"themes", "Themes", "magenta"},
-	}
-
-	var children []ui.VNode
-	for _, tab := range tabs {
-		isActive := currentTab == tab.id
-		var btn ui.VNode
-		if isActive {
-			btn = ui.NewButtonBuilder("[" + tab.label + "]").
-				BgColor(tab.color).
-				FgColor("white").
-				OnPress(SetStylingTabIntent{TabID: tab.id}).
-				Build()
-		} else {
-			btn = ui.NewButtonBuilder(" " + tab.label + " ").
-				FgColor(tab.color).
-				OnPress(SetStylingTabIntent{TabID: tab.id}).
-				Build()
-		}
-		children = append(children, btn, ui.Text(" "))
-	}
-
-	return ui.HStack(children...)
+	return ui.NewTabsBuilder().
+		ComponentID(stylingTabsComponentID).
+		Tabs([]ui.TabItem{
+			ui.NewTabItem("colors", "Colors").WithIcon("C").WithHotkey('c'),
+			ui.NewTabItem("attributes", "Attributes").WithIcon("A").WithHotkey('a'),
+			ui.NewTabItem("borders", "Borders").WithIcon("B").WithHotkey('b'),
+			ui.NewTabItem("inheritance", "Inheritance").WithIcon("I").WithHotkey('i'),
+			ui.NewTabItem("themes", "Themes").WithIcon("T").WithHotkey('t'),
+		}).
+		ActiveTabID(currentTab).
+		ShowHotkeys(true).
+		LoopNavigation(true).
+		Width(92).
+		Divider("  ").
+		Style(style.NewStyle().Foreground(style.BrightBlue)).
+		ActiveTabStyle(style.NewStyle().Foreground(style.White).Background(style.Magenta).Bold(true)).
+		Build()
 }
 
 // renderTabContent renders the selected tab content
@@ -465,11 +458,11 @@ func InheritanceTab() ui.VNode {
 // ThemesTab demonstrates theme system
 func ThemesTab() ui.VNode {
 	themes := []struct {
-		name     string
-		primary  string
+		name      string
+		primary   string
 		secondary string
-		bg       string
-		fg       string
+		bg        string
+		fg        string
 	}{
 		{"Default", "blue", "cyan", "black", "white"},
 		{"Dark", "bright-blue", "bright-cyan", "black", "bright-white"},

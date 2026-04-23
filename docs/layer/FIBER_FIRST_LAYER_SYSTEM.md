@@ -1097,13 +1097,13 @@ fmt.Printf("Fiber Layer: %v (%d)\n", layer, layer.ZIndex())
 
 ### 用户文档
 
-- `ui/components/tooltip/layer_demo.go` - Tooltip Layer 使用示例
+- `ui/components/tooltip/layer_demo_example.md` - Tooltip Layer 使用示例
 - `docs/layer/LAYER_SYSTEM_ARCHITECTURE.md` - 架构说明 (已更新)
-- `docs/layer/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md` - 实施总结 (已更新)
+- `docsArchive/layer/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md` - 实施总结 (已更新)
 
 ### 历史文档
 
-- `docs/layer/TWO_RENDERING_SYSTEMS_EXPLAINED.md` - **已过时** (基于错误假设)
+- `docsArchive/layer/TWO_RENDERING_SYSTEMS_EXPLAINED.md` - **已过时** (基于错误假设)
 
 ---
 

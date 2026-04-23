@@ -157,7 +157,7 @@ The following component directories exist but do NOT focus explicitly implement 
 | `panel` | ✅ | ❌ | Container component |
 | `progress` | ✅ | ❌ | Display only |
 | `scrollview` | ✅ | ❌ | Scroll container |
-| `stack` | ✅ | ❌ | Layout container |
+| `runtime/ui` `VStackBuilder` / `HStackBuilder` | ✅ | ❌ | Layout primitive |
 | `table` | ✅ | ❌ | Data display |
 | `tabs` | ✅ | ❌ | Container (has focusable buttons) |
 | `text` | ✅ | ❌ | Display only |
@@ -731,7 +731,6 @@ import (
     buttonComp "github.com/wwsheng009/mint/ui/components/button"
     checkboxComp "github.com/wwsheng009/mint/ui/components/checkbox"
     inputComp "github.com/wwsheng009/mint/ui/components/input"
-    newstack "github.com/wwsheng009/mint/ui/components/stack"
 )
 
 func SimpleForm() rtui.VNode {
@@ -751,12 +750,7 @@ func SimpleForm() rtui.VNode {
     chk.SetIntent(intent.Toggle("remember"))
     chk.SetKey("chk1")
 
-    return newstack.New(newstack.Column).
-        SetChildrenList([]rtui.VNode{
-            btn,
-            input,
-            chk,
-        })
+    return rtui.VStackBuilder(btn, input, chk).Build()
 }
 
 func main() {
@@ -868,7 +862,6 @@ import (
     buttonComp "github.com/wwsheng009/mint/ui/components/button"
     checkboxComp "github.com/wwsheng009/mint/ui/components/checkbox"
     inputComp "github.com/wwsheng009/mint/ui/components/input"
-    newstack "github.com/wwsheng009/mint/ui/components/stack"
     newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -889,7 +882,7 @@ func MyApp() ui.VNode {
     chk.SetKey("chk1")
 
     // 构建 UI
-    return newstack.New(newstack.Column).
+    return ui.NewVStack().
         SetGap(1).
         SetChildrenList([]ui.VNode{
             newtext.New("=== My Application ==="),

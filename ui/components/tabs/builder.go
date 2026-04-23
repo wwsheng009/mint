@@ -35,6 +35,13 @@ func (b *Builder) SetID(id string) *Builder {
 	return b
 }
 
+// ComponentID sets the component ID for Intent routing (Phase 7: Intent Bubble).
+// This enables Intent filtering and routing to specific Tabs instances.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
+	return b
+}
+
 // Tabs sets the tab items.
 func (b *Builder) Tabs(tabs []TabItem) *Builder {
 	b.vnode.SetTabs(tabs)
@@ -44,6 +51,12 @@ func (b *Builder) Tabs(tabs []TabItem) *Builder {
 // AddTab adds a single tab.
 func (b *Builder) AddTab(id, label string) *Builder {
 	b.vnode.AddTab(id, label)
+	return b
+}
+
+// AddTabItem adds a preconfigured tab item.
+func (b *Builder) AddTabItem(tab TabItem) *Builder {
+	b.vnode.AddTabItem(tab)
 	return b
 }
 
@@ -59,6 +72,18 @@ func (b *Builder) Position(pos TabPosition) *Builder {
 	return b
 }
 
+// ActiveTab sets the declarative active tab index. Use -1 to keep runtime state.
+func (b *Builder) ActiveTab(index int) *Builder {
+	b.vnode.SetActiveTab(index)
+	return b
+}
+
+// ActiveTabID sets the declarative active tab by ID.
+func (b *Builder) ActiveTabID(id string) *Builder {
+	b.vnode.SetActiveTabID(id)
+	return b
+}
+
 // WrapTabs enables/disables tab wrapping.
 func (b *Builder) WrapTabs(wrap bool) *Builder {
 	b.vnode.SetWrapTabs(wrap)
@@ -69,6 +94,46 @@ func (b *Builder) WrapTabs(wrap bool) *Builder {
 func (b *Builder) TabGap(gap int) *Builder {
 	b.vnode.SetTabGap(gap)
 	return b
+}
+
+// LoopNavigation enables/disables circular keyboard navigation.
+func (b *Builder) LoopNavigation(loop bool) *Builder {
+	b.vnode.SetLoopNavigation(loop)
+	return b
+}
+
+// ShowHotkeys toggles hotkey hints in the rendered tab labels.
+func (b *Builder) ShowHotkeys(show bool) *Builder {
+	b.vnode.SetShowHotkeys(show)
+	return b
+}
+
+// Divider sets the separator between horizontal tabs.
+func (b *Builder) Divider(divider string) *Builder {
+	b.vnode.SetDivider(divider)
+	return b
+}
+
+// Reorderable toggles mouse drag tab reordering.
+func (b *Builder) Reorderable(reorderable bool) *Builder {
+	b.vnode.SetReorderable(reorderable)
+	return b
+}
+
+// Variant sets the tab visual variant.
+func (b *Builder) Variant(variant TabVariant) *Builder {
+	b.vnode.SetTabVariant(variant)
+	return b
+}
+
+// Line uses the default line-style tabs.
+func (b *Builder) Line() *Builder {
+	return b.Variant(TabVariantLine)
+}
+
+// Card uses card-style tabs.
+func (b *Builder) Card() *Builder {
+	return b.Variant(TabVariantCard)
 }
 
 // Width sets the width.
@@ -107,9 +172,34 @@ func (b *Builder) ActiveTabStyle(s style.Style) *Builder {
 	return b
 }
 
+// DisabledTabStyle sets the style for disabled tabs.
+func (b *Builder) DisabledTabStyle(s style.Style) *Builder {
+	b.vnode.SetDisabledTabStyle(s)
+	return b
+}
+
 // OnChange sets the change intent.
 func (b *Builder) OnChange(intent intent.Intent) *Builder {
 	b.vnode.SetIntent(intent)
+	return b
+}
+
+// OnClose sets the close intent emitted after a tab is closed.
+func (b *Builder) OnClose(intent intent.Intent) *Builder {
+	b.vnode.OnClose(intent)
+	return b
+}
+
+// OnReorder sets the reorder intent emitted after a drag reorders tabs.
+func (b *Builder) OnReorder(intent intent.Intent) *Builder {
+	b.vnode.OnReorder(intent)
+	return b
+}
+
+// FieldIntent sets the FieldChangeIntent for this Tabs component (Phase 7: Intent Bubble).
+// This enables integration with the Form+Field system for automatic state binding.
+func (b *Builder) FieldIntent(intent intent.FieldIntent) *Builder {
+	b.vnode.SetFieldIntent(intent)
 	return b
 }
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // =============================================================================
@@ -127,6 +127,22 @@ func TestVNode_SetSelectedIndex(t *testing.T) {
 	}
 }
 
+func TestBuilder_ItemStyleFn(t *testing.T) {
+	custom := style.Style{FG: style.Green}
+	vnode := NewBuilder().
+		ItemStyleFn(func(_ int, _ string) style.Style { return custom }).
+		BuildVNode()
+
+	if vnode.ItemStyleFn() == nil {
+		t.Fatal("Expected ItemStyleFn to be set on vnode")
+	}
+
+	inst := vnode.CreateInstance().(*Instance)
+	if inst.itemStyleFn == nil {
+		t.Fatal("Expected itemStyleFn to be set on instance")
+	}
+}
+
 // =============================================================================
 // Instance Tests
 // =============================================================================
@@ -225,10 +241,10 @@ func TestInstance_Measure(t *testing.T) {
 	})
 
 	constraints := layout.Constraints{
-		MinWidth:   30,
-		MaxWidth:   60,
-		MinHeight:  10,
-		MaxHeight:  20,
+		MinWidth:  30,
+		MaxWidth:  60,
+		MinHeight: 10,
+		MaxHeight: 20,
 	}
 
 	size := inst.Measure(constraints)
@@ -247,10 +263,10 @@ func TestInstance_MeasureWithConstraints(t *testing.T) {
 	})
 
 	constraints := layout.Constraints{
-		MinWidth:   30,
-		MaxWidth:   60,
-		MinHeight:  10,
-		MaxHeight:  20,
+		MinWidth:  30,
+		MaxWidth:  60,
+		MinHeight: 10,
+		MaxHeight: 20,
 	}
 
 	size := inst.Measure(constraints)
@@ -262,10 +278,40 @@ func TestInstance_MeasureWithConstraints(t *testing.T) {
 	}
 }
 
+func TestInstance_Paint_ItemStyleFnMergesIntoRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"items": []string{"A", "B", "C"},
+		"itemStyleFn": func(index int, text string) style.Style {
+			if index == 1 && text == "B" {
+				return style.Style{FG: style.Green, BG: style.Yellow}
+			}
+			return style.Style{}
+		},
+		"selectedIndex": 1,
+		"selectedStyle": style.Style{FG: style.Red}.Underline(true),
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 3 {
+		t.Fatalf("cmd count = %d, want >= 3", len(cmds))
+	}
+
+	rowCmd := cmds[2]
+	if rowCmd.Style.FG != style.Red {
+		t.Fatalf("selected row fg = %s, want %s", rowCmd.Style.FG, style.Red)
+	}
+	if rowCmd.Style.BG != style.Yellow {
+		t.Fatalf("selected row bg = %s, want %s", rowCmd.Style.BG, style.Yellow)
+	}
+	if !rowCmd.Style.IsUnderline() {
+		t.Fatal("expected selected style flags to merge with itemStyleFn result")
+	}
+}
+
 func TestInstance_NavigateUp(t *testing.T) {
 	props := rtui.Props{
-		"items":        []string{"A", "B", "C", "D", "E"},
-		"itemCount":    5,
+		"items":         []string{"A", "B", "C", "D", "E"},
+		"itemCount":     5,
 		"selectedIndex": 3,
 	}
 	inst := NewInstance(props)
@@ -281,8 +327,8 @@ func TestInstance_NavigateUp(t *testing.T) {
 
 func TestInstance_NavigateUpAtStart(t *testing.T) {
 	props := rtui.Props{
-		"items":        []string{"A", "B", "C"},
-		"itemCount":    3,
+		"items":         []string{"A", "B", "C"},
+		"itemCount":     3,
 		"selectedIndex": 0,
 	}
 	inst := NewInstance(props)
@@ -298,8 +344,8 @@ func TestInstance_NavigateUpAtStart(t *testing.T) {
 
 func TestInstance_NavigateDown(t *testing.T) {
 	props := rtui.Props{
-		"items":        []string{"A", "B", "C", "D", "E"},
-		"itemCount":    5,
+		"items":         []string{"A", "B", "C", "D", "E"},
+		"itemCount":     5,
 		"selectedIndex": 1,
 	}
 	inst := NewInstance(props)
@@ -315,8 +361,8 @@ func TestInstance_NavigateDown(t *testing.T) {
 
 func TestInstance_NavigateDownAtEnd(t *testing.T) {
 	props := rtui.Props{
-		"items":        []string{"A", "B", "C"},
-		"itemCount":    3,
+		"items":         []string{"A", "B", "C"},
+		"itemCount":     3,
 		"selectedIndex": 2,
 	}
 	inst := NewInstance(props)
@@ -332,8 +378,8 @@ func TestInstance_NavigateDownAtEnd(t *testing.T) {
 
 func TestInstance_ScrollBy(t *testing.T) {
 	props := rtui.Props{
-		"items":       make([]string, 20),
-		"itemCount":   20,
+		"items":        make([]string, 20),
+		"itemCount":    20,
 		"visibleCount": 10,
 	}
 	inst := NewInstance(props)
@@ -351,8 +397,8 @@ func TestInstance_ScrollBy(t *testing.T) {
 
 func TestInstance_ClampOffset(t *testing.T) {
 	props := rtui.Props{
-		"items":       make([]string, 5),
-		"itemCount":   5,
+		"items":        make([]string, 5),
+		"itemCount":    5,
 		"visibleCount": 10,
 	}
 	inst := NewInstance(props)
@@ -366,8 +412,8 @@ func TestInstance_ClampOffset(t *testing.T) {
 
 func TestInstance_ClampSelectedIndex(t *testing.T) {
 	props := rtui.Props{
-		"items":       make([]string, 5),
-		"itemCount":   5,
+		"items":     make([]string, 5),
+		"itemCount": 5,
 	}
 	inst := NewInstance(props)
 
@@ -395,8 +441,8 @@ func TestInstance_ClampSelectedIndex(t *testing.T) {
 
 func TestInstance_GetVisibleRange(t *testing.T) {
 	props := rtui.Props{
-		"items":       make([]string, 20),
-		"itemCount":   20,
+		"items":        make([]string, 20),
+		"itemCount":    20,
 		"visibleCount": 10,
 		"scrollOffset": 5,
 	}
@@ -413,8 +459,8 @@ func TestInstance_GetVisibleRange(t *testing.T) {
 
 func TestInstance_IsAtEnd(t *testing.T) {
 	props := rtui.Props{
-		"items":       make([]string, 10),
-		"itemCount":   10,
+		"items":        make([]string, 10),
+		"itemCount":    10,
 		"visibleCount": 10,
 	}
 	inst := NewInstance(props)
@@ -424,8 +470,8 @@ func TestInstance_IsAtEnd(t *testing.T) {
 	}
 
 	props2 := rtui.Props{
-		"items":       make([]string, 20),
-		"itemCount":   20,
+		"items":        make([]string, 20),
+		"itemCount":    20,
 		"visibleCount": 10,
 		"scrollOffset": 10,
 	}
@@ -500,8 +546,8 @@ func TestInstance_HandleAction(t *testing.T) {
 	// Test scroll_down - requires canScrollDown to be true
 	// Set up to allow scrolling down
 	inst.scrollOffset = 0
-	inst.visibleCount = 3  // Can show 3 items
-	inst.itemCount = 5     // Has 5 items, so can scroll down
+	inst.visibleCount = 3 // Can show 3 items
+	inst.itemCount = 5    // Has 5 items, so can scroll down
 	result = inst.HandleAction(action.NewAction(action.ActionNavigatePageDown))
 	if !result {
 		t.Error("HandleAction page_down should return true when can scroll down")
@@ -540,6 +586,51 @@ func TestInstance_HandleAction_DisabledScroll(t *testing.T) {
 	result := inst.HandleAction(action.NewAction(action.ActionNavigateUp))
 	if result {
 		t.Error("HandleAction should return false when allowScroll is false")
+	}
+}
+
+func TestInstance_DefaultsItemCountToItemsLength(t *testing.T) {
+	props := rtui.Props{
+		"items":         []string{"A", "B", "C"},
+		"visibleCount":  2,
+		"height":        4,
+		"width":         12,
+		"selectedIndex": 1,
+	}
+	inst := NewInstance(props)
+
+	if inst.itemCount != 3 {
+		t.Fatalf("itemCount = %d, want 3", inst.itemCount)
+	}
+	if inst.selectedIndex != 1 {
+		t.Fatalf("selectedIndex = %d, want 1", inst.selectedIndex)
+	}
+	start, end := inst.GetVisibleRange()
+	if start != 0 || end != 2 {
+		t.Fatalf("visible range = (%d, %d), want (0, 2)", start, end)
+	}
+}
+
+func TestInstance_Paint_LongRowDoesNotPanic(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"items":        []string{"this is a very long virtual list row that previously overflowed"},
+		"visibleCount": 1,
+		"height":       3,
+		"width":        12,
+	})
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("Paint should not panic for long rows, got %v", recovered)
+		}
+	}()
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 3 {
+		t.Fatalf("command count = %d, want 3", len(cmds))
+	}
+	if cmds[1].Text != "│ this i.. │" {
+		t.Fatalf("row text = %q, want %q", cmds[1].Text, "│ this i.. │")
 	}
 }
 

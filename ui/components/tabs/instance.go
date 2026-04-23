@@ -2,16 +2,19 @@ package tabs
 
 import (
 	"fmt"
-	"unicode/utf8"
+	"strings"
+	"unicode"
 
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
-	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -22,17 +25,26 @@ import (
 // It persists across renders and holds all state.
 type Instance struct {
 	// === Identification ===
-	key string
+	key         string
+	componentID string // Phase 7: Component ID for Intent routing
 
 	// === Props (from VNode, may change each render) ===
-	tabs      []TabItem
-	position  TabPosition
-	wrapTabs  bool
-	tabGap    int
-	tabStyle      style.Style
-	activeTabStyle style.Style
-	changeIntent intent.Intent
-	changeIntentField intent.FieldIntent  // For FieldChangeIntent extraction
+	tabs              []TabItem
+	position          TabPosition
+	wrapTabs          bool
+	tabGap            int
+	loopNavigation    bool
+	showHotkeys       bool
+	divider           string
+	tabVariant        TabVariant
+	reorderable       bool
+	tabStyle          style.Style
+	activeTabStyle    style.Style
+	disabledTabStyle  style.Style
+	changeIntent      intent.Intent
+	changeIntentField intent.FieldIntent // For FieldChangeIntent extraction
+	closeIntent       intent.Intent
+	reorderIntent     intent.Intent
 
 	// === Layout Props ===
 	width  int
@@ -40,12 +52,21 @@ type Instance struct {
 	flex   int
 
 	// === Runtime State ===
-	activeTab int  // Current active tab index
-	bounds    [4]int // x, y, w, h
-	dirty     bool
+	activeTab            int // Current active tab index in inst.tabs
+	requestedActiveTab   int
+	requestedActiveTabID string
+	bounds               [4]int // x, y, w, h
+	focused              bool
+	dirty                bool
+	dragging             bool
+	dragMoved            bool
+	dragTabID            string
+	dragStartIndex       int
+	dragCurrentIndex     int
+	dragPendingSelect    bool
 
-	// === Tab Bar Bounds (for click detection) ===
-	tabBarBounds []tabBounds // Bounds for each tab in the bar
+	// === Tab Bar Bounds (for click detection, local coordinates) ===
+	tabBarBounds []tabBounds
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -58,6 +79,53 @@ type tabBounds struct {
 	height int
 	tabID  string
 	index  int
+	closeX int
+	closeW int
+}
+
+type tabPaintItem struct {
+	x         int
+	y         int
+	text      string
+	style     style.Style
+	clickable bool
+	tabID     string
+	index     int
+	closeX    int
+	closeW    int
+}
+
+type tabLayout struct {
+	items  []tabPaintItem
+	width  int
+	height int
+}
+
+type activeBaselineSource int
+
+const (
+	activeBaselineComponentTheme activeBaselineSource = iota
+	activeBaselineSemanticTheme
+	activeBaselineLocalFallback
+)
+
+type tabCloseResult struct {
+	closedIndex      int
+	closedTab        TabItem
+	activeTab        int
+	activeTabID      string
+	activeTabLabel   string
+	selectionChanged bool
+}
+
+type tabReorderResult struct {
+	fromIndex      int
+	toIndex        int
+	tab            TabItem
+	tabOrder       []string
+	activeTab      int
+	activeTabID    string
+	activeTabLabel string
 }
 
 // Ensure Instance implements required interfaces
@@ -65,6 +133,9 @@ var (
 	_ rtui.ComponentInstance     = (*Instance)(nil)
 	_ rtui.PaintableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
+	_ rtui.FocusableInstance     = (*Instance)(nil)
+	_ intent.IntentHandler       = (*Instance)(nil) // Phase 7: Intent Bubble
+	_ intent.TreeComponent       = (*Instance)(nil) // Phase 7: Intent Bubble
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -77,21 +148,33 @@ var (
 // NewInstance creates a new TabsInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:                getStringProp(props, "key", ""),
-		tabs:               getTabsProp(props, []TabItem{}),
-		position:           getTabPositionProp(props, TabPositionTop),
-		wrapTabs:           getBoolProp(props, "wrapTabs", false),
-		tabGap:             getIntProp(props, "tabGap", 1),
-		tabStyle:           getStyleProp(props, "tabStyle"),
-		activeTabStyle:     getStyleProp(props, "activeTabStyle"),
-		changeIntent:       getIntentProp(props),
-		changeIntentField:  getChangeIntentFieldProp(props),
-		width:              getIntProp(props, "width", 0),
-		height:             getIntProp(props, "height", 0),
-		flex:               getIntProp(props, "flex", 1),
-		activeTab:          0,
-		dirty:              true,
+		key:                  proputil.GetString(props, "key", ""),
+		componentID:          proputil.GetString(props, "componentID", ""), // Phase 7
+		tabs:                 getTabsProp(props, []TabItem{}),
+		position:             getTabPositionProp(props, TabPositionTop),
+		wrapTabs:             proputil.GetBool(props, "wrapTabs", false),
+		tabGap:               proputil.GetInt(props, "tabGap", 1),
+		loopNavigation:       proputil.GetBool(props, "loopNavigation", false),
+		showHotkeys:          proputil.GetBool(props, "showHotkeys", false),
+		divider:              proputil.GetString(props, "divider", " | "),
+		tabVariant:           getTabVariantProp(props, TabVariantLine),
+		reorderable:          proputil.GetBool(props, propReorderable, false),
+		tabStyle:             proputil.GetStyle(props, "tabStyle", style.New()),
+		activeTabStyle:       proputil.GetStyle(props, "activeTabStyle", style.New()),
+		disabledTabStyle:     proputil.GetStyle(props, "disabledTabStyle", style.New()),
+		changeIntent:         proputil.GetIntent(props, "changeIntent", nil),
+		changeIntentField:    getChangeIntentFieldProp(props, nil),
+		closeIntent:          proputil.GetIntent(props, propCloseIntent, nil),
+		reorderIntent:        proputil.GetIntent(props, propReorderIntent, nil),
+		width:                proputil.GetInt(props, "width", 0),
+		height:               proputil.GetInt(props, "height", 0),
+		flex:                 proputil.GetInt(props, "flex", 1),
+		activeTab:            -1,
+		requestedActiveTab:   proputil.GetInt(props, "activeTab", -1),
+		requestedActiveTabID: proputil.GetString(props, "activeTabID", ""),
+		dirty:                true,
 	}
+	inst.normalizeActiveTab()
 	return inst
 }
 
@@ -99,30 +182,85 @@ func NewInstance(props rtui.Props) *Instance {
 // ComponentInstance Interface
 // =============================================================================
 
-func (inst *Instance) Key() string           { return inst.key }
-func (inst *Instance) SetKey(key string)     { inst.key = key }
+func (inst *Instance) Key() string       { return inst.key }
+func (inst *Instance) SetKey(key string) { inst.key = key }
+
+// Parent implements TreeComponent interface (Phase 7: Intent Bubble).
+// Returns nil as Tabs is a leaf component without parent tracking.
+func (inst *Instance) Parent() interface{} {
+	return nil
+}
+
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()             { inst.tabs = nil }
-func (inst *Instance) OnMount()             { inst.dirty = true }
-func (inst *Instance) OnUnmount()           {}
+func (inst *Instance) Destroy()              { inst.tabs = nil }
+func (inst *Instance) OnMount()              { inst.dirty = true }
+func (inst *Instance) OnUnmount()            {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
-	oldTabs := inst.tabs
+	oldTabs := append([]TabItem(nil), inst.tabs...)
 	oldPosition := inst.position
+	oldWrapTabs := inst.wrapTabs
+	oldTabGap := inst.tabGap
+	oldLoopNavigation := inst.loopNavigation
+	oldShowHotkeys := inst.showHotkeys
+	oldDivider := inst.divider
+	oldTabVariant := inst.tabVariant
+	oldReorderable := inst.reorderable
+	oldTabStyle := inst.tabStyle
+	oldActiveTabStyle := inst.activeTabStyle
+	oldDisabledTabStyle := inst.disabledTabStyle
+	oldWidth := inst.width
+	oldHeight := inst.height
+	oldFlex := inst.flex
+	oldActiveTab := inst.activeTab
+	oldRequestedActiveTab := inst.requestedActiveTab
+	oldRequestedActiveTabID := inst.requestedActiveTabID
+	oldActiveTabID := tabIDAt(oldTabs, oldActiveTab)
 
+	inst.componentID = proputil.GetString(props, "componentID", inst.componentID)
 	inst.tabs = getTabsProp(props, inst.tabs)
 	inst.position = getTabPositionProp(props, inst.position)
-	inst.wrapTabs = getBoolProp(props, "wrapTabs", inst.wrapTabs)
-	inst.tabGap = getIntProp(props, "tabGap", inst.tabGap)
-	inst.tabStyle = getStyleProp(props, "tabStyle")
-	inst.activeTabStyle = getStyleProp(props, "activeTabStyle")
-	inst.changeIntent = getIntentProp(props)
-	inst.changeIntentField = getChangeIntentFieldProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.flex = getIntProp(props, "flex", inst.flex)
+	inst.wrapTabs = proputil.GetBool(props, "wrapTabs", inst.wrapTabs)
+	inst.tabGap = proputil.GetInt(props, "tabGap", inst.tabGap)
+	inst.loopNavigation = proputil.GetBool(props, "loopNavigation", inst.loopNavigation)
+	inst.showHotkeys = proputil.GetBool(props, "showHotkeys", inst.showHotkeys)
+	inst.divider = proputil.GetString(props, "divider", inst.divider)
+	inst.tabVariant = getTabVariantProp(props, inst.tabVariant)
+	inst.reorderable = proputil.GetBool(props, propReorderable, inst.reorderable)
+	inst.tabStyle = proputil.GetStyle(props, "tabStyle", inst.tabStyle)
+	inst.activeTabStyle = proputil.GetStyle(props, "activeTabStyle", inst.activeTabStyle)
+	inst.disabledTabStyle = proputil.GetStyle(props, "disabledTabStyle", inst.disabledTabStyle)
+	inst.changeIntent = proputil.GetIntent(props, "changeIntent", inst.changeIntent)
+	inst.changeIntentField = getChangeIntentFieldProp(props, inst.changeIntentField)
+	inst.closeIntent = proputil.GetIntent(props, propCloseIntent, inst.closeIntent)
+	inst.reorderIntent = proputil.GetIntent(props, propReorderIntent, inst.reorderIntent)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.requestedActiveTab = proputil.GetInt(props, "activeTab", inst.requestedActiveTab)
+	inst.requestedActiveTabID = proputil.GetString(props, "activeTabID", inst.requestedActiveTabID)
 
-	changed := !tabsEqual(oldTabs, inst.tabs) || oldPosition != inst.position
+	inst.normalizeActiveTabWithPrevious(oldActiveTab, oldActiveTabID)
+	inst.reconcileDragState()
+
+	changed := !tabsEqual(oldTabs, inst.tabs) ||
+		oldPosition != inst.position ||
+		oldWrapTabs != inst.wrapTabs ||
+		oldTabGap != inst.tabGap ||
+		oldLoopNavigation != inst.loopNavigation ||
+		oldShowHotkeys != inst.showHotkeys ||
+		oldDivider != inst.divider ||
+		oldTabVariant != inst.tabVariant ||
+		oldReorderable != inst.reorderable ||
+		oldTabStyle != inst.tabStyle ||
+		oldActiveTabStyle != inst.activeTabStyle ||
+		oldDisabledTabStyle != inst.disabledTabStyle ||
+		oldWidth != inst.width ||
+		oldHeight != inst.height ||
+		oldFlex != inst.flex ||
+		oldActiveTab != inst.activeTab ||
+		oldRequestedActiveTab != inst.requestedActiveTab ||
+		oldRequestedActiveTabID != inst.requestedActiveTabID
 	if changed {
 		inst.dirty = true
 	}
@@ -131,17 +269,39 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":      inst.key,
-		"tabs":     inst.tabs,
-		"position": inst.position,
-		"activeTab": inst.activeTab,
+		propKey:           inst.key,
+		propTabs:          inst.tabs,
+		propPosition:      inst.position,
+		propActiveTab:     inst.activeTab,
+		propTabVariant:    inst.tabVariant,
+		propReorderable:   inst.reorderable,
+		propCloseIntent:   inst.closeIntent,
+		propReorderIntent: inst.reorderIntent,
 	}
 }
 
-func (inst *Instance) MarkDirty()    { inst.dirty = true }
-func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()   { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
+
+// =============================================================================
+// FocusableInstance Interface
+// =============================================================================
+
+func (inst *Instance) SetFocus(focused bool) {
+	if inst.focused == focused {
+		return
+	}
+	inst.focused = focused
+	inst.dirty = true
+}
+
+func (inst *Instance) HasFocus() bool { return inst.focused }
+
+func (inst *Instance) IsDisabled() bool {
+	return inst.firstEnabledVisibleIndex() < 0
+}
 
 // =============================================================================
 // Measurable Interface
@@ -149,23 +309,26 @@ func (inst *Instance) ClearDirty()   { inst.dirty = false }
 
 // Measure implements layout measurement.
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
-	tabBarHeight := 1
+	layoutWidthHint := 0
+	if inst.wrapTabs && (inst.position == TabPositionTop || inst.position == TabPositionBottom) {
+		layoutWidthHint = inst.width
+		if layoutWidthHint == 0 && constraints.MaxWidth > 0 {
+			layoutWidthHint = constraints.MaxWidth
+		}
+	}
 
-	minWidth := inst.calculateTabBarWidth()
-	minHeight := tabBarHeight + inst.height
+	tabLayout := inst.computeTabLayout(layoutWidthHint)
 
-	// Use explicit width/height if set
 	width := inst.width
 	height := inst.height
 
 	if width == 0 {
-		width = minWidth
+		width = tabLayout.width
 	}
 	if height == 0 {
-		height = minHeight
+		height = tabLayout.height
 	}
 
-	// Apply constraints
 	if width < constraints.MinWidth {
 		width = constraints.MinWidth
 	}
@@ -182,100 +345,58 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	return layout.Size{Width: width, Height: height}
 }
 
-// calculateTabBarWidth calculates the total width of the tab bar
+// calculateTabBarWidth calculates the natural width of the tab bar.
 func (inst *Instance) calculateTabBarWidth() int {
-	if inst.wrapTabs || len(inst.tabs) == 0 {
-		return 0
-	}
-
-	cursor := 0
-	for i, tab := range inst.tabs {
-		if i > 0 {
-			cursor += 3 // " | "
-		}
-
-		labelWidth := utf8.RuneCountInString(tab.Label)
-		width := labelWidth
-		if i == inst.activeTab {
-			width += 2 // brackets []
-		}
-		cursor += width
-	}
-
-	return cursor
+	return inst.computeTabLayout(0).width
 }
 
 // =============================================================================
 // PaintableInstance Interface
 // =============================================================================
 
-// Paint implements drawing logic for the tabs.
+// Paint renders the tabs component.
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
-	var cmds []paint.DrawCmd
-
-	// Update bounds
-	inst.bounds = [4]int{x, y, inst.width, inst.height}
-
-	// Draw tab bar
-	cmds = append(cmds, inst.paintTabBar(x, y)...)
-
-	return cmds
+	return inst.paintTabBar(x, y)
 }
 
-// paintTabBar paints the tab bar
+// paintTabBar renders the tab bar.
 func (inst *Instance) paintTabBar(x, y int) []paint.DrawCmd {
-	var cmds []paint.DrawCmd
-	inst.tabBarBounds = []tabBounds{}
+	inst.tabBarBounds = inst.tabBarBounds[:0]
 
-	if !inst.wrapTabs && len(inst.tabs) > 0 {
-		// Single-line tab bar
-		cursor := x
-		for i, tab := range inst.tabs {
-			if i > 0 {
-				separator := style.Style{FG: style.Color("white")}
-				sepText := " | "
-				cmds = append(cmds, paint.NewTextCmd(cursor, y, sepText, separator))
-				cursor += 3
-			}
+	availableWidth, availableHeight := inst.currentRenderSpace()
+	layoutWidthHint := availableWidth
+	if !inst.wrapTabs || !(inst.position == TabPositionTop || inst.position == TabPositionBottom) {
+		layoutWidthHint = 0
+	}
 
-			labelWidth := utf8.RuneCountInString(tab.Label)
-			width := labelWidth
-			if i == inst.activeTab {
-				width += 2 // brackets []
-			}
+	tabLayout := inst.computeTabLayout(layoutWidthHint)
+	if len(tabLayout.items) == 0 {
+		return nil
+	}
 
-			// Store tab bounds for click detection
+	renderWidth, renderHeight := inst.resolveRenderSpace(tabLayout.width, tabLayout.height)
+	offsetX, offsetY := inst.layoutOrigin(tabLayout, renderWidth, renderHeight)
+
+	cmds := make([]paint.DrawCmd, 0, len(tabLayout.items))
+	for _, item := range tabLayout.items {
+		localX := offsetX + item.x
+		localY := offsetY + item.y
+		cmds = append(cmds, paint.NewTextCmd(x+localX, y+localY, item.text, item.style))
+		if item.clickable {
 			inst.tabBarBounds = append(inst.tabBarBounds, tabBounds{
-				x:      cursor,
-				y:      y,
-				width:  width,
+				x:      localX,
+				y:      localY,
+				width:  paint.StringWidth(item.text),
 				height: 1,
-				tabID:  tab.ID,
-				index:  i,
+				tabID:  item.tabID,
+				index:  item.index,
+				closeX: localX + item.closeX,
+				closeW: item.closeW,
 			})
-
-			// Build tab label
-			var tabText string
-			if i == inst.activeTab {
-				tabText = "[" + tab.Label + "]"
-			} else {
-				tabText = tab.Label
-			}
-
-			// Apply style
-			tabStyle := inst.tabStyle
-			if i == inst.activeTab && inst.activeTabStyle.FG != "" {
-				tabStyle = inst.activeTabStyle
-			}
-			if tab.Disabled {
-				tabStyle.FG = style.Color("gray")
-			}
-
-			cmds = append(cmds, paint.NewTextCmd(cursor, y, tabText, tabStyle))
-			cursor += width
 		}
 	}
 
+	_ = availableHeight // keeps parity with local render computation for future expansion
 	return cmds
 }
 
@@ -284,103 +405,302 @@ func (inst *Instance) paintTabBar(x, y int) []paint.DrawCmd {
 // =============================================================================
 
 func (inst *Instance) HandleAction(act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+
 	switch act.Type {
 	case action.ActionClick:
 		return inst.handleClick(act.Payload)
+	case action.ActionMousePress:
+		return inst.handlePress(act.Payload)
+	case action.ActionHover, action.ActionMouseMotion, action.ActionDragMove:
+		return inst.handleDragMove(act.Payload)
+	case action.ActionMouseRelease, action.ActionRelease, action.ActionDragEnd:
+		return inst.handleDragRelease(act.Payload)
+	case action.ActionNavigateLeft, action.ActionNavigateUp, action.ActionNavigatePrev:
+		return inst.PreviousTab()
+	case action.ActionNavigateRight, action.ActionNavigateDown, action.ActionNavigateNext:
+		return inst.NextTab()
+	case action.ActionNavigateFirst, action.ActionNavigateHome:
+		return inst.FirstTab()
+	case action.ActionNavigateLast, action.ActionNavigateEnd:
+		return inst.LastTab()
+	case action.ActionInputText:
+		switch payload := act.Payload.(type) {
+		case *runtimemsg.KeyMsg:
+			return inst.HandleKeyMessage(payload)
+		case runtimemsg.KeyMsg:
+			return inst.HandleKeyMessage(&payload)
+		case string:
+			runes := []rune(payload)
+			if len(runes) != 1 {
+				return false
+			}
+			return inst.HandleKeyMessage(runtimemsg.NewKeyMsg(runes[0], platform.KeyUnknown, runtimemsg.Modifiers{}))
+		}
 	}
 	return false
 }
 
-// handleClick handles mouse clicks on tabs
+// =============================================================================
+// IntentHandler Interface (Phase 7: Intent Bubble)
+// =============================================================================
+
+// HandleIntent implements IntentHandler to handle Tabs-specific intents.
+func (inst *Instance) HandleIntent(i intent.Intent) bool {
+	switch v := i.(type) {
+	case TabNextIntent:
+		if shouldHandleIntent(inst.componentID, v.ComponentID) {
+			return inst.NextTab()
+		}
+		return false
+
+	case TabPreviousIntent:
+		if shouldHandleIntent(inst.componentID, v.ComponentID) {
+			return inst.PreviousTab()
+		}
+		return false
+
+	case TabSelectIntent:
+		if !shouldHandleIntent(inst.componentID, v.ComponentID) {
+			return false
+		}
+		oldActive := inst.activeTab
+		var changed bool
+		if v.TabID != "" {
+			changed = inst.SetActiveTabByID(v.TabID)
+		} else {
+			changed = inst.SetActiveTab(v.TabIndex)
+		}
+		if changed && inst.activeTab != oldActive {
+			inst.emitChangeIntent(inst.tabs[inst.activeTab].ID)
+		}
+		return changed
+
+	default:
+		return false
+	}
+}
+
+// shouldHandleIntent checks if this tabs instance should handle the intent.
+// Returns true if componentID matches or if both are empty.
+func shouldHandleIntent(myID, intentID string) bool {
+	if myID == "" || intentID == "" {
+		return true
+	}
+	return myID == intentID
+}
+
+// =============================================================================
+// Mouse and Keyboard Handling
+// =============================================================================
+
+// handleClick handles mouse clicks on tabs.
 func (inst *Instance) handleClick(payload interface{}) bool {
-	// Extract coordinates from payload
- coords, ok := payload.(map[string]interface{})
+	return inst.handlePress(payload)
+}
+
+func (inst *Instance) handlePress(payload interface{}) bool {
+	localX, localY, ok := inst.localClickCoordinates(payload)
 	if !ok {
 		return false
 	}
 
-	localX, _ := coords["localX"].(int)
-	localY, _ := coords["localY"].(int)
-
-	// Check if click is in tab bar
-	if localY != 0 {
-		return false
-	}
-
-	// Find clicked tab
 	for _, tb := range inst.tabBarBounds {
-		if localX >= tb.x && localX < tb.x+tb.width {
+		if localX >= tb.x && localX < tb.x+tb.width &&
+			localY >= tb.y && localY < tb.y+tb.height {
+			if tb.closeW > 0 && localX >= tb.closeX && localX < tb.closeX+tb.closeW {
+				inst.clearDragState()
+				return inst.CloseTab(tb.index)
+			}
 			tab := inst.tabs[tb.index]
-			if !tab.Disabled && tb.index != inst.activeTab {
-				inst.SetActiveTab(tb.index)
+			if tab.Disabled || tab.Hidden {
+				return false
+			}
+			if inst.canStartDrag(tb.index) {
+				inst.startDrag(tb.index)
+				return true
+			}
+			if tb.index == inst.activeTab {
+				return false
+			}
+			if inst.SetActiveTab(tb.index) {
 				inst.emitChangeIntent(tab.ID)
 				return true
 			}
+			return false
 		}
 	}
 
+	inst.clearDragState()
 	return false
 }
 
-// handleTabChange handles tab change events
-func (inst *Instance) handleTabChange(payload interface{}) bool {
-	if index, ok := payload.(int); ok {
-		if index >= 0 && index < len(inst.tabs) && !inst.tabs[index].Disabled {
-			if index != inst.activeTab {
-				inst.SetActiveTab(index)
-				inst.emitChangeIntent(inst.tabs[index].ID)
-				return true
-			}
+// CloseTab closes a visible closable tab by index.
+func (inst *Instance) CloseTab(index int) bool {
+	result, ok := inst.closeTab(index)
+	if !ok {
+		return false
+	}
+
+	inst.emitCloseIntent(result)
+	if result.selectionChanged {
+		inst.emitChangeIntent(result.activeTabID)
+	}
+	return true
+}
+
+// CloseTabByID closes the tab with the provided ID.
+func (inst *Instance) CloseTabByID(id string) bool {
+	idx := inst.FindTabByID(id)
+	if idx < 0 {
+		return false
+	}
+	return inst.CloseTab(idx)
+}
+
+func (inst *Instance) localClickCoordinates(payload interface{}) (int, int, bool) {
+	switch v := payload.(type) {
+	case *runtimemsg.MouseMsg:
+		if v == nil {
+			return 0, 0, false
+		}
+		return v.LocalX, v.LocalY, true
+	case runtimemsg.MouseMsg:
+		return v.LocalX, v.LocalY, true
+	case map[string]interface{}:
+		localX, okX := v["localX"].(int)
+		localY, okY := v["localY"].(int)
+		if !okX || !okY {
+			return 0, 0, false
+		}
+		return localX, localY, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func (inst *Instance) handleDragMove(payload interface{}) bool {
+	localX, localY, ok := inst.localClickCoordinates(payload)
+	if !ok || !inst.dragging {
+		return false
+	}
+
+	draggedIndex := inst.FindTabByID(inst.dragTabID)
+	if draggedIndex < 0 {
+		inst.clearDragState()
+		return false
+	}
+
+	target, ok := inst.tabBoundsAtPoint(localX, localY)
+	if !ok {
+		return true
+	}
+	if target.index == draggedIndex {
+		return true
+	}
+
+	insertAfter := inst.pointerPastTabMidpoint(target, localX, localY)
+	newIndex, moved := inst.reorderTab(draggedIndex, target.index, insertAfter)
+	if !moved {
+		return true
+	}
+
+	inst.dragMoved = true
+	inst.dragCurrentIndex = newIndex
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) handleDragRelease(payload interface{}) bool {
+	if !inst.dragging {
+		return false
+	}
+
+	pendingSelect := inst.dragPendingSelect
+	result, emit := inst.finishDrag()
+	if !emit && pendingSelect {
+		if idx := inst.FindTabByID(result.tab.ID); inst.SetActiveTab(idx) {
+			inst.emitChangeIntent(result.tab.ID)
 		}
 	}
-	return false
+	if emit {
+		inst.emitReorderIntent(result)
+	}
+	_, _, ok := inst.localClickCoordinates(payload)
+	return ok || emit || result.tab.ID != ""
 }
 
-// HandleKeyMessage handles keyboard navigation
+// HandleKeyMessage handles keyboard navigation.
 func (inst *Instance) HandleKeyMessage(keyMsg *runtimemsg.KeyMsg) bool {
+	if keyMsg == nil {
+		return false
+	}
+
+	if keyMsg.IsTab() && keyMsg.HasCtrl() {
+		if keyMsg.HasShift() {
+			return inst.PreviousTab()
+		}
+		return inst.NextTab()
+	}
+
 	switch keyMsg.Special {
-	case platform.KeyLeft:
+	case platform.KeyLeft, platform.KeyUp:
 		return inst.PreviousTab()
-	case platform.KeyRight:
+	case platform.KeyRight, platform.KeyDown:
 		return inst.NextTab()
 	case platform.KeyHome:
 		return inst.FirstTab()
 	case platform.KeyEnd:
 		return inst.LastTab()
 	}
-	return false
-}
 
-// HandleMouseMessage handles mouse messages
-func (inst *Instance) HandleMouseMessage(mouseMsg *runtimemsg.MouseMsg) bool {
-	if mouseMsg.Action != runtimemsg.MouseActionPress {
+	if keyMsg.HasModifier() {
 		return false
 	}
 
-	if mouseMsg.LocalY == 0 {
-		// Check tab bar click
-		return inst.handleClick(map[string]interface{}{
-			"localX": mouseMsg.LocalX,
-			"localY": mouseMsg.LocalY,
-		})
+	if keyMsg.Rune != 0 && inst.selectByHotkey(keyMsg.Rune) {
+		return true
+	}
+
+	if keyMsg.Rune >= '1' && keyMsg.Rune <= '9' {
+		return inst.SetActiveVisibleOrdinal(int(keyMsg.Rune - '1'))
 	}
 
 	return false
+}
+
+// HandleMouseMessage handles mouse messages.
+func (inst *Instance) HandleMouseMessage(mouseMsg *runtimemsg.MouseMsg) bool {
+	if mouseMsg == nil {
+		return false
+	}
+
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionPress:
+		return inst.handlePress(mouseMsg)
+	case runtimemsg.MouseActionMove:
+		return inst.handleDragMove(mouseMsg)
+	case runtimemsg.MouseActionRelease:
+		return inst.handleDragRelease(mouseMsg)
+	default:
+		return false
+	}
 }
 
 // =============================================================================
 // Tab Navigation Methods
 // =============================================================================
 
-// SetActiveTab sets the active tab by index
+// SetActiveTab sets the active tab by index.
 func (inst *Instance) SetActiveTab(index int) bool {
-	if index < 0 || index >= len(inst.tabs) {
+	if !inst.isSelectableIndex(index) {
 		return false
 	}
 
-	tab := inst.tabs[index]
-	if tab.Disabled {
-		return false
+	if inst.activeTab == index {
+		return true
 	}
 
 	inst.activeTab = index
@@ -388,206 +708,1014 @@ func (inst *Instance) SetActiveTab(index int) bool {
 	return true
 }
 
-// SetActiveTabByID sets the active tab by ID
+// SetActiveVisibleOrdinal selects the nth visible enabled tab (0-based).
+func (inst *Instance) SetActiveVisibleOrdinal(ordinal int) bool {
+	visible := inst.visibleEnabledIndices()
+	if ordinal < 0 || ordinal >= len(visible) {
+		return false
+	}
+	tabIndex := visible[ordinal]
+	if !inst.SetActiveTab(tabIndex) {
+		return false
+	}
+	inst.emitChangeIntent(inst.tabs[tabIndex].ID)
+	return true
+}
+
+// SetActiveTabByID sets the active tab by ID.
 func (inst *Instance) SetActiveTabByID(id string) bool {
-	for i, tab := range inst.tabs {
-		if tab.ID == id && !tab.Disabled {
-			return inst.SetActiveTab(i)
-		}
+	idx := inst.FindTabByID(id)
+	if idx < 0 {
+		return false
 	}
-	return false
+	return inst.SetActiveTab(idx)
 }
 
-// NextTab switches to the next enabled tab
+// SetActiveTabByLabel sets the active tab by label.
+func (inst *Instance) SetActiveTabByLabel(label string) bool {
+	idx := inst.FindTabByLabel(label)
+	if idx < 0 {
+		return false
+	}
+	return inst.SetActiveTab(idx)
+}
+
+// NextTab switches to the next enabled visible tab.
 func (inst *Instance) NextTab() bool {
-	for i := inst.activeTab + 1; i < len(inst.tabs); i++ {
-		if !inst.tabs[i].Disabled {
-			tabID := inst.tabs[i].ID
-			inst.activeTab = i
-			inst.dirty = true
-			inst.emitChangeIntent(tabID)
-			return true
-		}
+	nextIndex, ok := inst.findAdjacentSelectableIndex(1, inst.loopNavigation)
+	if !ok {
+		return false
 	}
-	return false
+	if !inst.SetActiveTab(nextIndex) {
+		return false
+	}
+	inst.emitChangeIntent(inst.tabs[nextIndex].ID)
+	return true
 }
 
-// PreviousTab switches to the previous enabled tab
+// PreviousTab switches to the previous enabled visible tab.
 func (inst *Instance) PreviousTab() bool {
-	for i := inst.activeTab - 1; i >= 0; i-- {
-		if !inst.tabs[i].Disabled {
-			tabID := inst.tabs[i].ID
-			inst.activeTab = i
-			inst.dirty = true
-			inst.emitChangeIntent(tabID)
-			return true
-		}
+	prevIndex, ok := inst.findAdjacentSelectableIndex(-1, inst.loopNavigation)
+	if !ok {
+		return false
 	}
-	return false
+	if !inst.SetActiveTab(prevIndex) {
+		return false
+	}
+	inst.emitChangeIntent(inst.tabs[prevIndex].ID)
+	return true
 }
 
-// FirstTab switches to the first enabled tab
+// FirstTab switches to the first enabled visible tab.
 func (inst *Instance) FirstTab() bool {
-	for i := 0; i < len(inst.tabs); i++ {
-		if !inst.tabs[i].Disabled {
-			tabID := inst.tabs[i].ID
-			inst.activeTab = i
-			inst.dirty = true
-			inst.emitChangeIntent(tabID)
-			return true
-		}
+	first := inst.firstEnabledVisibleIndex()
+	if first < 0 {
+		return false
 	}
-	return false
+	if !inst.SetActiveTab(first) {
+		return false
+	}
+	inst.emitChangeIntent(inst.tabs[first].ID)
+	return true
 }
 
-// LastTab switches to the last enabled tab
+// LastTab switches to the last enabled visible tab.
 func (inst *Instance) LastTab() bool {
-	for i := len(inst.tabs) - 1; i >= 0; i-- {
-		if !inst.tabs[i].Disabled {
-			tabID := inst.tabs[i].ID
-			inst.activeTab = i
-			inst.dirty = true
-			inst.emitChangeIntent(tabID)
-			return true
-		}
+	last := inst.lastEnabledVisibleIndex()
+	if last < 0 {
+		return false
 	}
-	return false
+	if !inst.SetActiveTab(last) {
+		return false
+	}
+	inst.emitChangeIntent(inst.tabs[last].ID)
+	return true
 }
 
-// emitChangeIntent emits the change intent
-func (inst *Instance) emitChangeIntent(tabID string) {
-	if inst.intentEmitter != nil {
-		if inst.changeIntentField != nil {
-			// Use FieldChangeIntent mode with active tab index as value
-			changeIntent := intent.FieldChangeIntent{
-				Field: inst.changeIntentField.GetField(),
-				Value: fmt.Sprintf("%d", inst.activeTab),
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.changeIntent != nil {
-			// Fallback to original intent mode
-			inst.intentEmitter(inst.changeIntent)
-		}
-	}
-}
+// GetActiveTab returns the active tab index.
+func (inst *Instance) GetActiveTab() int { return inst.activeTab }
 
-// =============================================================================
-// Getters
-// =============================================================================
-
-func (inst *Instance) GetActiveTab() int          { return inst.activeTab }
+// GetActiveTabID returns the active tab ID.
 func (inst *Instance) GetActiveTabID() string {
-	if inst.activeTab < 0 || inst.activeTab >= len(inst.tabs) {
+	if !inst.isSelectableOrPresentIndex(inst.activeTab) {
 		return ""
 	}
 	return inst.tabs[inst.activeTab].ID
 }
+
+// GetActiveTabLabel returns the active tab label.
 func (inst *Instance) GetActiveTabLabel() string {
-	if inst.activeTab < 0 || inst.activeTab >= len(inst.tabs) {
+	if !inst.isSelectableOrPresentIndex(inst.activeTab) {
 		return ""
 	}
 	return inst.tabs[inst.activeTab].Label
 }
 
+// GetTabCount returns the total number of tabs, including hidden ones.
+func (inst *Instance) GetTabCount() int {
+	return len(inst.tabs)
+}
+
+// GetVisibleTabCount returns the number of visible tabs.
+func (inst *Instance) GetVisibleTabCount() int {
+	count := 0
+	for _, tab := range inst.tabs {
+		if !tab.Hidden {
+			count++
+		}
+	}
+	return count
+}
+
+// CanGoNext reports whether a next enabled visible tab exists.
+func (inst *Instance) CanGoNext() bool {
+	_, ok := inst.findAdjacentSelectableIndex(1, inst.loopNavigation)
+	return ok
+}
+
+// CanGoPrevious reports whether a previous enabled visible tab exists.
+func (inst *Instance) CanGoPrevious() bool {
+	_, ok := inst.findAdjacentSelectableIndex(-1, inst.loopNavigation)
+	return ok
+}
+
+// FindTabByID returns the matching tab index or -1.
+func (inst *Instance) FindTabByID(id string) int {
+	for i, tab := range inst.tabs {
+		if tab.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// FindTabByLabel returns the matching tab index or -1.
+func (inst *Instance) FindTabByLabel(label string) int {
+	for i, tab := range inst.tabs {
+		if tab.Label == label {
+			return i
+		}
+	}
+	return -1
+}
+
+// GetTabByIndex returns the tab and whether it exists.
+func (inst *Instance) GetTabByIndex(index int) (TabItem, bool) {
+	if index < 0 || index >= len(inst.tabs) {
+		return TabItem{}, false
+	}
+	return inst.tabs[index], true
+}
+
+// IsTabEnabled reports whether a tab index is enabled.
+func (inst *Instance) IsTabEnabled(index int) bool {
+	if index < 0 || index >= len(inst.tabs) {
+		return false
+	}
+	return !inst.tabs[index].Disabled
+}
+
+// SetTabEnabled toggles a tab's enabled state.
+func (inst *Instance) SetTabEnabled(index int, enabled bool) bool {
+	if index < 0 || index >= len(inst.tabs) {
+		return false
+	}
+
+	disabled := !enabled
+	if inst.tabs[index].Disabled == disabled {
+		return true
+	}
+
+	oldActive := inst.activeTab
+	inst.tabs[index].Disabled = disabled
+	inst.normalizeActiveTab()
+	inst.dirty = true
+
+	if oldActive != inst.activeTab && inst.isSelectableOrPresentIndex(inst.activeTab) {
+		inst.emitChangeIntent(inst.tabs[inst.activeTab].ID)
+	}
+	return true
+}
+
+// GetPosition returns the current tab bar position.
+func (inst *Instance) GetPosition() TabPosition {
+	return inst.position
+}
+
+// SetPosition updates the runtime tab bar position.
+func (inst *Instance) SetPosition(pos TabPosition) bool {
+	if inst.position == pos {
+		return false
+	}
+	inst.position = pos
+	inst.dirty = true
+	return true
+}
+
+// GetBounds returns the component bounds.
 func (inst *Instance) GetBounds() (x, y, w, h int) {
 	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
 }
 
+// SetBounds stores the component bounds.
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 }
 
+// SetIntentEmitter sets the runtime intent emitter.
 func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 	inst.intentEmitter = fn
 }
 
 // =============================================================================
-// Prop Extraction Helpers
+// Intent Emission
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
+// emitChangeIntent emits the change intent.
+// Phase 7: Use intent.Emit to enable Intent Bubble.
+func (inst *Instance) emitChangeIntent(tabID string) {
+	if inst.componentID != "" {
+		changeIntent := TabChange(
+			inst.componentID,
+			inst.activeTab,
+			tabID,
+			inst.GetActiveTabLabel(),
+		)
+		intent.Emit(inst, changeIntent)
+		inst.emitOptionalGlobalIntent(changeIntent)
 	}
-	return def
+
+	if inst.intentEmitter == nil {
+		return
+	}
+
+	if inst.changeIntentField != nil {
+		changeIntent := intent.FieldChangeIntent{
+			Field: inst.changeIntentField.GetField(),
+			Value: fmt.Sprintf("%d", inst.activeTab),
+		}
+		inst.intentEmitter(changeIntent)
+		return
+	}
+
+	if inst.changeIntent != nil {
+		inst.intentEmitter(inst.changeIntent)
+	}
 }
 
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
+func (inst *Instance) emitCloseIntent(result tabCloseResult) {
+	if inst.componentID != "" {
+		closeIntent := TabClose(
+			inst.componentID,
+			result.closedIndex,
+			result.closedTab.ID,
+			result.closedTab.Label,
+			result.activeTab,
+			result.activeTabID,
+			result.activeTabLabel,
+		)
+		intent.Emit(inst, closeIntent)
+		inst.emitOptionalGlobalIntent(closeIntent)
 	}
-	return def
+
+	if inst.intentEmitter != nil && inst.closeIntent != nil {
+		inst.intentEmitter(inst.closeIntent)
+	}
 }
 
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
+func (inst *Instance) emitReorderIntent(result tabReorderResult) {
+	if inst.componentID != "" {
+		reorderIntent := TabReorder(
+			inst.componentID,
+			result.fromIndex,
+			result.toIndex,
+			result.tab.ID,
+			result.tab.Label,
+			result.tabOrder,
+			result.activeTab,
+			result.activeTabID,
+			result.activeTabLabel,
+		)
+		intent.Emit(inst, reorderIntent)
+		inst.emitOptionalGlobalIntent(reorderIntent)
+	}
+
+	if inst.intentEmitter != nil && inst.reorderIntent != nil {
+		inst.intentEmitter(inst.reorderIntent)
+	}
+}
+
+func (inst *Instance) emitOptionalGlobalIntent(i intent.Intent) {
+	if i == nil {
+		return
+	}
+	runtime := rtui.GetGlobalIntentRuntime()
+	if runtime == nil || runtime.Registry == nil {
+		return
+	}
+	intentType := i.IntentType()
+	if !runtime.Registry.HasHandler(intentType) && !runtime.Registry.HasFallback() {
+		return
+	}
+	rtui.EmitIntentGlobal(i)
+}
+
+// =============================================================================
+// Layout Helpers
+// =============================================================================
+
+func (inst *Instance) computeTabLayout(maxWidth int) tabLayout {
+	visible := inst.visibleTabIndices()
+	if len(visible) == 0 {
+		return tabLayout{}
+	}
+
+	switch inst.position {
+	case TabPositionLeft, TabPositionRight:
+		return inst.computeVerticalLayout(visible)
+	default:
+		return inst.computeHorizontalLayout(visible, maxWidth)
+	}
+}
+
+func (inst *Instance) computeHorizontalLayout(visible []int, maxWidth int) tabLayout {
+	layout := tabLayout{}
+	cursorX := 0
+	cursorY := 0
+	lineWidth := 0
+	separator := inst.divider
+	separatorWidth := paint.StringWidth(separator)
+
+	for _, tabIndex := range visible {
+		tab := inst.tabs[tabIndex]
+		text, closeX, closeW := inst.renderTabText(tabIndex)
+		textWidth := paint.StringWidth(text)
+
+		needsSeparator := cursorX > 0 && separator != ""
+		nextWidth := textWidth
+		if needsSeparator {
+			nextWidth += separatorWidth
+		}
+
+		if inst.wrapTabs && maxWidth > 0 && cursorX > 0 && cursorX+nextWidth > maxWidth {
+			lineWidth = max(lineWidth, cursorX)
+			cursorX = 0
+			cursorY++
+			needsSeparator = false
+		}
+
+		if needsSeparator {
+			layout.items = append(layout.items, tabPaintItem{
+				x:     cursorX,
+				y:     cursorY,
+				text:  separator,
+				style: inst.resolveDividerStyle(),
+			})
+			cursorX += separatorWidth
+		}
+
+		layout.items = append(layout.items, tabPaintItem{
+			x:         cursorX,
+			y:         cursorY,
+			text:      text,
+			style:     inst.resolveTabStyle(tabIndex),
+			clickable: true,
+			tabID:     tab.ID,
+			index:     tabIndex,
+			closeX:    closeX,
+			closeW:    closeW,
+		})
+		cursorX += textWidth
+		lineWidth = max(lineWidth, cursorX)
+	}
+
+	layout.width = lineWidth
+	layout.height = cursorY + 1
+	return layout
+}
+
+func (inst *Instance) computeVerticalLayout(visible []int) tabLayout {
+	layout := tabLayout{}
+	gap := max(0, inst.tabGap)
+	cursorY := 0
+
+	for i, tabIndex := range visible {
+		text, closeX, closeW := inst.renderTabText(tabIndex)
+		textWidth := paint.StringWidth(text)
+
+		layout.items = append(layout.items, tabPaintItem{
+			x:         0,
+			y:         cursorY,
+			text:      text,
+			style:     inst.resolveTabStyle(tabIndex),
+			clickable: true,
+			tabID:     inst.tabs[tabIndex].ID,
+			index:     tabIndex,
+			closeX:    closeX,
+			closeW:    closeW,
+		})
+
+		layout.width = max(layout.width, textWidth)
+		cursorY++
+		if i < len(visible)-1 {
+			cursorY += gap
+		}
+	}
+
+	layout.height = max(1, cursorY)
+	return layout
+}
+
+func (inst *Instance) resolveDividerStyle() style.Style {
+	return style.NewStyle().Foreground(style.BrightBlack).Merge(inst.tabStyle)
+}
+
+func (inst *Instance) resolveActiveBaseline() (style.Style, activeBaselineSource) {
+	componentSelected := style.GetStyle("tabs", "select")
+	if inst.isProtectableComponentSelected(componentSelected) {
+		return componentSelected, activeBaselineComponentTheme
+	}
+
+	selectColor := fwtheme.Select()
+	backgroundColor := fwtheme.BG()
+	if isUsableStyleColor(selectColor) && isUsableStyleColor(backgroundColor) {
+		return style.NewStyle().
+			Foreground(backgroundColor).
+			Background(selectColor).
+			Bold(true), activeBaselineSemanticTheme
+	}
+
+	return style.NewStyle().Reverse(true).Bold(true), activeBaselineLocalFallback
+}
+
+func (inst *Instance) isProtectableComponentSelected(selected style.Style) bool {
+	if selected.IsEmpty() {
+		return false
+	}
+	if isUsableStyleColor(selected.FG) {
+		return true
+	}
+	if isUsableStyleColor(selected.BG) && isUsableStyleColor(fwtheme.BG()) {
+		return true
+	}
+	return selected.IsReverse()
+}
+
+func (inst *Instance) resolveDisabledBaseline() style.Style {
+	if disabledFG := fwtheme.DisabledFG(); isUsableStyleColor(disabledFG) {
+		return style.NewStyle().Foreground(disabledFG)
+	}
+	return style.NewStyle().Italic(true)
+}
+
+func (inst *Instance) protectedActiveForeground(source activeBaselineSource, baseline style.Style) style.Color {
+	switch {
+	case source == activeBaselineComponentTheme && isUsableStyleColor(baseline.FG):
+		return baseline.FG
+	case source == activeBaselineComponentTheme && isUsableStyleColor(baseline.BG):
+		if contrastFG := fwtheme.BG(); isUsableStyleColor(contrastFG) {
+			return contrastFG
+		}
+	case source == activeBaselineSemanticTheme:
+		if contrastFG := fwtheme.BG(); isUsableStyleColor(contrastFG) {
+			return contrastFG
+		}
+	}
+	return style.NoColor
+}
+
+func (inst *Instance) isReverseOnlyBaseline(source activeBaselineSource, baseline style.Style) bool {
+	return baseline.IsReverse() &&
+		!isUsableStyleColor(baseline.FG) &&
+		!isUsableStyleColor(baseline.BG) &&
+		(source == activeBaselineComponentTheme || source == activeBaselineLocalFallback)
+}
+
+func isUsableStyleColor(color style.Color) bool {
+	return color != style.NoColor
+}
+
+func (inst *Instance) resolveTabStyle(index int) style.Style {
+	tab := inst.tabs[index]
+
+	switch {
+	case tab.Disabled:
+		return inst.resolveDisabledBaseline().
+			Merge(inst.tabStyle).
+			Merge(inst.disabledTabStyle)
+	case index == inst.activeTab:
+		baseline, source := inst.resolveActiveBaseline()
+		activeStyle := style.NewStyle().Merge(inst.tabStyle)
+		if inst.isReverseOnlyBaseline(source, baseline) {
+			activeStyle.FG = style.NoColor
+			activeStyle.BG = style.NoColor
+		}
+		activeStyle = activeStyle.Merge(baseline).Merge(inst.activeTabStyle)
+		if inst.isReverseOnlyBaseline(source, baseline) {
+			activeStyle.FG = style.NoColor
+			activeStyle.BG = style.NoColor
+		}
+		if protectedFG := inst.protectedActiveForeground(source, baseline); isUsableStyleColor(protectedFG) {
+			activeStyle.FG = protectedFG
+		}
+		if inst.isDraggedTab(index) {
+			activeStyle = activeStyle.Underline(true)
+		}
+		return activeStyle
+	default:
+		tabStyle := style.NewStyle().
+			Merge(inst.tabStyle)
+		if inst.isDraggedTab(index) {
+			tabStyle = tabStyle.Underline(true)
+		}
+		return tabStyle
+	}
+}
+
+func (inst *Instance) renderTabText(index int) (string, int, int) {
+	tab := inst.tabs[index]
+	parts := make([]string, 0, 4)
+
+	if inst.showHotkeys && tab.Hotkey != 0 {
+		parts = append(parts, fmt.Sprintf("{%c}", unicode.ToUpper(tab.Hotkey)))
+	}
+	if tab.Icon != "" {
+		parts = append(parts, tab.Icon)
+	}
+
+	label := tab.Label
+	if label == "" {
+		label = tab.ID
+	}
+	parts = append(parts, label)
+
+	if tab.Badge != "" {
+		parts = append(parts, fmt.Sprintf("(%s)", tab.Badge))
+	}
+
+	body := strings.Join(parts, " ")
+	closeSuffix := ""
+	if tab.Closable {
+		closeSuffix = " ×"
+	}
+
+	prefix := ""
+	suffix := ""
+	if inst.tabVariant == TabVariantCard {
+		if index == inst.activeTab {
+			prefix = "╭ "
+			suffix = " ╮"
+		} else {
+			prefix = "│ "
+			suffix = " │"
+		}
+	} else if index == inst.activeTab {
+		prefix = "["
+		suffix = "]"
+	}
+
+	text := prefix + body + closeSuffix + suffix
+	if closeSuffix == "" {
+		return text, 0, 0
+	}
+	return text, paint.StringWidth(prefix + body), paint.StringWidth(closeSuffix)
+}
+
+func (inst *Instance) layoutOrigin(layout tabLayout, renderWidth, renderHeight int) (int, int) {
+	switch inst.position {
+	case TabPositionBottom:
+		return 0, max(0, renderHeight-layout.height)
+	case TabPositionRight:
+		return max(0, renderWidth-layout.width), 0
+	default:
+		return 0, 0
+	}
+}
+
+func (inst *Instance) currentRenderSpace() (int, int) {
+	width := inst.width
+	height := inst.height
+	if inst.bounds[2] > 0 {
+		width = inst.bounds[2]
+	}
+	if inst.bounds[3] > 0 {
+		height = inst.bounds[3]
+	}
+	return width, height
+}
+
+func (inst *Instance) resolveRenderSpace(fallbackWidth, fallbackHeight int) (int, int) {
+	width, height := inst.currentRenderSpace()
+	if width == 0 {
+		width = fallbackWidth
+	}
+	if height == 0 {
+		height = fallbackHeight
+	}
+	return width, height
+}
+
+// =============================================================================
+// State Helpers
+// =============================================================================
+
+func (inst *Instance) normalizeActiveTab() {
+	if len(inst.tabs) == 0 {
+		inst.activeTab = -1
+		return
+	}
+
+	if inst.requestedActiveTabID != "" {
+		if idx := inst.FindTabByID(inst.requestedActiveTabID); inst.isSelectableIndex(idx) {
+			inst.activeTab = idx
+			return
+		}
+		inst.activeTab = inst.firstEnabledVisibleIndex()
+		return
+	}
+
+	if inst.requestedActiveTab >= 0 {
+		if inst.isSelectableIndex(inst.requestedActiveTab) {
+			inst.activeTab = inst.requestedActiveTab
+			return
+		}
+		inst.activeTab = inst.firstEnabledVisibleIndex()
+		return
+	}
+
+	if inst.isSelectableIndex(inst.activeTab) {
+		return
+	}
+
+	inst.activeTab = inst.firstEnabledVisibleIndex()
+}
+
+func (inst *Instance) normalizeActiveTabWithPrevious(oldActiveTab int, oldActiveTabID string) {
+	if len(inst.tabs) == 0 {
+		inst.activeTab = -1
+		return
+	}
+
+	if inst.requestedActiveTabID != "" {
+		if idx := inst.FindTabByID(inst.requestedActiveTabID); inst.isSelectableIndex(idx) {
+			inst.activeTab = idx
+			return
+		}
+	}
+
+	if inst.requestedActiveTab >= 0 {
+		if inst.isSelectableIndex(inst.requestedActiveTab) {
+			inst.activeTab = inst.requestedActiveTab
+			return
+		}
+	}
+
+	if oldActiveTabID != "" {
+		if idx := inst.FindTabByID(oldActiveTabID); inst.isSelectableIndex(idx) {
+			inst.activeTab = idx
+			return
+		}
+	}
+
+	if inst.isSelectableIndex(inst.activeTab) {
+		return
+	}
+
+	if idx := inst.findClosestSelectableIndex(oldActiveTab); idx >= 0 {
+		inst.activeTab = idx
+		return
+	}
+
+	inst.activeTab = inst.firstEnabledVisibleIndex()
+}
+
+func (inst *Instance) reconcileDragState() {
+	if !inst.dragging {
+		return
+	}
+	if !inst.reorderable {
+		inst.clearDragState()
+		return
+	}
+	current := inst.FindTabByID(inst.dragTabID)
+	if current < 0 {
+		inst.clearDragState()
+		return
+	}
+	inst.dragCurrentIndex = current
+}
+
+func (inst *Instance) visibleTabIndices() []int {
+	indices := make([]int, 0, len(inst.tabs))
+	for i, tab := range inst.tabs {
+		if !tab.Hidden {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
+func (inst *Instance) visibleEnabledIndices() []int {
+	indices := make([]int, 0, len(inst.tabs))
+	for i, tab := range inst.tabs {
+		if !tab.Hidden && !tab.Disabled {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
+func (inst *Instance) firstEnabledVisibleIndex() int {
+	for i, tab := range inst.tabs {
+		if !tab.Hidden && !tab.Disabled {
 			return i
 		}
 	}
-	return def
+	return -1
 }
 
-func getStyleProp(props rtui.Props, key string) style.Style {
-	v, ok := props[key]
-	if !ok {
-		return style.Style{}
+func (inst *Instance) lastEnabledVisibleIndex() int {
+	for i := len(inst.tabs) - 1; i >= 0; i-- {
+		tab := inst.tabs[i]
+		if !tab.Hidden && !tab.Disabled {
+			return i
+		}
 	}
-	if s, ok := v.(style.Style); ok {
-		return s
-	}
-	return style.Style{}
+	return -1
 }
 
-func getIntentProp(props rtui.Props) intent.Intent {
-	v, ok := props["changeIntent"]
-	if !ok {
-		return nil
+func (inst *Instance) findAdjacentSelectableIndex(direction int, wrap bool) (int, bool) {
+	visible := inst.visibleEnabledIndices()
+	if len(visible) == 0 {
+		return -1, false
 	}
-	if i, ok := v.(intent.Intent); ok {
-		return i
+	if len(visible) == 1 && visible[0] == inst.activeTab {
+		return -1, false
 	}
-	return nil
+
+	currentPos := -1
+	for pos, idx := range visible {
+		if idx == inst.activeTab {
+			currentPos = pos
+			break
+		}
+	}
+
+	if currentPos == -1 {
+		if direction < 0 {
+			return visible[len(visible)-1], true
+		}
+		return visible[0], true
+	}
+
+	nextPos := currentPos + direction
+	if nextPos < 0 || nextPos >= len(visible) {
+		if !wrap {
+			return -1, false
+		}
+		if direction < 0 {
+			nextPos = len(visible) - 1
+		} else {
+			nextPos = 0
+		}
+	}
+
+	if visible[nextPos] == inst.activeTab {
+		return -1, false
+	}
+	return visible[nextPos], true
 }
 
-func getChangeIntentFieldProp(props rtui.Props) intent.FieldIntent {
-	v, ok := props["changeIntent"]
-	if !ok {
-		return nil
+func (inst *Instance) findClosestSelectableIndex(preferred int) int {
+	if len(inst.tabs) == 0 {
+		return -1
 	}
-	if fieldIntent, ok := v.(intent.FieldIntent); ok {
-		return fieldIntent
+
+	if preferred < 0 {
+		preferred = 0
 	}
-	return nil
+	if preferred >= len(inst.tabs) {
+		preferred = len(inst.tabs) - 1
+	}
+
+	for i := preferred; i < len(inst.tabs); i++ {
+		if inst.isSelectableIndex(i) {
+			return i
+		}
+	}
+	for i := preferred - 1; i >= 0; i-- {
+		if inst.isSelectableIndex(i) {
+			return i
+		}
+	}
+	return -1
 }
 
-func getTabsProp(props rtui.Props, def []TabItem) []TabItem {
-	v, ok := props["tabs"]
-	if !ok {
-		return def
-	}
-	if tabs, ok := v.([]TabItem); ok {
-		return tabs
-	}
-	return def
+func (inst *Instance) canStartDrag(index int) bool {
+	return inst.reorderable && inst.isSelectableIndex(index)
 }
 
-func getTabPositionProp(props rtui.Props, def TabPosition) TabPosition {
-	v, ok := props["position"]
-	if !ok {
-		return def
+func (inst *Instance) startDrag(index int) {
+	if !inst.canStartDrag(index) {
+		inst.clearDragState()
+		return
 	}
-	if pos, ok := v.(TabPosition); ok {
-		return pos
-	}
-	return def
+	inst.dragging = true
+	inst.dragMoved = false
+	inst.dragTabID = inst.tabs[index].ID
+	inst.dragStartIndex = index
+	inst.dragCurrentIndex = index
+	inst.dragPendingSelect = index != inst.activeTab
+	inst.dirty = true
 }
 
-// tabsEqual compares two tab slices
+func (inst *Instance) finishDrag() (tabReorderResult, bool) {
+	if !inst.dragging {
+		return tabReorderResult{}, false
+	}
+
+	current := inst.FindTabByID(inst.dragTabID)
+	if current < 0 {
+		inst.clearDragState()
+		return tabReorderResult{}, false
+	}
+
+	result := tabReorderResult{
+		fromIndex:      inst.dragStartIndex,
+		toIndex:        current,
+		tab:            inst.tabs[current],
+		tabOrder:       inst.currentTabOrder(),
+		activeTab:      inst.activeTab,
+		activeTabID:    inst.GetActiveTabID(),
+		activeTabLabel: inst.GetActiveTabLabel(),
+	}
+	emit := inst.dragMoved && inst.dragStartIndex != current
+	inst.clearDragState()
+	return result, emit
+}
+
+func (inst *Instance) clearDragState() {
+	if !inst.dragging && inst.dragTabID == "" && !inst.dragMoved {
+		return
+	}
+	inst.dragging = false
+	inst.dragMoved = false
+	inst.dragTabID = ""
+	inst.dragStartIndex = -1
+	inst.dragCurrentIndex = -1
+	inst.dragPendingSelect = false
+	inst.dirty = true
+}
+
+func (inst *Instance) isDraggedTab(index int) bool {
+	return inst.dragging && index >= 0 && index < len(inst.tabs) && inst.tabs[index].ID == inst.dragTabID
+}
+
+func (inst *Instance) tabBoundsAtPoint(localX, localY int) (tabBounds, bool) {
+	for _, tb := range inst.tabBarBounds {
+		if localX >= tb.x && localX < tb.x+tb.width &&
+			localY >= tb.y && localY < tb.y+tb.height {
+			return tb, true
+		}
+	}
+	return tabBounds{}, false
+}
+
+func (inst *Instance) pointerPastTabMidpoint(tb tabBounds, localX, localY int) bool {
+	switch inst.position {
+	case TabPositionLeft, TabPositionRight:
+		return localY >= tb.y+tb.height/2
+	default:
+		return localX >= tb.x+tb.width/2
+	}
+}
+
+func (inst *Instance) selectByHotkey(r rune) bool {
+	target := unicode.ToLower(r)
+	for i, tab := range inst.tabs {
+		if tab.Hidden || tab.Disabled || tab.Hotkey == 0 {
+			continue
+		}
+		if unicode.ToLower(tab.Hotkey) != target {
+			continue
+		}
+		if !inst.SetActiveTab(i) {
+			return false
+		}
+		inst.emitChangeIntent(tab.ID)
+		return true
+	}
+	return false
+}
+
+func (inst *Instance) isSelectableIndex(index int) bool {
+	if index < 0 || index >= len(inst.tabs) {
+		return false
+	}
+	tab := inst.tabs[index]
+	return !tab.Disabled && !tab.Hidden
+}
+
+func (inst *Instance) isSelectableOrPresentIndex(index int) bool {
+	return index >= 0 && index < len(inst.tabs)
+}
+
+func (inst *Instance) closeTab(index int) (tabCloseResult, bool) {
+	if index < 0 || index >= len(inst.tabs) {
+		return tabCloseResult{}, false
+	}
+
+	closedTab := inst.tabs[index]
+	if closedTab.Hidden || !closedTab.Closable {
+		return tabCloseResult{}, false
+	}
+
+	oldActiveTab := inst.activeTab
+	oldActiveTabID := inst.GetActiveTabID()
+
+	nextTabs := make([]TabItem, 0, len(inst.tabs)-1)
+	nextTabs = append(nextTabs, inst.tabs[:index]...)
+	nextTabs = append(nextTabs, inst.tabs[index+1:]...)
+	inst.tabs = nextTabs
+
+	switch {
+	case len(inst.tabs) == 0:
+		inst.activeTab = -1
+	case oldActiveTab == index:
+		inst.activeTab = inst.findClosestSelectableIndex(index)
+	case oldActiveTab > index:
+		inst.activeTab = oldActiveTab - 1
+		if !inst.isSelectableIndex(inst.activeTab) {
+			inst.activeTab = inst.findClosestSelectableIndex(inst.activeTab)
+		}
+	default:
+		if !inst.isSelectableIndex(inst.activeTab) {
+			inst.activeTab = inst.findClosestSelectableIndex(inst.activeTab)
+		}
+	}
+
+	inst.dirty = true
+
+	result := tabCloseResult{
+		closedIndex:      index,
+		closedTab:        closedTab,
+		activeTab:        inst.activeTab,
+		activeTabID:      inst.GetActiveTabID(),
+		activeTabLabel:   inst.GetActiveTabLabel(),
+		selectionChanged: oldActiveTab != inst.activeTab || oldActiveTabID != inst.GetActiveTabID(),
+	}
+	return result, true
+}
+
+func (inst *Instance) reorderTab(fromIndex, targetIndex int, insertAfter bool) (int, bool) {
+	if fromIndex < 0 || fromIndex >= len(inst.tabs) || targetIndex < 0 || targetIndex >= len(inst.tabs) {
+		return -1, false
+	}
+	if fromIndex == targetIndex && !insertAfter {
+		return fromIndex, false
+	}
+
+	insertIndex := targetIndex
+	if insertAfter {
+		insertIndex = targetIndex + 1
+	}
+	if fromIndex < insertIndex {
+		insertIndex--
+	}
+	if insertIndex == fromIndex {
+		return fromIndex, false
+	}
+	if insertIndex < 0 {
+		insertIndex = 0
+	}
+	if insertIndex > len(inst.tabs)-1 {
+		insertIndex = len(inst.tabs) - 1
+	}
+
+	activeID := inst.GetActiveTabID()
+	movedTab := inst.tabs[fromIndex]
+
+	nextTabs := append([]TabItem(nil), inst.tabs...)
+	nextTabs = append(nextTabs[:fromIndex], nextTabs[fromIndex+1:]...)
+	if insertIndex >= len(nextTabs) {
+		nextTabs = append(nextTabs, movedTab)
+	} else {
+		nextTabs = append(nextTabs[:insertIndex], append([]TabItem{movedTab}, nextTabs[insertIndex:]...)...)
+	}
+	inst.tabs = nextTabs
+
+	if activeID != "" {
+		inst.activeTab = inst.FindTabByID(activeID)
+	}
+	inst.dragCurrentIndex = inst.FindTabByID(inst.dragTabID)
+	return inst.dragCurrentIndex, true
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// tabsEqual checks if two slices of TabItem are equal.
 func tabsEqual(a, b []TabItem) bool {
 	if len(a) != len(b) {
 		return false
@@ -598,4 +1726,59 @@ func tabsEqual(a, b []TabItem) bool {
 		}
 	}
 	return true
+}
+
+func tabIDAt(tabs []TabItem, index int) string {
+	if index < 0 || index >= len(tabs) {
+		return ""
+	}
+	return tabs[index].ID
+}
+
+func (inst *Instance) currentTabOrder() []string {
+	order := make([]string, 0, len(inst.tabs))
+	for _, tab := range inst.tabs {
+		order = append(order, tab.ID)
+	}
+	return order
+}
+
+// =============================================================================
+// Prop Extraction Helpers
+// =============================================================================
+
+func getTabPositionProp(props rtui.Props, def TabPosition) TabPosition {
+	if v, ok := props[propPosition]; ok {
+		if tp, ok := v.(TabPosition); ok {
+			return tp
+		}
+	}
+	return def
+}
+
+func getChangeIntentFieldProp(props rtui.Props, def intent.FieldIntent) intent.FieldIntent {
+	if v, ok := props[propChangeIntentField]; ok {
+		if intentField, ok := v.(intent.FieldIntent); ok {
+			return intentField
+		}
+	}
+	return def
+}
+
+func getTabsProp(props rtui.Props, def []TabItem) []TabItem {
+	if v, ok := props[propTabs]; ok {
+		if tabs, ok := v.([]TabItem); ok {
+			return tabs
+		}
+	}
+	return def
+}
+
+func getTabVariantProp(props rtui.Props, def TabVariant) TabVariant {
+	if v, ok := props[propTabVariant]; ok {
+		if variant, ok := v.(TabVariant); ok {
+			return variant
+		}
+	}
+	return def
 }

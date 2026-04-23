@@ -1,4 +1,4 @@
-// Demo 5: IDE Interface Demo
+// Demo 5: IDE Interface Demo (Store 模式)
 //
 // This is a comprehensive IDE-level demo that demonstrates:
 // - Grid main layout
@@ -16,104 +16,134 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// =============================================================================
+// AppState - IDE 应用状态
+// =============================================================================
+
+type AppState struct {
+	ActiveFile         string // 当前选中的文件
+	ShowCommandPalette bool   // 是否显示命令面板
+	SelectedTab        string // 当前选中的标签
+	EditorContent      string // 编辑器内容
+}
+
+const ideTabsComponentID = "ide-main-tabs"
+
+// =============================================================================
 // Intent Types
+// =============================================================================
+
 type ShowCommandPaletteIntent struct{}
+
 func (ShowCommandPaletteIntent) IntentType() string { return "ShowCommandPalette" }
 func (ShowCommandPaletteIntent) StayPressed() bool  { return true }
 
 type HideCommandPaletteIntent struct{}
+
 func (HideCommandPaletteIntent) IntentType() string { return "HideCommandPalette" }
 func (HideCommandPaletteIntent) StayPressed() bool  { return true }
 
 type SetActiveFileIntent struct {
 	Name string
 }
+
 func (SetActiveFileIntent) IntentType() string { return "SetActiveFile" }
 func (SetActiveFileIntent) StayPressed() bool  { return true }
 
-type SetSelectedTabIntent struct {
-	TabID string
+type SetEditorContentIntent struct {
+	Content string
 }
-func (SetSelectedTabIntent) IntentType() string { return "SetSelectedTab" }
-func (SetSelectedTabIntent) StayPressed() bool  { return true }
+
+func (SetEditorContentIntent) IntentType() string { return "SetEditorContent" }
+func (SetEditorContentIntent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var ideStore = store.NewStore(AppState{
+	ActiveFile:         "main.go",
+	ShowCommandPalette: false,
+	SelectedTab:        "editor",
+	EditorContent:      "func main() {\n    ui.Run(App)\n}",
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(ShowCommandPaletteIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowCommandPalette = true
+			return s
+		}).
+		On(HideCommandPaletteIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ShowCommandPalette = false
+			return s
+		}).
+		On(SetActiveFileIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.ActiveFile = i.(SetActiveFileIntent).Name
+			return s
+		}).
+		On(ui.TabChangeIntent{}, func(s AppState, i intent.Intent) AppState {
+			change, ok := i.(ui.TabChangeIntent)
+			if !ok || change.ComponentID != ideTabsComponentID {
+				return s
+			}
+			s.SelectedTab = change.TabID
+			return s
+		}).
+		On(SetEditorContentIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.EditorContent = i.(SetEditorContentIntent).Content
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), ideStore)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
 
 func main() {
 	err := ui.Run(IDEDemo,
-		ui.WithInit(func() {
-			// Register global intent handlers for ShowCommandPaletteIntent 和 HideCommandPaletteIntent
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i ShowCommandPaletteIntent) intent.IntentResult {
-				if fn, ok := ctx.GetState("setShowCommandPalette"); ok {
-					if setter, ok := fn.(func(bool)); ok {
-						setter(true)
-					}
-				}
-				return intent.HandledResult()
-			})
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i HideCommandPaletteIntent) intent.IntentResult {
-				if fn, ok := ctx.GetState("setShowCommandPalette"); ok {
-					if setter, ok := fn.(func(bool)); ok {
-						setter(false)
-					}
-				}
-				return intent.HandledResult()
-			})
-		}),
 		ui.WithWidth(100),
 		ui.WithHeight(40),
-		ui.WithTitle("Mint TUI - IDE Interface"),
+		ui.WithTitle("Mint TUI - IDE Interface (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)
 	}
 }
 
-// IDEDemo is the root component
+// =============================================================================
+// IDEDemo - 根组件
+// =============================================================================
+
 func IDEDemo() ui.VNode {
-	activeFile, setActiveFile := ui.UseStateString("main.go")
-	showCommandPalette, setShowCommandPalette := ui.UseStateBool(false)
-	selectedTab, setSelectedTab := ui.UseStateString("editor")
-	editorContent, setEditorContent := ui.UseStateString("func main() {\\n    ui.Run(App)\\n}")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setActiveFile"] = setActiveFile
-		ctx.GlobalState["setShowCommandPalette"] = setShowCommandPalette
-		ctx.GlobalState["setSelectedTab"] = setSelectedTab
-	}
-
-	// Register file selection handler
-	ui.On(SetActiveFileIntent{Name: activeFile}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setActiveFile"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(activeFile)
-			}
-		}
-	})
-
-	// Register tab selection handler
-	ui.On(SetSelectedTabIntent{TabID: selectedTab}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setSelectedTab"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter(selectedTab)
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	activeFile := ui.UseStoreSelector(ideStore, func(s AppState) string { return s.ActiveFile })
+	showCommandPalette := ui.UseStoreSelector(ideStore, func(s AppState) bool { return s.ShowCommandPalette })
+	selectedTab := ui.UseStoreSelector(ideStore, func(s AppState) string { return s.SelectedTab })
+	editorContent := ui.UseStoreSelector(ideStore, func(s AppState) string { return s.EditorContent })
 
 	return ui.VStack(
-		MenuBar(setShowCommandPalette),
-		MainArea(activeFile, setActiveFile, selectedTab, setSelectedTab, editorContent, setEditorContent),
+		MenuBar(),
+		MainArea(activeFile, selectedTab, editorContent),
 		StatusBar(activeFile, selectedTab),
 		// Command Palette Modal
-		renderCommandPalette(showCommandPalette, setShowCommandPalette),
+		renderCommandPalette(showCommandPalette),
 	)
 }
 
 // MenuBar shows the top menu
-func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
+func MenuBar() ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════════════════════════════════════════════════════════════════════════╗").
 			FgColor("blue").
@@ -166,22 +196,19 @@ func MenuBar(setShowCommandPalette func(bool)) ui.VNode {
 // MainArea shows the main content area
 func MainArea(
 	activeFile string,
-	setActiveFile func(string),
 	selectedTab string,
-	setSelectedTab func(string),
 	editorContent string,
-	setEditorContent func(string),
 ) ui.VNode {
 	return ui.HStack(
-		FileExplorer(activeFile, setActiveFile),
+		FileExplorer(activeFile),
 		ui.Text(" "),
-		ContentArea(selectedTab, setSelectedTab, activeFile, editorContent, setEditorContent),
+		ContentArea(selectedTab, activeFile, editorContent),
 		ui.Text(" "),
 	)
 }
 
 // FileExplorer shows the file tree
-func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
+func FileExplorer(activeFile string) ui.VNode {
 	files := []struct {
 		name     string
 		isFolder bool
@@ -194,7 +221,7 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 		{"hooks.go", false, 2},
 		{"core", true, 1},
 		{"runtime.go", false, 2},
-		{" reconciler.go", false, 2},
+		{"reconciler.go", false, 2},
 		{"pkg", true, 0},
 		{"main.go", false, 1},
 		{"go.mod", false, 0},
@@ -220,13 +247,13 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 		isActive := activeFile == f.name
 		var item ui.VNode
 		if isActive {
-			item = ui.NewTextBuilder("│ "+indent+prefix+f.name+" ").
+			item = ui.NewTextBuilder("│ " + indent + prefix + f.name + " ").
 				FgColor("gray").
 				BgColor("blue").
 				FgColor("white").
 				Build()
 		} else {
-			item = ui.NewTextBuilder("│ "+indent+prefix+f.name).
+			item = ui.NewTextBuilder("│ " + indent + prefix + f.name).
 				FgColor("gray").
 				Build()
 		}
@@ -259,182 +286,221 @@ func FileExplorer(activeFile string, setActiveFile func(string)) ui.VNode {
 // ContentArea shows the main content with tabs
 func ContentArea(
 	selectedTab string,
-	setSelectedTab func(string),
 	activeFile string,
 	editorContent string,
-	setEditorContent func(string),
 ) ui.VNode {
 	return ui.VStack(
-		TabsBar(selectedTab, setSelectedTab, activeFile),
-		ui.Text(""),
-		TabContent(selectedTab, activeFile, editorContent, setEditorContent),
+		TabsBar(selectedTab, activeFile),
+		TabContent(selectedTab, activeFile, editorContent),
 	)
 }
 
 // TabsBar shows tab navigation
-func TabsBar(selectedTab string, setSelectedTab func(string), activeFile string) ui.VNode {
-	tabs := []struct {
-		id    string
-		label string
-	}{
-		{"editor", activeFile},
-		{"terminal", "Terminal"},
-		{"problems", "Problems (0)"},
-		{"output", "Output"},
-	}
-
-	var children []ui.VNode
-	children = append(children,
-		ui.NewTextBuilder("┌─").
+func TabsBar(selectedTab string, activeFile string) ui.VNode {
+	return ui.VStack(
+		ui.NewTabsBuilder().
+			ComponentID(ideTabsComponentID).
+			Tabs([]ui.TabItem{
+				ui.NewTabItem("editor", activeFile).WithIcon("F").WithHotkey('e'),
+				ui.NewTabItem("terminal", "Terminal").WithIcon(">").WithHotkey('t'),
+				ui.NewTabItem("problems", "Problems").WithBadge("0").WithHotkey('p'),
+				ui.NewTabItem("output", "Output").WithIcon("O").WithHotkey('o'),
+			}).
+			ActiveTabID(selectedTab).
+			ShowHotkeys(true).
+			LoopNavigation(true).
+			Divider("  ").
+			ActiveTabStyle(style.NewStyle().Foreground(style.Black).Background(style.White).Bold(true)).
+			TabGap(1).
+			Build(),
+		ui.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────────").
 			FgColor("gray").
 			Build(),
 	)
-
-	for _, tab := range tabs {
-		isActive := selectedTab == tab.id
-		var tabBtn ui.VNode
-		if isActive {
-			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
-				BgColor("white").
-				FgColor("black").
-				OnPress(SetSelectedTabIntent{TabID: tab.id}).
-				Build()
-		} else {
-			tabBtn = ui.NewButtonBuilder(" "+tab.label+" ").
-				OnPress(SetSelectedTabIntent{TabID: tab.id}).
-				Build()
-		}
-		children = append(children, tabBtn)
-	}
-
-	children = append(children,
-		ui.NewTextBuilder("────────────────────────────────────────────────────────────────────────────────────────┐").
-			FgColor("gray").
-			Build(),
-	)
-
-	return ui.HStack(children...)
 }
 
 // TabContent renders the selected tab content
-func TabContent(
-	selectedTab string,
-	activeFile string,
-	editorContent string,
-	setEditorContent func(string),
-) ui.VNode {
-	if selectedTab == "editor" {
-		return EditorPanel(activeFile, editorContent, setEditorContent)
-	} else if selectedTab == "terminal" {
-		return TerminalPanel()
+func TabContent(selectedTab string, activeFile string, editorContent string) ui.VNode {
+	switch selectedTab {
+	case "editor":
+		return Editor(activeFile, editorContent)
+	case "terminal":
+		return Terminal(activeFile)
+	case "problems":
+		return Problems(activeFile)
+	case "output":
+		return Output(activeFile)
+	default:
+		return ui.Text("Unknown tab")
 	}
-	return ui.NewTextBuilder("│ Tab content: " + selectedTab + "                                                                │").
-		FgColor("gray").
-		Build()
 }
 
-// EditorPanel shows the code editor
-func EditorPanel(filename string, content string, setContent func(string)) ui.VNode {
-	lines := []string{
-		"1 │ func main() {",
-		"2 │     ui.Run(App,",
-		"3 │         ui.WithSize(80, 24),",
-		"4 │         ui.WithTitle(\"My App\"),",
-		"5 │     )",
-		"6 │ }",
-	}
-
-	var children []ui.VNode
-	children = append(children,
-		ui.NewTextBuilder("│ ").
-			FgColor("gray").
-			Build(),
-	)
-
-	for i, line := range lines {
-		lineNum := fmt.Sprintf("%2d", i+1)
-		var lineText ui.VNode
-		if i == 0 {
-			lineText = ui.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
+// Editor shows the code editor
+func Editor(activeFile string, editorContent string) ui.VNode {
+	return ui.VStack(
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
 				FgColor("gray").
-				BgColor("blue").
-				FgColor("white").
-				Build()
-		} else {
-			lineText = ui.NewTextBuilder("│ "+lineNum+" │ "+line+"                                                      │").
-				FgColor("gray").
-				Build()
-		}
-		children = append(children, lineText)
-	}
-
-	children = append(children,
-		ui.NewTextBuilder("│                                                                                             │").
-			FgColor("gray").
-			Build(),
-		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
-			FgColor("gray").
-			Build(),
-	)
-
-	return ui.VStack(children...)
-}
-
-// TerminalPanel shows the console output
-func TerminalPanel() ui.VNode {
-	logs := []string{
-		"[INFO] Starting build...",
-		"[INFO] Compiling main.go",
-		"[SUCCESS] Build complete in 1.2s",
-	}
-
-	var children []ui.VNode
-	children = append(children,
-		ui.NewTextBuilder("│ > Terminal                                                                                │").
-			FgColor("gray").
-			Build(),
-		ui.Text(""),
-	)
-
-	for _, log := range logs {
-		var color string
-		if len(log) > 0 {
-			switch log[1:5] {
-			case "INFO":
-				color = "blue"
-			case "SUCC":
-				color = "green"
-			case "WARN":
-				color = "yellow"
-			case "ERRO":
-				color = "red"
-			default:
-				color = "white"
-			}
-		}
-
-		children = append(children,
-			ui.NewTextBuilder("│ "+log).
-				FgColor(color).
 				Build(),
-		)
-	}
-
-	children = append(children,
-		ui.Text(""),
-		ui.NewTextBuilder("│ > _                                                                                      │").
-			FgColor("gray").
-			Build(),
+			ui.NewTextBuilder(activeFile).
+				Bold(true).
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("                                                        ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("│").FgColor("gray").Build(),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextareaBuilder().
+				Placeholder("// Code here...").
+				Value(editorContent).
+				Rows(15).
+				Cols(75).
+				Build(),
+			ui.NewTextBuilder("  ║").
+				FgColor("gray").
+				Build(),
+		),
 		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
 			FgColor("gray").
 			Build(),
 	)
-
-	return ui.VStack(children...)
 }
 
-// StatusBar shows the status bar
-func StatusBar(activeFile, selectedTab string) ui.VNode {
+// Terminal shows the terminal output
+func Terminal(activeFile string) ui.VNode {
+	return ui.VStack(
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Terminal - %s", activeFile)).
+				Bold(true).
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("                                ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("│").FgColor("gray").Build(),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.Text("> Building..."),
+			ui.NewTextBuilder("                                                            ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("> Done in 1.2s").
+				FgColor("green").
+				Build(),
+			ui.NewTextBuilder("                                                              ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
+			FgColor("gray").
+			Build(),
+	)
+}
+
+// Problems shows the problems panel
+func Problems(activeFile string) ui.VNode {
+	return ui.VStack(
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Problems - %s", activeFile)).
+				Bold(true).
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("                                  ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("│").FgColor("gray").Build(),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("0 errors").
+				FgColor("green").
+				Build(),
+			ui.NewTextBuilder("                                                             ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("0 warnings").
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("                                                            ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
+			FgColor("gray").
+			Build(),
+	)
+}
+
+// Output shows the output panel
+func Output(activeFile string) ui.VNode {
+	return ui.VStack(
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder(fmt.Sprintf("Output - %s", activeFile)).
+				Bold(true).
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("                                   ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("│").FgColor("gray").Build(),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.Text("[INFO] Starting build..."),
+			ui.NewTextBuilder("                                                             ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("│ ").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("[INFO] Build complete").
+				FgColor("green").
+				Build(),
+			ui.NewTextBuilder("                                                              ║").
+				FgColor("gray").
+				Build(),
+		),
+		ui.NewTextBuilder("└────────────────────────────────────────────────────────────────────────────────────────────┘").
+			FgColor("gray").
+			Build(),
+	)
+}
+
+// StatusBar shows the bottom status bar
+func StatusBar(activeFile string, selectedTab string) ui.VNode {
 	return ui.VStack(
 		ui.NewTextBuilder("╠══════════════════════════════════════════════════════════════════════════════════════════════════╣").
 			FgColor("blue").
@@ -443,31 +509,19 @@ func StatusBar(activeFile, selectedTab string) ui.VNode {
 			ui.NewTextBuilder("║ ").
 				FgColor("blue").
 				Build(),
-			ui.NewTextBuilder("Ln 1, Col 1").
+			ui.NewTextBuilder(fmt.Sprintf("%s | %s", activeFile, selectedTab)).
 				FgColor("white").
 				Build(),
-			ui.NewTextBuilder("  ").
-				Build(),
-			ui.NewTextBuilder("UTF-8").
-				FgColor("green").
-				Build(),
-			ui.NewTextBuilder("  ").
-				Build(),
+			ui.Text("  "),
 			ui.NewTextBuilder("Go").
 				BgColor("cyan").
 				FgColor("black").
 				Build(),
-			ui.NewTextBuilder("  ").
+			ui.Text("  "),
+			ui.NewTextBuilder("Ln 1, Col 1").
+				FgColor("white").
 				Build(),
-			ui.NewTextBuilder(activeFile).
-				FgColor("yellow").
-				Build(),
-			ui.NewTextBuilder("                                                      ").
-				Build(),
-			ui.NewTextBuilder("✓ Ready").
-				FgColor("green").
-				Build(),
-			ui.NewTextBuilder("  ║").
+			ui.NewTextBuilder("                                                                               ║").
 				FgColor("blue").
 				Build(),
 		),
@@ -477,72 +531,77 @@ func StatusBar(activeFile, selectedTab string) ui.VNode {
 	)
 }
 
-// renderCommandPalette shows the command palette modal
-func renderCommandPalette(show bool, setShow func(bool)) ui.VNode {
-	if !show {
-		return ui.Text("")
+// renderCommandPalette renders the command palette modal
+func renderCommandPalette(showModal bool) ui.VNode {
+	if !showModal {
+		return ui.Fragment()
 	}
 
-	commands := []string{
-		"File: New File",
-		"File: Open File",
-		"File: Save",
-		"File: Save All",
-		"Edit: Find",
-		"Edit: Replace",
-		"View: Toggle Sidebar",
-		"Run: Start Debugging",
-	}
-
-	var children []ui.VNode
-	children = append(children,
-		ui.Text(""),
+	// Modal content
+	modalBox := ui.VStack(
+		ui.NewTextBuilder("╔═════════════════════════════════════════════════╗").
+			FgColor("yellow").
+			Build(),
 		ui.HStack(
-			ui.Text("         "),
-			ui.VStack(
-				ui.NewTextBuilder("╔══════════════════════════════════════════════════╗").
-					FgColor("yellow").
-					Build(),
-				ui.NewTextBuilder("║ > Type command...                             ║").
-					FgColor("yellow").
-					Build(),
-				ui.NewTextBuilder("╠══════════════════════════════════════════════════╣").
-					FgColor("yellow").
-					Build(),
-			),
-		),
-	)
-
-	for _, cmd := range commands {
-		children = append(children,
-			ui.HStack(
-				ui.Text("         "),
-				ui.NewTextBuilder("║ "+cmd).
-					FgColor("yellow").
-					Build(),
-				ui.NewTextBuilder("                              ║").
-					FgColor("yellow").
-					Build(),
-			),
-		)
-	}
-
-	children = append(children,
-		ui.HStack(
-			ui.Text("         "),
-			ui.NewTextBuilder("╚══════════════════════════════════════════════════╝").
+			ui.NewTextBuilder("║ ").
+				FgColor("yellow").
+				Build(),
+			ui.NewInputBuilder().
+				Placeholder("Type a command...").
+				Width(35).
+				Build(),
+			ui.NewTextBuilder(" ║").
 				FgColor("yellow").
 				Build(),
 		),
-		ui.Text(""),
-		ui.NewTextBuilder("Press ESC to close").
-			FgColor("gray").
+		ui.HStack(
+			ui.NewTextBuilder("║ ").
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("Go to file...").
+				Build(),
+			ui.NewTextBuilder("                                          ║").
+				FgColor("yellow").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("║ ").
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("Go to symbol...").
+				Build(),
+			ui.NewTextBuilder("                                          ║").
+				FgColor("yellow").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("║ ").
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("Search files...").
+				Build(),
+			ui.NewTextBuilder("                                          ║").
+				FgColor("yellow").
+				Build(),
+		),
+		ui.HStack(
+			ui.NewTextBuilder("║ ").
+				FgColor("yellow").
+				Build(),
+			ui.NewTextBuilder("Press ESC to close").
+				FgColor("gray").
+				Build(),
+			ui.NewTextBuilder("                                         ║").
+				FgColor("yellow").
+				Build(),
+		),
+		ui.NewTextBuilder("╚═════════════════════════════════════════════════╝").
+			FgColor("yellow").
 			Build(),
 	)
 
-	return ui.VStack(
-		ui.Text(""),
-		ui.Text(""),
-		ui.VStack(children...),
-	)
+	return ui.Modal(modalBox).
+		CloseOnESC(true).
+		CloseOnBackdropClick(true).
+		Build()
 }

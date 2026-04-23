@@ -1,4 +1,4 @@
-// Package main demonstrates Lane Scheduler integration with ui.Run.
+// Package main demonstrates Lane Scheduler integration with ui.Run (Store 模式).
 package main
 
 import (
@@ -7,67 +7,55 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/runtime/scheduler"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Intent types
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Count int // 计数器值
+}
+
+// ============================================================================
+// Intent Types
+// ============================================================================
+
 type IncrementIntent struct{}
 type DecrementIntent struct{}
 type BackgroundTaskIntent struct{}
 
-func (IncrementIntent) IntentType() string { return "Increment" }
-func (DecrementIntent) IntentType() string { return "Decrement" }
+func (IncrementIntent) IntentType() string      { return "Increment" }
+func (DecrementIntent) IntentType() string      { return "Decrement" }
 func (BackgroundTaskIntent) IntentType() string { return "BackgroundTask" }
 
-func main() {
-	fmt.Println("=== Lane Scheduler Demo ===")
-	fmt.Println()
-	fmt.Println("This demo shows how to use Lane Scheduler with ui.Run().")
-	fmt.Println("User input (buttons) uses high priority (InputLane).")
-	fmt.Println("Background tasks use low priority (IdleLane).")
-	fmt.Println()
+// ============================================================================
+// Store 初始化
+// ============================================================================
 
-	// Run with Lane Scheduler enabled
-	err := ui.Run(App,
-		ui.WithLaneScheduler(),
-		ui.WithWidth(60),
-		ui.WithHeight(20),
-		ui.WithTitle("Lane Scheduler Demo"),
-	)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-}
+var laneSchedulerStore = store.NewStore(AppState{
+	Count: 0,
+})
 
-// CounterState holds counter state accessors for intent handlers
-type CounterState struct {
-	Get  func() int
-	Set  func(interface{})
-}
+// ============================================================================
+// Reducer 注册
+// ============================================================================
 
-// App is the main application component
-func App() ui.VNode {
-	count, setCount, getCount := ui.UseStateInt(0)
-
-	// Register intent handlers once on mount
-	ui.UseEffect(func() ui.CleanupFunc {
-		ui.On(IncrementIntent{}, func(ctx *intent.ActionContext) {
-			if state, ok := ctx.GetState("counter"); ok {
-				if cs, ok := state.(*CounterState); ok {
-					cs.Set(cs.Get() + 1)
-				}
-			}
-		})
-
-		ui.On(DecrementIntent{}, func(ctx *intent.ActionContext) {
-			if state, ok := ctx.GetState("counter"); ok {
-				if cs, ok := state.(*CounterState); ok {
-					cs.Set(cs.Get() - 1)
-				}
-			}
-		})
-
-		ui.On(BackgroundTaskIntent{}, func(ctx *intent.ActionContext) {
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		On(BackgroundTaskIntent{}, func(s AppState, i intent.Intent) AppState {
+			// Background task intent - just a trigger, doesn't modify state
 			fmt.Println("Background task scheduled at IdleLane...")
 			if rtui.HasGlobalFiberScheduler() {
 				rtui.ScheduleIdle(func() {
@@ -78,19 +66,51 @@ func App() ui.VNode {
 			} else {
 				fmt.Println("Lane scheduler not enabled, executing immediately")
 			}
-		})
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), laneSchedulerStore)
 
-		return nil
-	}, nil)
+	// Print lane priorities for demonstration
+	fmt.Println("Lane Priorities (highest to lowest):")
+	fmt.Printf("  SyncLane:       %s (priority: %d)\n", scheduler.SyncLane, scheduler.SyncLane.Priority())
+	fmt.Printf("  InputLane:      %s (priority: %d)\n", scheduler.InputLane, scheduler.InputLane.Priority())
+	fmt.Printf("  DefaultLane:    %s (priority: %d)\n", scheduler.DefaultLane, scheduler.DefaultLane.Priority())
+	fmt.Printf("  TransitionLane: %s (priority: %d)\n", scheduler.TransitionLane, scheduler.TransitionLane.Priority())
+	fmt.Printf("  IdleLane:       %s (priority: %d)\n", scheduler.IdleLane, scheduler.IdleLane.Priority())
+	fmt.Println()
 
-	// Store counter state in GlobalState for handler access
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["counter"] = &CounterState{
-			Get: getCount,
-			Set: setCount,
-		}
+	fmt.Println("=== Lane Scheduler Demo ===")
+	fmt.Println()
+	fmt.Println("This demo shows how to use Lane Scheduler with ui.Run().")
+	fmt.Println("User input (buttons) uses high priority (InputLane).")
+	fmt.Println("Background tasks use low priority (IdleLane).")
+	fmt.Println()
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+func main() {
+	// Run with Lane Scheduler enabled
+	err := ui.Run(App,
+		ui.WithLaneScheduler(),
+		ui.WithWidth(60),
+		ui.WithHeight(20),
+		ui.WithTitle("Lane Scheduler Demo (Store 模式)"),
+	)
+	if err != nil {
+		fmt.Println("Error:", err)
 	}
+}
+
+// ============================================================================
+// App - 主应用组件
+// ============================================================================
+
+func App() ui.VNode {
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(laneSchedulerStore, func(s AppState) int { return s.Count })
 
 	// Check if scheduler is enabled
 	schedulerEnabled := rtui.HasGlobalFiberScheduler()
@@ -131,16 +151,4 @@ func App() ui.VNode {
 			FgColor("bright-black").
 			Build(),
 	)
-}
-
-// init registers the lane info
-func init() {
-	// Print lane priorities for demonstration
-	fmt.Println("Lane Priorities (highest to lowest):")
-	fmt.Printf("  SyncLane:       %s (priority: %d)\n", scheduler.SyncLane, scheduler.SyncLane.Priority())
-	fmt.Printf("  InputLane:      %s (priority: %d)\n", scheduler.InputLane, scheduler.InputLane.Priority())
-	fmt.Printf("  DefaultLane:    %s (priority: %d)\n", scheduler.DefaultLane, scheduler.DefaultLane.Priority())
-	fmt.Printf("  TransitionLane: %s (priority: %d)\n", scheduler.TransitionLane, scheduler.TransitionLane.Priority())
-	fmt.Printf("  IdleLane:       %s (priority: %d)\n", scheduler.IdleLane, scheduler.IdleLane.Priority())
-	fmt.Println()
 }

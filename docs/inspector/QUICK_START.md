@@ -264,8 +264,8 @@ Virtual Scrolling: 18/100 ✅     ← 只渲染可见行
 ## 更多资源
 
 - **详细功能说明**: `docs/inspector/features/LAYOUT_DIAGNOSTIC_TAB.md`
-- **集成文档**: `docs/inspector/integration/LAYOUT_DIAGNOSTIC_INTEGRATION.md`
-- **验证报告**: `docs/inspector/integration/VERIFICATION_REPORT.md`
+- **集成文档**: `docsArchive/integration/LAYOUT_DIAGNOSTIC_INTEGRATION.md`
+- **验证报告**: `docsArchive/integration/VERIFICATION_REPORT.md`
 - **独立工具**: `tools/layout_diagnostic.go`
 
 ---

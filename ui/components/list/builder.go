@@ -1,8 +1,10 @@
 package list
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/virtuallist"
 )
 
 // =============================================================================
@@ -34,6 +36,12 @@ func (b *Builder) SetID(id string) *Builder {
 	return b
 }
 
+// ComponentID sets the logical component ID for state-change intents.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
+	return b
+}
+
 // Header sets the column header text.
 func (b *Builder) Header(h string) *Builder {
 	b.vnode.SetHeader(h)
@@ -46,9 +54,21 @@ func (b *Builder) Rows(rows []string) *Builder {
 	return b
 }
 
+// Items sets all structured list items at once.
+func (b *Builder) Items(items []RowItem) *Builder {
+	b.vnode.SetItems(items)
+	return b
+}
+
 // AddRow appends a single row.
 func (b *Builder) AddRow(row string) *Builder {
 	b.vnode.AddRow(row)
+	return b
+}
+
+// AddItem appends a structured list item.
+func (b *Builder) AddItem(item RowItem) *Builder {
+	b.vnode.AddItem(item)
 	return b
 }
 
@@ -107,6 +127,36 @@ func (b *Builder) RowStyleFn(fn func(int, string) style.Style) *Builder {
 	return b
 }
 
+// MatchStyle sets the style for rows matched by the active search query.
+func (b *Builder) MatchStyle(s style.Style) *Builder {
+	b.vnode.SetMatchStyle(s)
+	return b
+}
+
+// SearchQuery filters visible rows using case-insensitive substring matching.
+func (b *Builder) SearchQuery(query string) *Builder {
+	b.vnode.SetSearchQuery(query)
+	return b
+}
+
+// SearchFn sets a custom search function.
+func (b *Builder) SearchFn(fn func(string, string) bool) *Builder {
+	b.vnode.SetSearchFn(fn)
+	return b
+}
+
+// ShowSearchStats toggles the search stats row.
+func (b *Builder) ShowSearchStats(show bool) *Builder {
+	b.vnode.SetShowSearchStats(show)
+	return b
+}
+
+// SearchStatsStyle sets the style for the search stats row.
+func (b *Builder) SearchStatsStyle(s style.Style) *Builder {
+	b.vnode.SetSearchStatsStyle(s)
+	return b
+}
+
 // SelectedStyle sets the style for the selected row.
 func (b *Builder) SelectedStyle(s style.Style) *Builder {
 	b.vnode.SetSelectedStyle(s)
@@ -119,21 +169,119 @@ func (b *Builder) BorderStyle(s style.Style) *Builder {
 	return b
 }
 
-// ScrollOffset sets the initial scroll offset.
+// ShowScrollbar controls whether a vertical scrollbar is shown when scrollable.
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.vnode.SetShowScrollbar(show)
+	return b
+}
+
+// ScrollbarStyle sets the style for the scrollbar.
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.vnode.SetScrollbarStyle(s)
+	return b
+}
+
+// OnChange sets the change intent emitted when selection changes.
+func (b *Builder) OnChange(changeIntent intent.Intent) *Builder {
+	b.vnode.SetChangeIntent(changeIntent)
+	return b
+}
+
+// OnSelectionChange sets the intent emitted when checkbox selection changes.
+func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
+	b.vnode.SetSelectionIntent(selectionIntent)
+	return b
+}
+
+// ScrollOffset sets the scroll offset in controlled mode.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)
 	return b
 }
 
-// SelectedIndex sets the currently selected row index.
+// ScrollOffsetControlled sets the scroll offset in controlled mode.
+func (b *Builder) ScrollOffsetControlled(offset int) *Builder {
+	b.vnode.SetScrollOffsetControlled(offset)
+	return b
+}
+
+// InitialScrollOffset sets the initial scroll offset in uncontrolled mode.
+func (b *Builder) InitialScrollOffset(offset int) *Builder {
+	b.vnode.SetInitialScrollOffset(offset)
+	return b
+}
+
+// SelectedIndex sets the selected row index in controlled mode.
 func (b *Builder) SelectedIndex(index int) *Builder {
 	b.vnode.SetSelectedIndex(index)
 	return b
 }
 
+// SelectedIndexControlled sets the selected row index in controlled mode.
+func (b *Builder) SelectedIndexControlled(index int) *Builder {
+	b.vnode.SetSelectedIndexControlled(index)
+	return b
+}
+
+// InitialSelectedIndex sets the initial selected row index in uncontrolled mode.
+func (b *Builder) InitialSelectedIndex(index int) *Builder {
+	b.vnode.SetInitialSelectedIndex(index)
+	return b
+}
+
+// CheckedIndices sets the checked rows in controlled mode.
+func (b *Builder) CheckedIndices(indices ...int) *Builder {
+	b.vnode.SetCheckedIndices(indices)
+	return b
+}
+
+// InitialCheckedIndices sets the initial checked rows in uncontrolled mode.
+func (b *Builder) InitialCheckedIndices(indices ...int) *Builder {
+	b.vnode.SetInitialCheckedIndices(indices)
+	return b
+}
+
+// SelectionMode sets the checkbox selection mode.
+func (b *Builder) SelectionMode(mode SelectionMode) *Builder {
+	b.vnode.SetSelectionMode(mode)
+	return b
+}
+
+// SingleSelect enables single-select checkbox behavior.
+func (b *Builder) SingleSelect() *Builder {
+	return b.SelectionMode(SelectionSingle)
+}
+
+// MultiSelect enables multi-select checkbox behavior.
+func (b *Builder) MultiSelect() *Builder {
+	return b.SelectionMode(SelectionMultiple)
+}
+
 // ViewportHeight sets the visible height for scrolling.
 func (b *Builder) ViewportHeight(height int) *Builder {
 	b.vnode.SetViewportHeight(height)
+	return b
+}
+
+// ForField binds the list selection to a state field using FieldBinding.
+func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetProps(rtui.Props{
+		"changeIntent": binding,
+	})
+	return b
+}
+
+// SelectionForField binds checkbox selection changes to a state field.
+func (b *Builder) SelectionForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetProps(rtui.Props{
+		"selectionIntent": binding,
+	})
+	return b
+}
+
+// ForForm binds the list to a form using FormBinding.
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.vnode.SetFormID(binding.GetFormID())
 	return b
 }
 
@@ -156,6 +304,16 @@ func (b *Builder) BuildVNode() *VNode {
 // BuildInstance directly creates an Instance.
 func (b *Builder) BuildInstance() *Instance {
 	return NewInstance(b.vnode.Props())
+}
+
+// BuildVirtualList snapshots the current List builder state into a VirtualList bridge.
+func (b *Builder) BuildVirtualList() *virtuallist.VNode {
+	return b.vnode.ToVirtualList()
+}
+
+// BuildVirtualBridge snapshots the current List builder state into a VirtualBridge.
+func (b *Builder) BuildVirtualBridge() *VirtualBridge {
+	return b.vnode.ToVirtualBridge()
 }
 
 // =============================================================================

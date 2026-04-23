@@ -29,6 +29,7 @@ import (
 	"github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
@@ -179,9 +180,9 @@ func NewStandaloneInspector() *StandaloneInspector {
 		overlayWidth:  80,
 		overlayHeight: 25,
 		position:      PositionFloating, // Change to floating by default
-		// Floating position (left side, visible in 80-column terminal)
-		floatX:         0, // Default X position (left edge)
-		floatY:         0, // Default Y position (top edge)
+		// Floating position (right side, visible in 80-column terminal)
+		floatX:         80, // Default X position
+		floatY:         5,  // Default Y position
 		isDragging:     false,
 		updateInterval: 200 * time.Millisecond, // Throttle updates (5 FPS for tree/diagnostics)
 		screenWidth:    80,                     // Default terminal width
@@ -205,7 +206,7 @@ func (si *StandaloneInspector) Enable() {
 				if r := recover(); r != nil {
 					// Intent registration failed (e.g., app not initialized in tests)
 					// This is OK - handlers will be registered during normal app startup
-					log.InspectorLogger.Debug("Intent handler registration deferred: %v", r)
+					log.InspectorLogger.IfEnabled().Debug("Intent handler registration deferred: %v", r)
 				}
 			}()
 			si.initIntentHandlers()
@@ -213,7 +214,7 @@ func (si *StandaloneInspector) Enable() {
 		}()
 	}
 
-	log.InspectorLogger.Debug("Enabled (F12 to toggle)")
+	log.InspectorLogger.IfEnabled().Debug("Enabled (F12 to toggle)")
 }
 
 // Disable disables the inspector
@@ -225,7 +226,7 @@ func (si *StandaloneInspector) Disable() {
 	si.visible = false
 	si.perf.Disable()
 
-	log.InspectorLogger.Debug("Disabled")
+	log.InspectorLogger.IfEnabled().Debug("Disabled")
 }
 
 // IsEnabled returns whether inspector is enabled
@@ -251,7 +252,7 @@ func (si *StandaloneInspector) ToggleVisibility() {
 	if si.visible {
 		state = "visible"
 	}
-	log.InspectorLogger.Debug("Toggled: %s", state)
+	log.InspectorLogger.IfEnabled().Debug("Toggled: %s", state)
 }
 
 // IsVisible returns whether inspector overlay is currently visible
@@ -278,7 +279,7 @@ func (si *StandaloneInspector) AttachToApp(root ui.VNode) {
 	// Check if VNode has actually changed (by pointer comparison)
 	// This avoids expensive tree rebuilding when the same VNode is passed multiple times
 	if si.lastRootVNode == root {
-		log.InspectorLogger.Debug("AttachToApp: VNode unchanged, skipping SetRoot")
+		log.InspectorLogger.IfEnabled().Debug("AttachToApp: VNode unchanged, skipping SetRoot")
 		return
 	}
 
@@ -286,7 +287,7 @@ func (si *StandaloneInspector) AttachToApp(root ui.VNode) {
 	si.treeView.SetRoot(root)
 	si.lastRootVNode = root
 
-	log.InspectorLogger.Debug("AttachToApp: VNode changed, SetRoot called")
+	log.InspectorLogger.IfEnabled().Debug("AttachToApp: VNode changed, SetRoot called")
 
 	// Run diagnostics if visible AND on diagnostics tab
 	// Analyze is very expensive (full tree traversal + rule checking)
@@ -348,6 +349,12 @@ func (si *StandaloneInspector) RenderOverlay() ui.VNode {
 
 	// Mark as Inspector layer
 	content.SetLayer(ui.LayerInspector)
+
+	// Set position props
+	content.SetProps(rtui.Props{
+		"x": si.floatX,
+		"y": si.floatY,
+	})
 
 	// Cache for event dispatching
 	si.cachedOverlayContent = content
@@ -603,10 +610,10 @@ func (si *StandaloneInspector) buildElementsTabContent() ui.VNode {
 		si.treeLines, si.treeTotalLines = si.treeView.GetTreeLines()
 		si.lastTreeChangeCount = currentChangeCount
 
-		log.InspectorLogger.Debug("Tree lines regenerated (count: %d)", len(si.treeLines))
+		log.InspectorLogger.IfEnabled().Debug("Tree lines regenerated (count: %d)", len(si.treeLines))
 		// Log first few lines to debug
 		for i := 0; i < min(5, len(si.treeLines)); i++ {
-			log.InspectorLogger.Debug("Tree line %d: %q", i, si.treeLines[i])
+			log.InspectorLogger.IfEnabled().Debug("Tree line %d: %q", i, si.treeLines[i])
 		}
 	}
 
@@ -1097,7 +1104,7 @@ func (si *StandaloneInspector) updateHitTestEntries() []HitTestEntry {
 	var entries []HitTestEntry
 
 	if si.appRoot == nil {
-		log.InspectorLogger.Debug("updateHitTestEntries: appRoot is nil")
+		log.InspectorLogger.IfEnabled().Debug("updateHitTestEntries: appRoot is nil")
 		return entries
 	}
 
@@ -1107,7 +1114,7 @@ func (si *StandaloneInspector) updateHitTestEntries() []HitTestEntry {
 	// Traverse the VNode tree to collect hit test information
 	si.collectHitTestEntries(si.appRoot, 0, 0, 0, &entries)
 
-	log.InspectorLogger.Debug("update: collected %d entries", len(entries))
+	log.InspectorLogger.IfEnabled().Debug("update: collected %d entries", len(entries))
 	return entries
 }
 
@@ -1119,7 +1126,7 @@ func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder
 	}
 
 	// Debug logging
-	log.InspectorLogger.Debug("collect: node type=%d, zOrder=%d", node.Type(), zOrder)
+	log.InspectorLogger.IfEnabled().Debug("collect: node type=%d, zOrder=%d", node.Type(), zOrder)
 
 	// Get node bounds if available
 	var bounds string
@@ -1130,7 +1137,7 @@ func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder
 	if boundsProvider, ok := node.(interface{ GetBounds() [4]int }); ok {
 		arr := boundsProvider.GetBounds()
 		bx, by, bw, bh := arr[0], arr[1], arr[2], arr[3]
-		log.InspectorLogger.Debug("  [4]int GetBounds: %v", arr)
+		log.InspectorLogger.IfEnabled().Debug("  [4]int GetBounds: %v", arr)
 		// Only consider nodes with positive size
 		if bw > 0 && bh > 0 {
 			bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
@@ -1138,14 +1145,14 @@ func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder
 	} else if boundsProvider, ok := node.(interface{ GetBounds() (int, int, int, int) }); ok {
 		// Signature 2: GetBounds() (int, int, int, int) (tuple return)
 		bx, by, bw, bh := boundsProvider.GetBounds()
-		log.InspectorLogger.Debug("  (int,int,int,int) GetBounds: %d,%d,%d,%d", bx, by, bw, bh)
+		log.InspectorLogger.IfEnabled().Debug("  (int,int,int,int) GetBounds: %d,%d,%d,%d", bx, by, bw, bh)
 		// Only consider nodes with positive size
 		if bw > 0 && bh > 0 {
 			bounds = fmt.Sprintf("%d,%d %dx%d", bx, by, bw, bh)
 		}
 	} else {
 		// No GetBounds method
-		log.InspectorLogger.Debug("  No GetBounds method on node type=%d", node.Type())
+		log.InspectorLogger.IfEnabled().Debug("  No GetBounds method on node type=%d", node.Type())
 	}
 
 	// Skip nodes without valid bounds (but still recurse into children)
@@ -1230,9 +1237,11 @@ func (si *StandaloneInspector) collectHitTestEntries(node ui.VNode, x, y, zOrder
 	if label == "" {
 		label = rtui.GetTextContent(node)
 	}
-	// Truncate long labels
-	if len(label) > 12 {
-		label = label[:9] + "..."
+	// Truncate long labels to 12 rune characters maximum
+	// Use rune-based truncation to avoid cutting UTF-8 multibyte characters
+	runes := []rune(label)
+	if len(runes) > 12 {
+		label = string(runes[:9]) + "..."
 	}
 
 	entry := HitTestEntry{
@@ -1767,7 +1776,7 @@ func (si *StandaloneInspector) EndFrame() {
 // Log adds a message to the inspector console
 func (si *StandaloneInspector) Log(message string) {
 	// TODO: Implement console logging
-	log.InspectorLogger.Debug("%s", message)
+	log.InspectorLogger.IfEnabled().Debug("%s", message)
 }
 
 // =============================================================================
@@ -1787,7 +1796,7 @@ func (si *StandaloneInspector) SetFloatingPosition(x, y int) {
 	defer si.mu.Unlock()
 	si.floatX = x
 	si.floatY = y
-	log.InspectorLogger.Debug("Position set to (%d, %d)", x, y)
+	log.InspectorLogger.IfEnabled().Debug("Position set to (%d, %d)", x, y)
 }
 
 // Move moves the inspector by the specified offset
@@ -1803,7 +1812,7 @@ func (si *StandaloneInspector) Move(dx, dy int) {
 	if si.floatY < 0 {
 		si.floatY = 0
 	}
-	log.InspectorLogger.Debug("Moved by (%d, %d) to (%d, %d)", dx, dy, si.floatX, si.floatY)
+	log.InspectorLogger.IfEnabled().Debug("Moved by (%d, %d) to (%d, %d)", dx, dy, si.floatX, si.floatY)
 }
 
 // =============================================================================
@@ -1814,9 +1823,9 @@ func (si *StandaloneInspector) Move(dx, dy int) {
 // Returns true if the event was handled
 func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, shift bool) bool {
 	si.mu.Lock()
-	defer si.mu.Unlock()
 
 	if !si.visible || !si.enabled {
+		si.mu.Unlock()
 		return false
 	}
 
@@ -1846,7 +1855,8 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// Debug mode: toggle with Ctrl+D (when Inspector is visible)
 	if key == "d" && ctrl {
 		si.showKeyDebug = !si.showKeyDebug
-		log.InspectorLogger.Debug("showKeyDebug toggled to %v", si.showKeyDebug)
+		log.InspectorLogger.IfEnabled().Debug("showKeyDebug toggled to %v", si.showKeyDebug)
+		si.mu.Unlock()
 		return true
 	}
 
@@ -1857,8 +1867,9 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			snapshot := analyzer.Capture(si.appRoot, 0)
 			treeStr := analyzer.FormatTree(snapshot)
 			_ = os.WriteFile("layout_dump.txt", []byte(treeStr), 0644)
-			log.InspectorLogger.Debug("Layout dump saved to layout_dump.txt")
+			log.InspectorLogger.IfEnabled().Debug("Layout dump saved to layout_dump.txt")
 		}
+		si.mu.Unlock()
 		return true
 	}
 
@@ -1892,7 +1903,8 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	}
 
 	if tab, ok := tabKeyMap[key]; ok {
-		si.mu.Unlock() // Unlock before emitting intent
+		si.activeTab = tab // Update directly for immediate effect
+		si.mu.Unlock()     // Unlock before emitting intent
 		go ui.EmitIntentGlobal(SwitchTabIntent{Tab: tab})
 		return true
 	}
@@ -1976,25 +1988,30 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 			if si.treeScrollOffset < 0 {
 				si.treeScrollOffset = 0
 			}
-			log.InspectorLogger.Debug("Tree scrolled up to offset %d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree scrolled up to offset %d", si.treeScrollOffset)
+			si.mu.Unlock()
 			return true
 		case "pagedown", "pgdn":
 			si.treeScrollOffset += treeViewHeight
 			if si.treeScrollOffset > maxOffset {
 				si.treeScrollOffset = maxOffset
 			}
-			log.InspectorLogger.Debug("Tree scrolled down to offset %d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree scrolled down to offset %d", si.treeScrollOffset)
+			si.mu.Unlock()
 			return true
 		case "home":
 			si.treeScrollOffset = 0
-			log.InspectorLogger.Debug("Tree scrolled to top")
+			log.InspectorLogger.IfEnabled().Debug("Tree scrolled to top")
+			si.mu.Unlock()
 			return true
 		case "end":
 			si.treeScrollOffset = maxOffset
-			log.InspectorLogger.Debug("Tree scrolled to bottom")
+			log.InspectorLogger.IfEnabled().Debug("Tree scrolled to bottom")
+			si.mu.Unlock()
 			return true
 		}
 
+		si.mu.Unlock()
 		return true
 	}
 
@@ -2003,6 +2020,7 @@ func (si *StandaloneInspector) HandleKeyEvent(key string, alt bool, ctrl bool, s
 	// (F12 and Ctrl+D are handled earlier by keyMap shortcuts)
 	log.InspectorLogger.Debug("Visible mode: capturing key '%s' (alt=%v, ctrl=%v)",
 		key, alt, ctrl)
+	si.mu.Unlock()
 	return true
 }
 
@@ -2072,7 +2090,7 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 				if component, ok := si.cachedOverlayContent.(frameworkevent.Component); ok {
 					handled := component.HandleEvent(localEv)
 					if handled {
-						log.InspectorLogger.Debug("Event handled by overlay component")
+						log.InspectorLogger.IfEnabled().Debug("Event handled by overlay component")
 						return true
 					}
 				}
@@ -2081,7 +2099,7 @@ func (si *StandaloneInspector) HandleMouseEvent(eventType frameworkevent.EventTy
 			// Fallback: manual handling for tab bar
 			handled := si.handleOverlayMouse(localX, localY, eventType, ev.Button)
 			if handled {
-				log.InspectorLogger.Debug("Event handled by manual fallback")
+				log.InspectorLogger.IfEnabled().Debug("Event handled by manual fallback")
 			}
 			return handled
 		}
@@ -2128,17 +2146,19 @@ func (si *StandaloneInspector) handleOverlayMouse(localX, localY int, eventType 
 			var width int
 			if InspectorTab(idx) == si.activeTab {
 				// Active tab: [label]
-				width = len(label) + 2 // [ ]
+				// Use display width for correct click area with wide characters
+				width = paint.StringWidth(label) + 2 // [ ]
 				if localX >= cursor && localX < cursor+width {
 					return false // clicking active tab does nothing, consume event
 				}
 				cursor += width
 			} else {
 				// Inactive tab: " label " (with spaces)
-				width = len(label) + 2 // leading/trailing spaces
+				// Use display width for correct click area with wide characters
+				width = paint.StringWidth(label) + 2 // leading/trailing spaces
 				if localX >= cursor && localX < cursor+width {
 					si.activeTab = InspectorTab(idx)
-					log.InspectorLogger.Debug("Tab clicked: %s (row %d, col %d)", label, localY, localX)
+					log.InspectorLogger.IfEnabled().Debug("Tab clicked: %s (row %d, col %d)", label, localY, localX)
 					return true // tab switched, consume event
 				}
 				cursor += width
@@ -2183,7 +2203,7 @@ func formatNodeInfo(nodeType, tag, key, label string) string {
 	info := ""
 
 	// Debug logging to trace the issue
-	log.InspectorLogger.Debug("formatNodeInfo: type=%q tag=%q key=%q label=%q", nodeType, tag, key, label)
+	log.InspectorLogger.IfEnabled().Debug("formatNodeInfo: type=%q tag=%q key=%q label=%q", nodeType, tag, key, label)
 
 	// Use id as node type (Element, Text, etc.) - this is what we have from HitTestEntry.NodeID
 	if nodeType != "" {
@@ -2452,7 +2472,7 @@ func (si *StandaloneInspector) initIntentHandlers() {
 		// Ensure the tab is valid
 		if i.Tab >= TabElements && i.Tab <= TabHitTest {
 			si.activeTab = i.Tab
-			log.InspectorLogger.Debug("Switched to tab %d via SwitchTabIntent", i.Tab)
+			log.InspectorLogger.IfEnabled().Debug("Switched to tab %d via SwitchTabIntent", i.Tab)
 		}
 		return intent.HandledResult()
 	})
@@ -2470,10 +2490,10 @@ func (si *StandaloneInspector) initIntentHandlers() {
 		switch i.Direction {
 		case "up":
 			si.navigateTree(-1)
-			log.InspectorLogger.Debug("Tree: navigated up (Intent), scroll offset=%d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree: navigated up (Intent), scroll offset=%d", si.treeScrollOffset)
 		case "down":
 			si.navigateTree(1)
-			log.InspectorLogger.Debug("Tree: navigated down (Intent), scroll offset=%d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree: navigated down (Intent), scroll offset=%d", si.treeScrollOffset)
 		case "pageup":
 			treeViewHeight := si.overlayHeight - 20
 			if treeViewHeight < 1 {
@@ -2483,7 +2503,7 @@ func (si *StandaloneInspector) initIntentHandlers() {
 			if si.treeScrollOffset < 0 {
 				si.treeScrollOffset = 0
 			}
-			log.InspectorLogger.Debug("Tree: scrolled page up (Intent), scroll offset=%d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree: scrolled page up (Intent), scroll offset=%d", si.treeScrollOffset)
 		case "pagedown":
 			treeViewHeight := si.overlayHeight - 20
 			if treeViewHeight < 1 {
@@ -2497,10 +2517,10 @@ func (si *StandaloneInspector) initIntentHandlers() {
 			if si.treeScrollOffset > maxOffset {
 				si.treeScrollOffset = maxOffset
 			}
-			log.InspectorLogger.Debug("Tree: scrolled page down (Intent), scroll offset=%d", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree: scrolled page down (Intent), scroll offset=%d", si.treeScrollOffset)
 		case "home":
 			si.treeScrollOffset = 0
-			log.InspectorLogger.Debug("Tree: scrolled to top (Intent)")
+			log.InspectorLogger.IfEnabled().Debug("Tree: scrolled to top (Intent)")
 		case "end":
 			treeViewHeight := si.overlayHeight - 20
 			if treeViewHeight < 1 {
@@ -2511,9 +2531,9 @@ func (si *StandaloneInspector) initIntentHandlers() {
 				maxOffset = 0
 			}
 			si.treeScrollOffset = maxOffset
-			log.InspectorLogger.Debug("Tree: scrolled to bottom (Intent)")
+			log.InspectorLogger.IfEnabled().Debug("Tree: scrolled to bottom (Intent)")
 		case "enter":
-			log.InspectorLogger.Debug("Tree: enter key pressed on line at offset %d (Intent)", si.treeScrollOffset)
+			log.InspectorLogger.IfEnabled().Debug("Tree: enter key pressed on line at offset %d (Intent)", si.treeScrollOffset)
 		}
 		return intent.HandledResult()
 	})
@@ -2534,23 +2554,23 @@ func (si *StandaloneInspector) initIntentHandlers() {
 			if si.floatY < 0 {
 				si.floatY = 0
 			}
-			log.InspectorLogger.Debug("Moved inspector up to y=%d (Intent)", si.floatY)
+			log.InspectorLogger.IfEnabled().Debug("Moved inspector up to y=%d (Intent)", si.floatY)
 		case "down":
 			si.floatY += 1
-			log.InspectorLogger.Debug("Moved inspector down to y=%d (Intent)", si.floatY)
+			log.InspectorLogger.IfEnabled().Debug("Moved inspector down to y=%d (Intent)", si.floatY)
 		case "left":
 			si.floatX -= 2
 			if si.floatX < 0 {
 				si.floatX = 0
 			}
-			log.InspectorLogger.Debug("Moved inspector left to x=%d (Intent)", si.floatX)
+			log.InspectorLogger.IfEnabled().Debug("Moved inspector left to x=%d (Intent)", si.floatX)
 		case "right":
 			si.floatX += 2
-			log.InspectorLogger.Debug("Moved inspector right to x=%d (Intent)", si.floatX)
+			log.InspectorLogger.IfEnabled().Debug("Moved inspector right to x=%d (Intent)", si.floatX)
 		}
 		return intent.HandledResult()
 	})
 
-	log.InspectorLogger.Debug("Inspector intent handlers initialized")
+	log.InspectorLogger.IfEnabled().Debug("Inspector intent handlers initialized")
 }
 

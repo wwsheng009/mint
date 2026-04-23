@@ -13,7 +13,7 @@ import (
 
 // 演示: SVG 可视化输出
 func main() {
-	fmt.Println("=== SVG Layout Visualization Demo ===\n")
+	fmt.Println("=== SVG Layout Visualization Demo ===")
 
 	// 示例 1: 简单的 Panel 布局
 	fmt.Println("示例 1: 简单的 Panel 布局")
@@ -43,7 +43,7 @@ func main() {
 	}
 
 	fmt.Println("✓ 已生成 simple_layout.svg 文件")
-	fmt.Println("  在浏览器或 SVG 查看器中打开此文件\n")
+	fmt.Println("  在浏览器或 SVG 查看器中打开此文件")
 
 	// 示例 2: 复杂的嵌套布局
 	fmt.Println("示例 2: 复杂的嵌套布局")
@@ -83,7 +83,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("✓ 已生成 complex_layout.svg 文件\n")
+	fmt.Println("✓ 已生成 complex_layout.svg 文件")
 
 	// 示例 3: 简化版 SVG（圆形节点）
 	fmt.Println("示例 3: 简化版 SVG（圆形节点）")
@@ -96,7 +96,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("✓ 已生成 simple_layout_circle.svg 文件\n")
+	fmt.Println("✓ 已生成 simple_layout_circle.svg 文件")
 
 	// 示例 4: Tree map 风格
 	fmt.Println("示例 4: Tree Map 风格可视化")
@@ -109,7 +109,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("✓ 已生成 treemap_layout.svg 文件\n")
+	fmt.Println("✓ 已生成 treemap_layout.svg 文件")
 
 	// 示例 5: 行业级测试：大组件树
 	fmt.Println("示例 5: 大型组件树")
@@ -146,7 +146,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("✓ 已生成 massive_layout.svg 文件\n")
+	fmt.Println("✓ 已生成 massive_layout.svg 文件")
 
 	// 打印统计
 	fmt.Println("=== 生成统计 ===")
@@ -163,8 +163,8 @@ func main() {
 		fmt.Println("✓ 未检测到布局问题")
 	}
 
-	fmt.Println("\n=== Demo 完成 ===")
-	fmt.Println("\n提示: 生成的 SVG 文件包含:")
+	fmt.Println("=== Demo 完成 ===")
+	fmt.Println("提示: 生成的 SVG 文件包含:")
 	fmt.Println("  - 详细版 SVG: 显示完整的节点信息、约束、连接线")
 	fmt.Println("  - 简化版 SVG: 使用圆形节点，适合概览")
 	fmt.Println("  - Tree Map: 使用嵌套矩形，适合快速查看节点分布")

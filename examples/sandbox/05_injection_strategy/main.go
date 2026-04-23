@@ -1,5 +1,5 @@
 // 05_injection_strategy/main.go
-// 事件注入策略示例
+// 事件注入策略示例 (Store 模式)
 //
 // 演示不同的事件注入策略：
 // - InjectProhibited: 禁止注入（生产环境）
@@ -12,10 +12,24 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Count    int    // 计数器值
+	Strategy string // 注入策略
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type IncrementStrategyIntent struct{}
 func (IncrementStrategyIntent) IntentType() string { return "Increment" }
 func (IncrementStrategyIntent) StayPressed() bool  { return true }
@@ -24,37 +38,42 @@ type DecrementStrategyIntent struct{}
 func (DecrementStrategyIntent) IntentType() string { return "Decrement" }
 func (DecrementStrategyIntent) StayPressed() bool  { return true }
 
-// StrategyApp 演示注入策略的应用
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var injectionStrategyStore = store.NewStore(AppState{
+	Count:    0,
+	Strategy: "Allowed",
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(IncrementStrategyIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(DecrementStrategyIntent{}, func(s AppState, i intent.Intent) AppState {
+			if s.Count > 0 {
+				s.Count--
+			}
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), injectionStrategyStore)
+}
+
+// ============================================================================
+// StrategyApp - 演示注入策略的应用
+// ============================================================================
+
 func StrategyApp() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-	strategy, _ := ui.UseStateString("Allowed")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["count"] = count
-		ctx.GlobalState["setCount"] = setCount
-	}
-
-	// Register intent handlers
-	ui.On(IncrementStrategyIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount + 1)
-			}
-		}
-	})
-	ui.On(DecrementStrategyIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if currentCount > 0 {
-			if fn, ok := actx.GetState("setCount"); ok {
-				if setter, ok := fn.(func(int)); ok {
-					setter(currentCount - 1)
-				}
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(injectionStrategyStore, func(s AppState) int { return s.Count })
+	strategy := ui.UseStoreSelector(injectionStrategyStore, func(s AppState) string { return s.Strategy })
 
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════╗").
@@ -100,11 +119,15 @@ func StrategyApp() ui.VNode {
 	)
 }
 
+// ============================================================================
+// Main
+// ============================================================================
+
 func main() {
 	err := ui.Run(StrategyApp,
 		ui.WithWidth(40),
 		ui.WithHeight(18),
-		ui.WithTitle("Injection Strategy Demo"),
+		ui.WithTitle("Injection Strategy Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

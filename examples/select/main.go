@@ -2,41 +2,79 @@ package main
 
 import (
 	"fmt"
-	"reflect"
-	"strconv"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// SelectDemo demonstrates the select dropdown component (MVP 模式)
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	SelectedIndex int // 选中的主题索引
+}
+
+// ============================================================================
+// Intent Types
+// ============================================================================
+
+type SetThemeIntent struct {
+	Index int
+}
+func (SetThemeIntent) IntentType() string { return "SetTheme" }
+func (SetThemeIntent) StayPressed() bool  { return true }
+
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var selectStore = store.NewStore(AppState{
+	SelectedIndex: 0,
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SetThemeIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.SelectedIndex = i.(SetThemeIntent).Index
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), selectStore)
+}
+
+// ============================================================================
+// 主题映射
+// ============================================================================
+
+// 索引到主题值的映射
+var indexToTheme = map[int]string{
+	0: "dark",
+	1: "light",
+	2: "dracula",
+	3: "nord",
+}
+
+// 主题值到显示名称的映射
+var themeNames = map[string]string{
+	"dark":    "Dark Theme",
+	"light":   "Light Theme",
+	"dracula": "Dracula Theme",
+	"nord":    "Nord Theme",
+}
+
+// ============================================================================
+// SelectDemo demonstrates the select dropdown component (Store 模式)
+// ============================================================================
+
 func SelectDemo() ui.VNode {
-	// Select 组件的 FieldChangeIntent 携带的是索引（int）
-	selectedIndex, setSelectedIndex, _ := ui.UseStateInt(0)
-	selectedIndexKey := intent.StateKey[int]("selectedIndex")
-	selectedIndexSetterKey := intent.StateKey[func(int)]("selectedIndexSetter")
-
-	// 保存 setter
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState[selectedIndexSetterKey.String()] = setSelectedIndex
-	}
-
-	// 索引到主题值的映射
-	indexToTheme := map[int]string{
-		0: "dark",
-		1: "light",
-		2: "dracula",
-		3: "nord",
-	}
-
-	// 主题值到显示名称的映射
-	themeNames := map[string]string{
-		"dark":    "Dark Theme",
-		"light":   "Light Theme",
-		"dracula": "Dracula Theme",
-		"nord":    "Nord Theme",
-	}
+	// ✅ 订阅 selectedIndex 状态
+	selectedIndex := ui.UseStoreSelector(selectStore, func(s AppState) int { return s.SelectedIndex })
 
 	// 获取当前选中的主题值
 	currentThemeValue := indexToTheme[selectedIndex]
@@ -56,8 +94,8 @@ func SelectDemo() ui.VNode {
 			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
+		// Select 组件 - 当前只是显示选中项，实际选择逻辑需要进一步集成
 		ui.NewSelectBuilder().
-			ForField(intent.ForField[int](selectedIndexKey)).
 			AddOption("dark", "Dark Theme").
 			AddOption("light", "Light Theme").
 			AddOption("dracula", "Dracula Theme").
@@ -69,15 +107,30 @@ func SelectDemo() ui.VNode {
 			FgColor("green").
 			Build(),
 		ui.Text(""),
-		ui.NewTableBuilder().
-			Columns([]ui.TableColumn{
-				{Title: "ID", Width: 5},
-				{Title: "Name", Width: 12},
-				{Title: "Status", Width: 10},
-			}).
-			AddRow("1", "Alice", "Active").
-			AddRow("2", "Bob", "Active").
-			AddRow("3", "Charlie", "Inactive").
+		// 添加手动选择按钮（演示 Store 模式）
+		ui.HStack(
+			ui.NewTextBuilder("Manual: ").
+				FgColor("gray").
+				Build(),
+			ui.NewButtonBuilder("Dark").
+				OnPress(SetThemeIntent{Index: 0}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("Light").
+				OnPress(SetThemeIntent{Index: 1}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("Dracula").
+				OnPress(SetThemeIntent{Index: 2}).
+				Build(),
+			ui.Text(" "),
+			ui.NewButtonBuilder("Nord").
+				OnPress(SetThemeIntent{Index: 3}).
+				Build(),
+		),
+		ui.Text(""),
+		ui.NewTextBuilder("─────────────────────────────────────").
+			FgColor("bright-black").
 			Build(),
 		ui.Text(""),
 		ui.NewTextBuilder("Tab: focus | Up/Down/Enter: select | q: quit").
@@ -86,39 +139,15 @@ func SelectDemo() ui.VNode {
 	)
 }
 
-// callSetter 使用反射调用 setter 函数
-func callSetter(fn interface{}, arg interface{}) {
-	if fn == nil {
-		return
-	}
-	v := reflect.ValueOf(fn)
-	if v.Kind() != reflect.Func {
-		return
-	}
-	argV := reflect.ValueOf(arg)
-	v.Call([]reflect.Value{argV})
-}
+// ============================================================================
+// Main
+// ============================================================================
 
 func main() {
 	err := ui.Run(SelectDemo,
 		ui.WithWidth(50),
-		ui.WithHeight(22),
-		ui.WithTitle("Select & Table Demo (MVP)"),
-		ui.WithInit(func() {
-			selectedIndexKey := intent.StateKey[int]("selectedIndex")
-			selectedIndexSetterKey := intent.StateKey[func(int)]("selectedIndexSetter")
-
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				if i.Field == selectedIndexKey.String() {
-					setter, _ := ctx.GetState(selectedIndexSetterKey.String())
-					// FieldChangeIntent.Value is always string, need to convert to int
-					if intValue, err := strconv.Atoi(i.Value); err == nil {
-						callSetter(setter, intValue)
-					}
-				}
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithHeight(24),
+		ui.WithTitle("Select & Table Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

@@ -1,5 +1,5 @@
 // 03_test_helper/main.go
-// TestHelper 链式 API 示例
+// TestHelper 链式 API 示例 (Store 模式)
 //
 // 演示如何使用 TestHelper 的流畅链式 API
 // 简化测试代码编写。
@@ -8,12 +8,29 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Username  string  // 用户名
+	Password  string  // 密码
+	Submitted bool    // 是否已提交
+	Message   string  // 消息
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type SubmitFormIntent struct{}
 func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
 func (SubmitFormIntent) StayPressed() bool  { return true }
@@ -22,59 +39,70 @@ type ClearFormIntent struct{}
 func (ClearFormIntent) IntentType() string { return "ClearForm" }
 func (ClearFormIntent) StayPressed() bool  { return true }
 
-// FormApp 表单应用，用于演示 TestHelper
+type SetTestHelperUsernameIntent struct {
+	Username string
+}
+func (SetTestHelperUsernameIntent) IntentType() string { return "SetTestHelperUsername" }
+func (SetTestHelperUsernameIntent) StayPressed() bool  { return false }
+
+type SetTestHelperPasswordIntent struct {
+	Password string
+}
+func (SetTestHelperPasswordIntent) IntentType() string { return "SetTestHelperPassword" }
+func (SetTestHelperPasswordIntent) StayPressed() bool  { return false }
+
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var testHelperStore = store.NewStore(AppState{
+	Username:  "",
+	Password:  "",
+	Submitted: false,
+	Message:   "",
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SubmitFormIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Submitted = true
+			if strings.TrimSpace(s.Username) != "" && strings.TrimSpace(s.Password) != "" {
+				s.Message = fmt.Sprintf("Welcome, %s!", s.Username)
+			} else {
+				s.Message = "Please fill all fields"
+			}
+			return s
+		}).
+		On(ClearFormIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Submitted = false
+			s.Message = ""
+			return s
+		}).
+		On(SetTestHelperUsernameIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Username = i.(SetTestHelperUsernameIntent).Username
+			return s
+		}).
+		On(SetTestHelperPasswordIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Password = i.(SetTestHelperPasswordIntent).Password
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), testHelperStore)
+}
+
+// ============================================================================
+// FormApp - 表单应用
+// ============================================================================
+
 func FormApp() ui.VNode {
-	username, _ := ui.UseStateString("")
-	password, _ := ui.UseStateString("")
-	submitted, setSubmitted := ui.UseStateBool(false)
-	message, setMessage := ui.UseStateString("")
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["username"] = username
-		ctx.GlobalState["password"] = password
-		ctx.GlobalState["setSubmitted"] = setSubmitted
-		ctx.GlobalState["setMessage"] = setMessage
-	}
-
-	// Register intent handlers
-	ui.On(SubmitFormIntent{}, func(actx *intent.ActionContext) {
-		currentUsername := actx.GetStringState("username", "")
-		currentPassword := actx.GetStringState("password", "")
-		// currentMessage := actx.GetStringState("message", "")
-		
-		if fn, ok := actx.GetState("setSubmitted"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(true)
-			}
-		}
-		if currentUsername != "" && currentPassword != "" {
-			if fn, ok := actx.GetState("setMessage"); ok {
-				if setter, ok := fn.(func(string)); ok {
-					setter(fmt.Sprintf("Welcome, %s!", currentUsername))
-				}
-			}
-		} else {
-			if fn, ok := actx.GetState("setMessage"); ok {
-				if setter, ok := fn.(func(string)); ok {
-					setter("Please fill all fields")
-				}
-			}
-		}
-	})
-	ui.On(ClearFormIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setSubmitted"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(false)
-			}
-		}
-		if fn, ok := actx.GetState("setMessage"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("")
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	username := ui.UseStoreSelector(testHelperStore, func(s AppState) string { return s.Username })
+	password := ui.UseStoreSelector(testHelperStore, func(s AppState) string { return s.Password })
+	submitted := ui.UseStoreSelector(testHelperStore, func(s AppState) bool { return s.Submitted })
+	message := ui.UseStoreSelector(testHelperStore, func(s AppState) string { return s.Message })
 
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════╗").
@@ -114,13 +142,12 @@ func FormApp() ui.VNode {
 		ui.Text(""),
 		func() ui.VNode {
 			if submitted {
+				color := "red"
+				if strings.TrimSpace(username) != "" && strings.TrimSpace(password) != "" {
+					color = "green"
+				}
 				return ui.NewTextBuilder(message).
-					FgColor(func() string {
-						if username != "" && password != "" {
-							return "green"
-						}
-						return "red"
-					}()).
+					FgColor(color).
 					Bold(true).
 					Build()
 			}
@@ -129,11 +156,15 @@ func FormApp() ui.VNode {
 	)
 }
 
+// ============================================================================
+// Main
+// ============================================================================
+
 func main() {
 	err := ui.Run(FormApp,
 		ui.WithWidth(40),
 		ui.WithHeight(16),
-		ui.WithTitle("TestHelper Demo"),
+		ui.WithTitle("TestHelper Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

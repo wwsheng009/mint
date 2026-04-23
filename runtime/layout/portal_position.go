@@ -324,6 +324,156 @@ func (pc *PortalPositionCalculator) getValue(ptr *int, defaultValue int) int {
 	return defaultValue
 }
 
+type AnchoredPopupPositionResult struct {
+	X         int
+	Y         int
+	Placement string
+	Clamped   bool
+}
+
+// ResolveAnchoredPopupPositionFromProps resolves menu-style anchored popup placement from portal props.
+// It returns ok=false when the props do not describe an anchored popup placement.
+func ResolveAnchoredPopupPositionFromProps(props map[string]interface{}, config PortalPositionConfig) (AnchoredPopupPositionResult, bool) {
+	if props == nil {
+		return AnchoredPopupPositionResult{}, false
+	}
+	placement, ok := props["popupPlacement"].(string)
+	if !ok || placement == "" {
+		return AnchoredPopupPositionResult{}, false
+	}
+	offsetX, _ := props["popupOffsetX"].(int)
+	offsetY, _ := props["popupOffsetY"].(int)
+	return ResolveAnchoredPopupPosition(config, placement, offsetX, offsetY), true
+}
+
+// ResolveViewportClampedPopupPositionFromProps resolves root-based popup placement and clamps it into the viewport.
+// It returns ok=false when the props do not opt into viewport clamping.
+func ResolveViewportClampedPopupPositionFromProps(props map[string]interface{}, config PortalPositionConfig) (AnchoredPopupPositionResult, bool) {
+	if props == nil {
+		return AnchoredPopupPositionResult{}, false
+	}
+	clampToViewport, ok := props["popupClampToViewport"].(bool)
+	if !ok || !clampToViewport {
+		return AnchoredPopupPositionResult{}, false
+	}
+	calculator := NewPortalPositionCalculator()
+	x, y := calculator.CalculatePosition(config)
+	clampedX, clampedY := clampAnchoredPopupToViewport(x, y, config)
+	return AnchoredPopupPositionResult{
+		X:       clampedX,
+		Y:       clampedY,
+		Clamped: clampedX != x || clampedY != y,
+	}, true
+}
+
+// ResolveAnchoredPopupPosition resolves an anchored popup placement with candidate fallback and viewport clamping.
+func ResolveAnchoredPopupPosition(config PortalPositionConfig, placement string, offsetX, offsetY int) AnchoredPopupPositionResult {
+	candidates := anchoredPopupCandidates(placement)
+	if len(candidates) == 0 {
+		x, y := anchoredPopupCoordinates(config, placement, offsetX, offsetY)
+		return AnchoredPopupPositionResult{X: x, Y: y, Placement: placement}
+	}
+
+	for _, candidate := range candidates {
+		x, y := anchoredPopupCoordinates(config, candidate, offsetX, offsetY)
+		if anchoredPopupFitsViewport(x, y, config) {
+			return AnchoredPopupPositionResult{
+				X:         x,
+				Y:         y,
+				Placement: candidate,
+			}
+		}
+	}
+
+	x, y := anchoredPopupCoordinates(config, candidates[0], offsetX, offsetY)
+	clampedX, clampedY := clampAnchoredPopupToViewport(x, y, config)
+	return AnchoredPopupPositionResult{
+		X:         clampedX,
+		Y:         clampedY,
+		Placement: candidates[0],
+		Clamped:   clampedX != x || clampedY != y,
+	}
+}
+
+func anchoredPopupCandidates(placement string) []string {
+	switch placement {
+	case "bottom-start":
+		return []string{"bottom-start", "bottom-end", "top-start", "top-end"}
+	case "bottom-end":
+		return []string{"bottom-end", "bottom-start", "top-end", "top-start"}
+	case "top-start":
+		return []string{"top-start", "top-end", "bottom-start", "bottom-end"}
+	case "top-end":
+		return []string{"top-end", "top-start", "bottom-end", "bottom-start"}
+	case "right-start":
+		return []string{"right-start", "left-start", "bottom-start", "top-start"}
+	case "left-start":
+		return []string{"left-start", "right-start", "bottom-start", "top-start"}
+	default:
+		return nil
+	}
+}
+
+func anchoredPopupCoordinates(config PortalPositionConfig, placement string, offsetX, offsetY int) (x, y int) {
+	ax := config.AnchorX
+	ay := config.AnchorY
+	aw := config.AnchorWidth
+	ah := config.AnchorHeight
+	pw := config.PortalWidth
+	ph := config.PortalHeight
+
+	switch placement {
+	case "bottom-end":
+		return ax + aw - pw + offsetX, ay + ah + offsetY
+	case "top-start":
+		return ax + offsetX, ay - ph + offsetY
+	case "top-end":
+		return ax + aw - pw + offsetX, ay - ph + offsetY
+	case "right-start":
+		return ax + aw + offsetX, ay + offsetY
+	case "left-start":
+		return ax - pw + offsetX, ay + offsetY
+	default:
+		return ax + offsetX, ay + ah + offsetY
+	}
+}
+
+func anchoredPopupFitsViewport(x, y int, config PortalPositionConfig) bool {
+	if config.ViewportWidth <= 0 || config.ViewportHeight <= 0 {
+		return true
+	}
+	return x >= 0 &&
+		y >= 0 &&
+		x+config.PortalWidth <= config.ViewportWidth &&
+		y+config.PortalHeight <= config.ViewportHeight
+}
+
+func clampAnchoredPopupToViewport(x, y int, config PortalPositionConfig) (int, int) {
+	if config.ViewportWidth <= 0 || config.ViewportHeight <= 0 {
+		return x, y
+	}
+	maxX := maxInt(0, config.ViewportWidth-config.PortalWidth)
+	maxY := maxInt(0, config.ViewportHeight-config.PortalHeight)
+	return clampInt(x, 0, maxX), clampInt(y, 0, maxY)
+}
+
+func clampInt(value, minValue, maxValue int) int {
+	if value < minValue {
+		return minValue
+	}
+	if value > maxValue {
+		return maxValue
+	}
+	return value
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -332,8 +482,8 @@ func (pc *PortalPositionCalculator) getValue(ptr *int, defaultValue int) int {
 // in the layout tree by its ID
 //
 // Priority:
-//   1. PropsID (business identifier, from SetID) - recommended
-//   2. ID (NodeID as string, for backward compatibility) - legacy
+//  1. PropsID (business identifier, from SetID) - recommended
+//  2. ID (NodeID as string, for backward compatibility) - legacy
 func FindAnchorPosition(root *LayoutBox, anchorID string) (x, y, width, height int, found bool) {
 	if root == nil || anchorID == "" {
 		return 0, 0, 0, 0, false

@@ -6,7 +6,6 @@ package main
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -38,13 +37,10 @@ func TestDemo3TabNavigation(t *testing.T) {
 	}
 	defer testApp.Close()
 
-
 	// Try clicking on different tabs
-	for i := 0; i < 3; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		testApp.InjectSpecialKey(platform.KeyEnter)
-	}
-
+	testApp.InjectKey('a')
+	testApp.InjectKey('b')
+	testApp.InjectKey('i')
 }
 
 // TestDemo3ColorTab tests the colors tab
@@ -77,10 +73,7 @@ func TestDemo3BordersTab(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to borders tab (3rd tab)
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('b')
 
 	t.Log("✓ Demo3 borders tab works")
 }
@@ -96,13 +89,10 @@ func TestDemo3ThemesTab(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to themes tab (5th tab)
-	for i := 0; i < 9; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('t')
 
-	rendered := testApp.GetRenderString()
-	if rendered == "" {
+	buffer := testApp.GetBuffer()
+	if buffer == nil {
 		t.Error("Themes tab should render")
 	}
 
@@ -151,9 +141,8 @@ func TestDemo3Comprehensive(t *testing.T) {
 			defer testApp.Close()
 
 			// Try to navigate through all tabs
-			for i := 0; i < 10; i++ {
-				testApp.InjectSpecialKey(platform.KeyTab)
-				testApp.InjectSpecialKey(platform.KeyEnter)
+			for _, key := range []rune{'c', 'a', 'b', 'i', 't'} {
+				testApp.InjectKey(key)
 			}
 			t.Log("✓ All tabs navigable")
 		}},

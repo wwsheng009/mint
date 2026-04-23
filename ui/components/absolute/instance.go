@@ -1,6 +1,7 @@
 package absolute
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -59,35 +60,35 @@ var (
 // NewInstance creates a new AbsoluteInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:       getStringProp(props, "key", ""),
+		key:       proputil.GetString(props, "key", ""),
 		anchor:    AnchorTopLeft,
-		width:     getIntProp(props, "width", 0),
-		height:    getIntProp(props, "height", 0),
-		zIndex:    getIntProp(props, "zIndex", 0),
-		flex:      getIntProp(props, "flex", 0),
-		instStyle: getStyleProp(props),
+		width:     proputil.GetInt(props, "width", 0),
+		height:    proputil.GetInt(props, "height", 0),
+		zIndex:    proputil.GetInt(props, "zIndex", 0),
+		flex:      proputil.GetInt(props, "flex", 0),
+		instStyle: proputil.GetStyle(props, "style", style.Style{}),
 		dirty:     true,
 	}
 
 	// Parse child
-	if v, ok := props["child"].(rtui.VNode); ok {
+	if v, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = v
 	}
 
 	// Parse positions
-	if v, ok := props["left"].(PositionValue); ok {
+	if v, ok := props[propLeft].(PositionValue); ok {
 		inst.left = v
 	}
-	if v, ok := props["top"].(PositionValue); ok {
+	if v, ok := props[propTop].(PositionValue); ok {
 		inst.top = v
 	}
-	if v, ok := props["right"].(PositionValue); ok {
+	if v, ok := props[propRight].(PositionValue); ok {
 		inst.right = v
 	}
-	if v, ok := props["bottom"].(PositionValue); ok {
+	if v, ok := props[propBottom].(PositionValue); ok {
 		inst.bottom = v
 	}
-	if v, ok := props["anchor"].(Anchor); ok {
+	if v, ok := props[propAnchor].(Anchor); ok {
 		inst.anchor = v
 	}
 
@@ -131,29 +132,29 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldChild := inst.child
 	oldAnchor := inst.anchor
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.zIndex = getIntProp(props, "zIndex", inst.zIndex)
-	inst.flex = getIntProp(props, "flex", inst.flex)
-	inst.instStyle = getStyleProp(props)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.zIndex = proputil.GetInt(props, "zIndex", inst.zIndex)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
-	if v, ok := props["child"].(rtui.VNode); ok {
+	if v, ok := props[propChild].(rtui.VNode); ok {
 		inst.child = v
 	}
-	if v, ok := props["left"].(PositionValue); ok {
+	if v, ok := props[propLeft].(PositionValue); ok {
 		inst.left = v
 	}
-	if v, ok := props["top"].(PositionValue); ok {
+	if v, ok := props[propTop].(PositionValue); ok {
 		inst.top = v
 	}
-	if v, ok := props["right"].(PositionValue); ok {
+	if v, ok := props[propRight].(PositionValue); ok {
 		inst.right = v
 	}
-	if v, ok := props["bottom"].(PositionValue); ok {
+	if v, ok := props[propBottom].(PositionValue); ok {
 		inst.bottom = v
 	}
-	if v, ok := props["anchor"].(Anchor); ok {
+	if v, ok := props[propAnchor].(Anchor); ok {
 		inst.anchor = v
 	}
 
@@ -171,17 +172,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":    inst.key,
-		"child":  inst.child,
-		"left":   inst.left,
-		"top":    inst.top,
-		"right":  inst.right,
-		"bottom": inst.bottom,
-		"anchor": inst.anchor,
-		"width":  inst.width,
-		"height": inst.height,
-		"zIndex": inst.zIndex,
-		"flex":   inst.flex,
+		propKey:    inst.key,
+		propChild:  inst.child,
+		propLeft:   inst.left,
+		propTop:    inst.top,
+		propRight:  inst.right,
+		propBottom: inst.bottom,
+		propAnchor: inst.anchor,
+		propWidth:  inst.width,
+		propHeight: inst.height,
+		propZIndex: inst.zIndex,
+		propFlex:   inst.flex,
 	}
 }
 
@@ -351,33 +352,6 @@ func (inst *Instance) ClearDirty() {
 // =============================================================================
 // Prop Extraction Helpers
 // =============================================================================
-
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
 
 // =============================================================================
 // Layout Interfaces Implementation

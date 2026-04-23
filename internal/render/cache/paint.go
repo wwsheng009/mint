@@ -243,6 +243,10 @@ type PaintingContext struct {
 	cache      *PaintCache
 	bufferCopy *paint.Buffer // Copy of previous buffer for comparison
 	version    int
+
+	// 性能优化: 跟踪 buffer 内容变化，避免不必要的克隆
+	lastBufferHash uint64  // 上次 buffer 的哈希值
+	skipCloneCount int64   // 跳过克隆的次数（统计用）
 }
 
 // NewPaintingContext creates a new painting context.
@@ -265,6 +269,24 @@ func (pc *PaintingContext) cloneBuffer(buffer *paint.Buffer) *paint.Buffer {
 	if buffer == nil {
 		return nil
 	}
+
+	// 性能优化: 检查 buffer 内容是否变化，避免不必要的克隆
+	// 如果内容未变化，直接返回已存在的副本
+	currentHash := pc.computeBufferHash(buffer)
+
+	// 检查内容是否变化
+	if pc.bufferCopy != nil && currentHash == pc.lastBufferHash {
+		// 内容未变化，跳过克隆
+		pc.skipCloneCount++
+		if pc.skipCloneCount%100 == 0 {
+			// 定期输出统计（减少日志频率）
+			log.RenderLogger.IfEnabled().Debug("[PaintingContext] Skipped %d buffer clones (no changes detected)", pc.skipCloneCount)
+		}
+		return pc.bufferCopy
+	}
+
+	// 内容有变化，执行克隆
+	pc.lastBufferHash = currentHash
 	copied := paint.NewBuffer(buffer.Width, buffer.Height)
 	for y := 0; y < buffer.Height; y++ {
 		for x := 0; x < buffer.Width; x++ {
@@ -274,13 +296,91 @@ func (pc *PaintingContext) cloneBuffer(buffer *paint.Buffer) *paint.Buffer {
 	return copied
 }
 
+// hashString computes a fast hash of a string using FNV-1a.
+func hashString(s string) uint64 {
+	h := uint64(14695981039346656037)
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= 1099511628211
+	}
+	return h
+}
+
+// computeBufferHash computes a fast hash of buffer content.
+// 使用 FNV-1a hash 算法，适合快速对比 buffer 内容。
+func (pc *PaintingContext) computeBufferHash(buffer *paint.Buffer) uint64 {
+	if buffer == nil {
+		return 0
+	}
+
+	// Fast non-cryptographic hash: FNV-1a
+	h := uint64(14695981039346656037)
+
+	// 为了性能，只采样一部分单元格（而不是全部）
+	// 采样策略: 每隔 N 个单元格采样一个，平衡性能和准确性
+	sampleRate := 4 // 每隔4个单元格采样一个
+
+	for y := 0; y < buffer.Height; y++ {
+		row := buffer.Cells[y]
+		for x := 0; x < buffer.Width; x += sampleRate {
+			cell := row[x]
+			// Hash cell content
+			h ^= uint64(x)
+			h ^= uint64(y)
+			h ^= uint64(cell.Width)
+			// Hash style 关键属性 (将字符串 Color 转换为 hash)
+			fgHash := hashString(string(cell.Style.FG))
+			bgHash := hashString(string(cell.Style.BG))
+			h ^= fgHash
+			h ^= bgHash << 16
+			// Hash style modifiers (使用位压缩)
+			var modBits uint64
+			if cell.Style.IsBold() {
+				modBits |= 1
+			}
+			if cell.Style.IsItalic() {
+				modBits |= 2
+			}
+			if cell.Style.IsUnderline() {
+				modBits |= 4
+			}
+			if cell.Style.IsStrikethrough() {
+				modBits |= 8
+			}
+			if cell.Style.IsReverse() {
+				modBits |= 16
+			}
+			if cell.Style.IsBlink() {
+				modBits |= 32
+			}
+			h ^= modBits << 8
+			// Hash cluster string
+			clen := len(cell.Cluster)
+			if clen > 0 {
+				h ^= uint64(clen) << 24
+				// 只采样字符串的前几个字符
+				maxChars := 8
+				if clen > maxChars {
+					clen = maxChars
+				}
+				for i := 0; i < clen; i++ {
+					h ^= uint64(cell.Cluster[i]) << ((i % 8) * 8)
+				}
+			}
+			h *= 1099511628211
+		}
+	}
+
+	return h
+}
+
 // TryPaintFromCache attempts to paint from cache.
 // Returns true if painted from cache, false otherwise.
 func (pc *PaintingContext) TryPaintFromCache(buffer *paint.Buffer, boxID string, x, y int) bool {
 	if pc == nil || pc.cache == nil || buffer == nil {
 		return false
 	}
-	log.RenderLogger.Debug("[PaintingContext] boxID %s",boxID)
+	log.RenderLogger.IfEnabled().Debug("[PaintingContext] boxID %s",boxID)
 	content, width, height, found := pc.cache.Get(boxID, pc.version)
 	if !found {
 		return false
@@ -439,4 +539,13 @@ func (pc *PaintingContext) GetStats() CacheStats {
 		return CacheStats{}
 	}
 	return pc.cache.Stats()
+}
+
+// GetSkipCloneCount returns the number of buffer clones that were skipped
+// due to content not changing.
+func (pc *PaintingContext) GetSkipCloneCount() int64 {
+	if pc == nil {
+		return 0
+	}
+	return pc.skipCloneCount
 }

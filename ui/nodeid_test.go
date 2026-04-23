@@ -62,11 +62,10 @@ func TestNodeIDGeneration(t *testing.T) {
 		uniqueIDs[nid] = true
 	}
 
-	// Verify sequential generation (1, 2, 3, 4)
-	for i, nid := range nodeIDs {
-		expected := uint64(i + 1)
-		if nid != expected {
-			t.Errorf("NodeID %d = %d, want %d (sequential)", i, nid, expected)
+	// Verify sequential generation (each NodeID is exactly 1 more than the previous)
+	for i := 1; i < len(nodeIDs); i++ {
+		if nodeIDs[i] != nodeIDs[i-1]+1 {
+			t.Errorf("NodeID %d = %d, want %d (sequential after %d)", i, nodeIDs[i], nodeIDs[i-1]+1, nodeIDs[i-1])
 		}
 	}
 

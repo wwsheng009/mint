@@ -468,7 +468,7 @@ func convertLayoutLayerToInt(l layout.Layer) int {
 
 ### PaintableBox 结构
 
-**文件**: `runtime/paint/types.go`
+**文件**: `runtime/paint/paintable_box.go`
 
 ```go
 type PaintableBox struct {

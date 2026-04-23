@@ -6,13 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/framework/debug"
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/framework/theme"
+	aiservice "github.com/wwsheng009/mint/internal/ai/service"
 	"github.com/wwsheng009/mint/internal/log"
+	runtimepkg "github.com/wwsheng009/mint/runtime"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/bridge/actionbridge"
 	"github.com/wwsheng009/mint/runtime/core"
@@ -23,6 +29,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/render"
+	"github.com/wwsheng009/mint/runtime/selection"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -39,6 +46,32 @@ const (
 	StateStopped
 	StateError
 )
+
+// InteractionMode controls how mouse/text selection behaves at runtime.
+//
+// - Interactive: regular app interaction (mouse capture on)
+// - AppSelection: app-managed selection via runtime/selection (mouse capture on)
+// - TerminalSelection: terminal-native text selection (mouse capture off)
+type InteractionMode int
+
+const (
+	InteractionModeInteractive InteractionMode = iota
+	InteractionModeAppSelection
+	InteractionModeTerminalSelection
+)
+
+func (m InteractionMode) String() string {
+	switch m {
+	case InteractionModeInteractive:
+		return "interactive"
+	case InteractionModeAppSelection:
+		return "app_selection"
+	case InteractionModeTerminalSelection:
+		return "terminal_selection"
+	default:
+		return "unknown"
+	}
+}
 
 // App 主应用程序
 type App struct {
@@ -65,11 +98,23 @@ type App struct {
 
 	// 自定义事件源（测试时使用，如 MockSandbox）
 	customSource frameworkevent.EventSource
+	inputReader  platform.InputReader
 
 	// 生命周期
-	state AppState
+	state int32 // accessed atomically; use AppState constants cast to int32
 	quit  chan struct{}
 	dirty bool
+	// activeTickables caches whether the current fiber tree contains any instance
+	// that still wants periodic ticks. This avoids full-tree scans on idle frames.
+	activeTickables bool
+
+	// AI / external invoke support
+	aiService      *aiservice.Service
+	invokeQ        chan invokeRequest
+	invokeDone     chan struct{}
+	invokeDoneOnce sync.Once
+	closeOnce      sync.Once
+	renderSeq      uint64
 
 	// 终端尺寸
 	terminalWidth  int
@@ -88,6 +133,13 @@ type App struct {
 	// ============================================================================
 	// Renderer 提供双缓冲、diff、run merging 等优化
 	renderer *paint.Renderer
+	// Async renderer (enabled by default; disable via MINT_ASYNC_RENDER=false)
+	asyncRenderer      *paint.AsyncRenderer
+	asyncRenderEnabled bool
+	asyncFrameInterval time.Duration
+	graphicsPresenter  platform.GraphicsPresenter
+	graphicsImagesOn   bool
+	graphicsLayout     []presentedGraphicsLayer
 
 	// 上一帧缓冲区（用于局部刷新） - deprecated，保留用于兼容
 	prevBuffer [][]paint.Cell
@@ -104,6 +156,9 @@ type App struct {
 
 	// 渲染节流器
 	throttler *render.Throttler
+
+	// renderMu guards render() against concurrent calls (e.g. ForceRenderNow from test goroutine)
+	renderMu sync.Mutex
 
 	// 上下文管理器
 	contextMgr *core.ContextManager
@@ -134,11 +189,26 @@ type App struct {
 	// ============================================================================
 	// InputTracker + InteractionFSM (Phase 1-3: Pressed State 解决方案)
 	// ============================================================================
+
+	// ============================================================================
+	// Test Probes (testing only)
+	// ============================================================================
+	testMsgProbe    func(runtimemsg.Msg)
+	testActionProbe func(*action.Action, bool, string)
 	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
 	// - InputTracker: 追踪输入状态变化，推断边缘事件
 	// - InteractionContext: 全局交互状态管理，分配 Click/Cancel/ResetPressed
-	inputTracker     *input.InputTracker
-	interactionCtx   *interaction.InteractionContext
+	inputTracker   *input.InputTracker
+	interactionCtx *interaction.InteractionContext
+
+	// 文本选择与交互模式
+	selectionAdapter *selection.RuntimeAdapter
+	interactionMode  InteractionMode
+	hoveredFiber     *rtui.Fiber
+	mouseCaptureID   uint64
+	mouseCaptureBtn  runtimemsg.MouseButton
+	mouseCaptureOn   bool
+	mouseCaptureRef  string
 
 	// ============================================================================
 	// 调试支持
@@ -148,20 +218,33 @@ type App struct {
 	debugRecorder *debug.Recorder // 调试记录器
 }
 
+type presentedGraphicsLayer struct {
+	ID          string
+	Bounds      paint.Rect
+	PixelWidth  int
+	PixelHeight int
+}
+
 // NewApp 创建新应用 (Phase 1: 初始化 Action 系统)
 func NewApp() *App {
+	asyncRenderEnabled, asyncFrameInterval := asyncRenderConfigFromEnv()
+
 	app := &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
-		eventFilter:  func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
-		quit:         make(chan struct{}, 1),
-		tickInterval: 16 * time.Millisecond, // ~60fps
-		firstRender:  true,
-		throttler:    render.NewThrottler(60), // 默认 60 FPS
-		contextMgr:   core.NewContextManager(context.Background()),
-		userData:     make(map[string]interface{}),
-		renderer:     paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		router:             frameworkevent.NewRouter(),
+		keyMap:             frameworkevent.NewKeyMap(),
+		focusManager:       rtui.NewFiberFocusManager(),                        // Fiber-first: Focus manager
+		eventFilter:        func(ev frameworkevent.Event) bool { return true }, // 默认放行所有事件
+		quit:               make(chan struct{}, 1),
+		invokeQ:            make(chan invokeRequest, 32),
+		invokeDone:         make(chan struct{}),
+		tickInterval:       16 * time.Millisecond, // ~60fps
+		firstRender:        true,
+		throttler:          render.NewThrottler(60), // 默认 60 FPS
+		contextMgr:         core.NewContextManager(context.Background()),
+		userData:           make(map[string]interface{}),
+		renderer:           paint.NewRenderer(80, 24), // 新增：初始化 Renderer
+		asyncRenderEnabled: asyncRenderEnabled,
+		asyncFrameInterval: asyncFrameInterval,
 
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil), // 根节点稍后设置
@@ -170,8 +253,9 @@ func NewApp() *App {
 		legacyMode:      false,                                          // Action 系统优先，legacy 仅用于调试
 
 		// Phase 1-3: Pressed State 解决方案
-		inputTracker:   input.NewInputTracker(),
-		interactionCtx: interaction.NewInteractionContext(),
+		inputTracker:    input.NewInputTracker(),
+		interactionCtx:  interaction.NewInteractionContext(),
+		interactionMode: InteractionModeInteractive,
 	}
 
 	// 初始化 ActionBridge (Fiber → Action 桥接器)
@@ -205,25 +289,32 @@ func NewApp() *App {
 // NewAppWithSource 创建使用自定义 EventSource 的应用 (Phase 1: 初始化 Action 系统)
 // 允许测试时使用 MockSandbox 或其他事件源替代真实的平台输入
 func NewAppWithSource(source frameworkevent.EventSource) *App {
+	asyncRenderEnabled, asyncFrameInterval := asyncRenderConfigFromEnv()
+
 	app := &App{
-		router:       frameworkevent.NewRouter(),
-		keyMap:       frameworkevent.NewKeyMap(),
-		focusManager: rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
-		eventFilter:  func(ev frameworkevent.Event) bool { return true },
-		quit:         make(chan struct{}, 1),
-		tickInterval: 16 * time.Millisecond,
-		firstRender:  true,
-		throttler:    render.NewThrottler(60),
-		contextMgr:   core.NewContextManager(context.Background()),
-		userData:     make(map[string]interface{}),
-		renderer:     paint.NewRenderer(80, 24),
-		customSource: source, // 使用自定义事件源
+		router:             frameworkevent.NewRouter(),
+		keyMap:             frameworkevent.NewKeyMap(),
+		focusManager:       rtui.NewFiberFocusManager(), // Fiber-first: Focus manager
+		eventFilter:        func(ev frameworkevent.Event) bool { return true },
+		quit:               make(chan struct{}, 1),
+		invokeQ:            make(chan invokeRequest, 32),
+		invokeDone:         make(chan struct{}),
+		tickInterval:       16 * time.Millisecond,
+		firstRender:        true,
+		throttler:          render.NewThrottler(60),
+		contextMgr:         core.NewContextManager(context.Background()),
+		userData:           make(map[string]interface{}),
+		renderer:           paint.NewRenderer(80, 24),
+		asyncRenderEnabled: asyncRenderEnabled,
+		asyncFrameInterval: asyncFrameInterval,
+		customSource:       source, // 使用自定义事件源
 
 		// Phase 1: 初始化 Action 系统
 		actionRouter:    action.NewRouter(nil),
 		inputProcessor:  action.NewInputProcessor(),
 		scopeDispatcher: action.NewScopeDispatcherWithName(nil, "root"), // Scope-based dispatcher
 		legacyMode:      true,
+		interactionMode: InteractionModeInteractive,
 	}
 
 	// 初始化 ActionBridge
@@ -238,6 +329,27 @@ func NewAppWithSource(source frameworkevent.EventSource) *App {
 	return app
 }
 
+func asyncRenderConfigFromEnv() (bool, time.Duration) {
+	asyncRenderEnabled := true
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MINT_ASYNC_RENDER"))) {
+	case "", "true", "1", "yes", "on":
+		asyncRenderEnabled = true
+	case "false", "0", "no", "off":
+		asyncRenderEnabled = false
+	default:
+		// Unknown value: keep default enabled.
+		asyncRenderEnabled = true
+	}
+
+	asyncFrameInterval := 16 * time.Millisecond // default ~60fps
+	if fpsStr := os.Getenv("MINT_ASYNC_FPS"); fpsStr != "" {
+		if fps, err := strconv.Atoi(fpsStr); err == nil && fps > 0 {
+			asyncFrameInterval = time.Second / time.Duration(fps)
+		}
+	}
+	return asyncRenderEnabled, asyncFrameInterval
+}
+
 // SetDebugMode 设置调试模式
 func (a *App) SetDebugMode(enabled bool) {
 	a.debugMode = enabled
@@ -248,11 +360,11 @@ func (a *App) SetDebugMode(enabled bool) {
 		}
 		recorder, err := debug.NewRecorder(logFile)
 		if err != nil {
-			log.UILogger.Debug("Failed to create debug recorder: %v", err)
+			log.UILogger.IfEnabled().Debug("Failed to create debug recorder: %v", err)
 			return
 		}
 		a.debugRecorder = recorder
-		log.UILogger.Debug("Debug mode enabled, logging to: %s", logFile)
+		log.UILogger.IfEnabled().Debug("Debug mode enabled, logging to: %s", logFile)
 	}
 }
 
@@ -306,6 +418,7 @@ func (a *App) AddPanicHandler(handler core.PanicHandler) {
 // SetFPS 设置目标帧率
 func (a *App) SetFPS(fps int) {
 	a.throttler.SetFPS(fps)
+	a.tickInterval = time.Second / time.Duration(a.throttler.FPS())
 }
 
 // FPS 获取当前帧率
@@ -339,7 +452,7 @@ func (a *App) ForceRender() {
 // ============================================================================
 
 // InitTheme 初始化主题系统
-// 如果未指定主题名称，则使用默认主题 "dark"
+// 如果未指定主题名称，则使用主题包中的默认主题。
 func (a *App) InitTheme(themeName string) error {
 	mgr, err := theme.InitThemes(themeName)
 	if err != nil {
@@ -389,6 +502,106 @@ func (a *App) GetUserData(key string) interface{} {
 	return a.userData[key]
 }
 
+// SetInteractionMode sets runtime interaction mode.
+func (a *App) SetInteractionMode(mode InteractionMode) error {
+	switch mode {
+	case InteractionModeInteractive, InteractionModeAppSelection, InteractionModeTerminalSelection:
+	default:
+		return fmt.Errorf("invalid interaction mode: %d", mode)
+	}
+
+	a.interactionMode = mode
+	a.updateHoveredFiber(nil, nil)
+
+	// Keep selection adapter state consistent.
+	if mode == InteractionModeAppSelection {
+		adapter := a.ensureSelectionAdapter()
+		adapter.SetEnabled(true)
+	} else if a.selectionAdapter != nil {
+		a.selectionAdapter.SetEnabled(false)
+		a.selectionAdapter.ClearSelection()
+	}
+
+	// Ctrl+C should copy selection in app-selection mode, not quit app.
+	if a.pump != nil {
+		a.pump.SetCtrlCAsQuit(mode != InteractionModeAppSelection)
+	}
+
+	// TerminalSelection means terminal-native selection: disable mouse capture.
+	if err := a.applyMouseCaptureForMode(); err != nil {
+		return err
+	}
+
+	a.dirty = true
+	return nil
+}
+
+// GetInteractionMode returns current runtime interaction mode.
+func (a *App) GetInteractionMode() InteractionMode {
+	return a.interactionMode
+}
+
+// CycleInteractionMode cycles through all interaction modes and returns the new one.
+func (a *App) CycleInteractionMode() (InteractionMode, error) {
+	next := InteractionModeInteractive
+	switch a.interactionMode {
+	case InteractionModeInteractive:
+		next = InteractionModeAppSelection
+	case InteractionModeAppSelection:
+		next = InteractionModeTerminalSelection
+	case InteractionModeTerminalSelection:
+		next = InteractionModeInteractive
+	}
+	return next, a.SetInteractionMode(next)
+}
+
+func (a *App) updateMouseHoverState(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionMove {
+		return
+	}
+	next := mouseTargetFiber(mouseMsg)
+	a.updateHoveredFiber(next, mouseMsg)
+}
+
+func (a *App) updateHoveredFiber(next *rtui.Fiber, payload interface{}) {
+	if a.hoveredFiber == next {
+		return
+	}
+	if a.actionBridge != nil && a.hoveredFiber != nil && a.shouldDispatchToFiberTarget(a.hoveredFiber) {
+		if a.actionBridge.DispatchFromFiber(a.hoveredFiber, action.ActionMouseLeave, payload) {
+			a.dirty = true
+		}
+	}
+	if a.actionBridge != nil && next != nil && a.shouldDispatchToFiberTarget(next) {
+		if a.actionBridge.DispatchFromFiber(next, action.ActionMouseEnter, payload) {
+			a.dirty = true
+		}
+	}
+	a.hoveredFiber = next
+}
+
+func (a *App) ensureSelectionAdapter() *selection.RuntimeAdapter {
+	if a.selectionAdapter == nil {
+		a.selectionAdapter = selection.NewRuntimeAdapter()
+	}
+	return a.selectionAdapter
+}
+
+func (a *App) wantsMouseCapture() bool {
+	return a.interactionMode != InteractionModeTerminalSelection
+}
+
+func (a *App) applyMouseCaptureForMode() error {
+	if a.inputReader == nil {
+		return nil
+	}
+	controller, ok := a.inputReader.(platform.MouseCaptureController)
+	if !ok {
+		return nil
+	}
+	return controller.SetMouseCaptureEnabled(a.wantsMouseCapture())
+}
+
 // ============================================================================
 // 上下文管理
 // ============================================================================
@@ -400,7 +613,7 @@ func (a *App) Context() context.Context {
 
 // Shutdown 优雅关闭
 func (a *App) Shutdown(timeout time.Duration) error {
-	a.state = StateStopping
+	atomic.StoreInt32(&a.state, int32(StateStopping))
 	return a.contextMgr.Shutdown(timeout)
 }
 
@@ -562,8 +775,8 @@ func (a *App) isInspectorVisible() bool {
 //	app.SetupInspectorShortcut() // 启用 F12 切换 Inspector
 func (a *App) SetupInspectorShortcut() {
 	if a.inspector == nil {
-		log.UILogger.Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
-		log.UILogger.Debug("[APP] Call SetInspector() first")
+		log.UILogger.IfEnabled().Debug("[APP] Warning: SetupInspectorShortcut() called but no Inspector set")
+		log.UILogger.IfEnabled().Debug("[APP] Call SetInspector() first")
 		return
 	}
 
@@ -618,21 +831,17 @@ func (a *App) SetupInspectorShortcut() {
 	// The routing logic at the end of handleEvent() will forward any unhandled keys
 	// to the Inspector if it is visible.
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
-		log.UILogger.Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
-		log.UILogger.Debug("[APP] Tab switching: 1-6 (handled dynamically)")
-		log.UILogger.Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
-	}
+	log.UILogger.IfEnabled().Debug("[APP] Inspector shortcuts registered: F12, Ctrl+D (toggle)")
+	log.UILogger.IfEnabled().Debug("[APP] Panel movement: Alt+H/J/K/L or Alt+Arrow keys")
+	log.UILogger.IfEnabled().Debug("[APP] Tab switching: 1-6 (handled dynamically)")
+	log.UILogger.IfEnabled().Debug("[APP] Tree scroll: PgUp/PgDn, Home/End (when Elements tab active)")
 }
 
 // toggleInspector 切换 Inspector 显示状态
 // 这个方法会被快捷键触发
 func (a *App) toggleInspector() {
 	if a.inspector == nil {
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector not initialized, ignoring toggle")
-		}
+		log.UILogger.IfEnabled().Debug("[APP] Inspector not initialized, ignoring toggle")
 		return
 	}
 
@@ -646,9 +855,7 @@ func (a *App) toggleInspector() {
 		a.inspectorVisible = inspectorObj.IsVisible()
 		a.dirty = true // 触发重绘
 
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
-		}
+		log.UILogger.IfEnabled().Debug("[APP] Inspector toggled: now visible=%v", a.inspectorVisible)
 	}
 }
 
@@ -667,7 +874,7 @@ func (a *App) moveInspector(dx, dy int) {
 		a.dirty = true // 触发重绘
 
 		x, y := inspectorObj.GetPosition()
-		log.UILogger.Debug("[APP] Inspector moved to (%d, %d)", x, y)
+		log.UILogger.IfEnabled().Debug("[APP] Inspector moved to (%d, %d)", x, y)
 	}
 }
 
@@ -685,7 +892,7 @@ func (a *App) switchInspectorTab(tabNum int) {
 		if inspectorObj.HandleKeyEvent(key, false, false, false) {
 			a.dirty = true // 触发重绘
 
-			log.UILogger.Debug("[APP] Inspector switched to tab %d", tabNum)
+			log.UILogger.IfEnabled().Debug("[APP] Inspector switched to tab %d", tabNum)
 		}
 	}
 }
@@ -697,11 +904,11 @@ func (a *App) OnEvent(eventType frameworkevent.EventType, handler frameworkevent
 
 // Init 初始化应用
 func (a *App) Init() error {
-	if a.state != StateCreated {
+	if AppState(atomic.LoadInt32(&a.state)) != StateCreated {
 		return errors.New("app already initialized")
 	}
 
-	a.state = StateInitializing
+	atomic.StoreInt32(&a.state, int32(StateInitializing))
 
 	// 设置默认终端尺寸
 	a.terminalWidth = 80
@@ -716,16 +923,24 @@ func (a *App) Init() error {
 		a.pump = frameworkevent.NewPumpWithSource(a.customSource)
 	} else {
 		// 使用默认的平台输入源（生产模式）
-		log.UILogger.Debug("[APP] Init: Creating input reader")
+		log.UILogger.IfEnabled().Debug("[APP] Init: Creating input reader")
 		inputReader, err := platform.NewInputReader()
 		if err != nil {
 			return err
 		}
-		log.UILogger.Debug("[APP] Init: Input reader created")
+		a.inputReader = inputReader
+		if err := a.applyMouseCaptureForMode(); err != nil {
+			return err
+		}
+		log.UILogger.IfEnabled().Debug("[APP] Init: Input reader created")
 		a.pump = frameworkevent.NewPump(inputReader)
 	}
 
-	log.UILogger.Debug("[APP] Init: Starting pump")
+	if a.pump != nil {
+		a.pump.SetCtrlCAsQuit(a.interactionMode != InteractionModeAppSelection)
+	}
+
+	log.UILogger.IfEnabled().Debug("[APP] Init: Starting pump")
 	if err := a.pump.Start(); err != nil {
 		return err
 	}
@@ -737,10 +952,29 @@ func (a *App) Init() error {
 		}
 	}
 
-	a.state = StateRunning
+	if a.asyncRenderEnabled {
+		a.asyncRenderer = paint.NewAsyncRenderer(80, 24, paint.AsyncRendererOptions{
+			FrameInterval: a.asyncFrameInterval,
+			Output: func(out string) {
+				if out != "" {
+					fmt.Print(out)
+				}
+			},
+		})
+		a.asyncRenderer.Start()
+		log.RenderLogger.IfEnabled().Debug("[APP] async renderer enabled, frame interval=%s", a.asyncFrameInterval)
+	}
+
+	atomic.StoreInt32(&a.state, int32(StateRunning))
+	if a.aiService != nil && a.aiService.ShouldAutoStart() {
+		if err := a.aiService.Start(); err != nil {
+			atomic.StoreInt32(&a.state, int32(StateError))
+			return err
+		}
+	}
 	a.dirty = true
 
-	log.UILogger.Debug("[APP] Init: Complete, state=StateRunning")
+	log.UILogger.IfEnabled().Debug("[APP] Init: Complete, state=StateRunning")
 
 	return nil
 }
@@ -781,13 +1015,20 @@ func (a *App) Run() error {
 
 	// DEBUG 主循环状态
 	log.UILogger.Debug("[APP] Starting main loop, state=%d, pump running=%v",
-		a.state, a.pump != nil && a.pump.IsRunning())
+		atomic.LoadInt32(&a.state), a.pump != nil && a.pump.IsRunning())
 	log.UILogger.Debug("[APP] eventChan=%p, pump.Events()=%p",
 		eventChan, a.pump.Events())
 
-	for a.state == StateRunning {
+	for AppState(atomic.LoadInt32(&a.state)) == StateRunning {
 		// 等待事件或定时器（优先处理事件）
 		select {
+		case req := <-a.invokeQ:
+			a.handleInvokeRequest(req)
+			if a.dirty {
+				renderStartTime = time.Now()
+				a.render()
+				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+			}
 		case msg := <-eventChan:
 			if msg == nil {
 				// 通道关闭，退出
@@ -809,7 +1050,7 @@ func (a *App) Run() error {
 					if extraMsg == nil {
 						break
 					}
-					log.MessageLogger.Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
+					log.MessageLogger.IfEnabled().Debug("[APP] Msg from channel: Type=%v Message=%v", msg.Type(), msg)
 
 					// Keyboard events: always queue
 					if extraMsg.Type() == runtimemsg.MsgTypeKey {
@@ -847,7 +1088,29 @@ func (a *App) Run() error {
 			}
 
 			// Process all collected events
+			hasUserInput := false // Track if we processed user input events
 			for _, msg := range eventsToProcess {
+
+				// Track if this is a user input event (for immediate rendering)
+				if !hasUserInput {
+					switch msg.Type() {
+					case runtimemsg.MsgTypeKey:
+						// Key events (except special keys like Tab, Enter) are user input
+						if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok {
+							if keyMsg.Rune != 0 {
+								// Regular character key
+								hasUserInput = true
+							}
+						}
+					case runtimemsg.MsgTypeMouse:
+						// Mouse events (except Move) are user input
+						if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok {
+							if mouseMsg.IsPress() || mouseMsg.IsRelease() || mouseMsg.IsScroll() {
+								hasUserInput = true
+							}
+						}
+					}
+				}
 
 				// Phase 1: Try Action unified path (if enabled)
 				if a.actionRouter != nil && a.inputProcessor != nil {
@@ -867,19 +1130,49 @@ func (a *App) Run() error {
 				}
 			}
 
-		case <-ticker.C:
-			log.UILogger.Debug("[APP] Tick triggered")
-			a.handleTick()
-
-			// 处理完 tick 后，如果需要渲染则渲染
-			needsRender := a.dirty && a.throttler.ShouldRender()
-			log.UILogger.Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
+			// Immediately render after processing user input events for better responsiveness
+			// Skip throttler check for user input events to minimize input latency
+			// For non-input events (resize, mouse move), use throttler to prevent excessive rendering
+			needsRender := a.dirty
+			if !hasUserInput {
+				// Only check throttler for non-input events
+				needsRender = a.dirty && a.throttler.ShouldRender()
+			}
 			if needsRender {
-				log.UILogger.Debug("[APP] Calling render()")
+				log.UILogger.IfEnabled().Debug("[APP] Immediate render after event processing")
 				renderStartTime = time.Now()
 				a.render()
 				a.throttler.RecordFrameTime(time.Since(renderStartTime))
-				log.UILogger.Debug("[APP] render() complete")
+
+				if a.inspector != nil {
+					if provider, ok := a.root.(interface{ GetRenderedRoot() rtui.VNode }); ok {
+						if renderedRoot := provider.GetRenderedRoot(); renderedRoot != nil {
+							if inspector, ok := a.inspector.(interface{ AttachToApp(rtui.VNode) }); ok {
+								inspector.AttachToApp(renderedRoot)
+							}
+						}
+					}
+				}
+			}
+
+		case <-ticker.C:
+			log.UILogger.IfEnabled().Debug("[APP] Tick triggered")
+			if !a.activeTickables && !a.dirty {
+				continue
+			}
+			if a.activeTickables {
+				a.handleTick()
+			}
+
+			// 处理完 tick 后，如果需要渲染则渲染
+			needsRender := a.dirty && a.throttler.ShouldRender()
+			log.UILogger.IfEnabled().Debug("[APP] needsRender=%v, dirty=%v", needsRender, a.dirty)
+			if needsRender {
+				log.UILogger.IfEnabled().Debug("[APP] Calling render()")
+				renderStartTime = time.Now()
+				a.render()
+				a.throttler.RecordFrameTime(time.Since(renderStartTime))
+				log.UILogger.IfEnabled().Debug("[APP] render() complete")
 
 				// Pull pattern: Inspector pulls rendered tree from App after reconciliation
 				// App provides GetRenderedRoot() interface, Inspector calls AttachToApp()
@@ -897,13 +1190,13 @@ func (a *App) Run() error {
 
 		case <-quitAppChan:
 			// Ctrl+C 退出
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		case <-a.quit:
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		case <-a.contextMgr.Context().Done():
-			a.state = StateStopping
+			atomic.StoreInt32(&a.state, int32(StateStopping))
 			return nil
 		}
 	}
@@ -922,14 +1215,12 @@ func (a *App) Run() error {
 func (a *App) handleMsg(message runtimemsg.Msg) bool {
 	// 鼠标事件：通过 HitMap 找到的 TargetFiber 路由
 	if mouseMsg, ok := message.(*runtimemsg.MouseMsg); ok {
-		if mouseMsg.TargetFiber != nil {
-			if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
-				actionType := a.mouseActionToActionType(mouseMsg.Action)
-				if actionType != "" {
-					if a.actionBridge.DispatchFromFiber(fiber, actionType, mouseMsg) {
-						a.dirty = true
-						return true
-					}
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+			actionType := a.mouseActionToActionType(mouseMsg.Action)
+			if actionType != "" {
+				if a.actionBridge.DispatchFromFiber(fiber, actionType, mouseMsg) {
+					a.dirty = true
+					return true
 				}
 			}
 		}
@@ -1004,6 +1295,32 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	if msg == nil {
 		return
 	}
+	if a.testMsgProbe != nil {
+		a.testMsgProbe(msg)
+	}
+
+	var mappedAction *action.Action
+	var actionHandled bool
+	var actionStage string
+	defer func() {
+		if a.testActionProbe != nil && mappedAction != nil {
+			a.testActionProbe(mappedAction, actionHandled, actionStage)
+		}
+	}()
+
+	// Global key shortcuts (OnKeyCombo/OnKey) must work in Action path too.
+	if a.handleGlobalKeyShortcut(msg) {
+		a.dirty = true
+		return
+	}
+
+	// AppSelection mode: selection system gets first chance to consume input.
+	if a.interactionMode == InteractionModeAppSelection {
+		if a.dispatchSelectionEvent(msg) {
+			a.dirty = true
+			return
+		}
+	}
 
 	// ========================================================================
 	// Phase 1-3: Pressed State 解决方案
@@ -1023,6 +1340,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 1. 尝试转换为 Action
 	act := a.inputProcessor.ProcessMsg(msg)
+	mappedAction = act
 
 	// 2. 处理无法转换的消息（系统消息）
 	if act == nil {
@@ -1030,34 +1348,119 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		return
 	}
 
-	// 3. 导航 Action 由焦点管理器直接处理
-	if act.IsNavigation() {
-		a.handleNavigationAction(act)
+	// Focus-aware remapping: in text editors, arrow/home/end should move caret,
+	// not trigger global focus navigation.
+	if focused := a.getFocusedFiber(); focused != nil && isTextInputFiber(focused) {
+		switch act.Type {
+		case action.ActionNavigateLeft:
+			act.Type = action.ActionCursorLeft
+		case action.ActionNavigateRight:
+			act.Type = action.ActionCursorRight
+		case action.ActionNavigateHome:
+			act.Type = action.ActionCursorHome
+		case action.ActionNavigateEnd:
+			act.Type = action.ActionCursorEnd
+		case action.ActionNavigateUp:
+			if supportsVerticalCursorMove(focused) {
+				act.Type = action.ActionCursorUp
+			}
+		case action.ActionNavigateDown:
+			if supportsVerticalCursorMove(focused) {
+				act.Type = action.ActionCursorDown
+			}
+		}
+	}
+
+	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok {
+		a.updateMouseHoverState(mouseMsg)
+	}
+
+	act = a.applyActionMiddlewareBefore(act)
+	if act == nil {
+		a.dirty = true
+		actionHandled = true
+		actionStage = "middleware_before"
 		return
+	}
+	if act.IsStopped() {
+		a.applyActionMiddlewareAfter(act, &action.RouterResult{
+			Handled: true,
+			Stopped: true,
+			Phase:   action.ActionPhaseNone,
+		})
+		a.dirty = true
+		actionHandled = true
+		actionStage = "middleware_stop"
+		return
+	}
+
+	// 3. 导航 Action 由焦点管理器直接处理
+	// Ctrl+Tab / Ctrl+Shift+Tab should stay on the focused component so widgets
+	// like tabs can use them for intra-component navigation.
+	isCtrlTab := false
+	if keyMsg, ok := msg.(*runtimemsg.KeyMsg); ok && keyMsg != nil && keyMsg.IsTab() && keyMsg.HasCtrl() {
+		isCtrlTab = true
+	}
+	if act.IsNavigation() && !isCtrlTab {
+		if a.handleNavigationAction(act) {
+			a.applyActionMiddlewareAfter(act, &action.RouterResult{
+				Handled: true,
+				Phase:   action.ActionPhaseTarget,
+			})
+			actionHandled = true
+			actionStage = "navigation"
+			return
+		}
 	}
 
 	// 4. 统一 Action 路由：通过 ActionBridge 分发
 
 	// 4.1 鼠标事件：使用 MouseMsg 中的 TargetFiber
 	// 通过 Payload 类型识别鼠标事件（更可靠，因为 Source 可能为空）
-	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok && mouseMsg.TargetFiber != nil {
-		if fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber); ok {
+	mouseDispatchCleanup := func() {}
+	if mouseMsg, ok := act.Payload.(*runtimemsg.MouseMsg); ok {
+		if log.RenderLogger.Enabled() {
+			targetTag := "<nil>"
+			targetRef := ""
+			if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+				targetTag = fiber.Tag
+				targetRef = fiber.ID
+			}
+			log.RenderLogger.Debug("[Mouse] msgAction=%v mappedAction=%s button=%v screen=(%d,%d) local=(%d,%d) targetNodeID=%d targetTag=%s targetRef=%s captureOn=%v captureRef=%s",
+				mouseMsg.Action, act.Type, mouseMsg.Button, mouseMsg.X, mouseMsg.Y, mouseMsg.LocalX, mouseMsg.LocalY,
+				mouseMsg.TargetID, targetTag, targetRef, a.mouseCaptureOn, a.mouseCaptureRef)
+		}
+		switch mouseMsg.Action {
+		case runtimemsg.MouseActionPress:
+			a.beginMouseCapture(mouseMsg)
+		case runtimemsg.MouseActionRelease:
+			a.applyMouseCapture(mouseMsg)
+			mouseDispatchCleanup = func() {
+				a.clearMouseCapture(mouseMsg.Button)
+			}
+		}
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
 			// Mouse click: Check if target is focusable and transfer focus
-			if act.Type == action.ActionClick && fiber.Instance != nil {
-				if focusable, ok := fiber.Instance.(rtui.FocusableInstance); ok {
-					if !focusable.IsDisabled() && a.focusManager != nil {
-						// Transfer focus to clicked element by NodeID
-						focusID := fmt.Sprintf("%d", fiber.NodeID)
-						if a.focusManager.SetFocusByID(focusID) {
-							a.dirty = true
-						}
+			if act.Type == action.ActionClick && a.focusManager != nil {
+				if focusFiber := nearestFocusableFiber(fiber); focusFiber != nil {
+					// Transfer focus to the nearest focusable ancestor by NodeID.
+					focusID := fmt.Sprintf("%d", focusFiber.NodeID)
+					if a.focusManager.SetFocusByID(focusID) {
+						a.dirty = true
 					}
 				}
 			}
 
 			// 传入 act.Payload (MouseMsg) 而不是 act
-			if a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
+			if a.shouldDispatchToFiberTarget(fiber) && a.actionBridge.DispatchFromFiber(fiber, act.Type, act.Payload) {
+				mouseDispatchCleanup()
+				a.applyActionMiddlewareAfter(act, &action.RouterResult{
+					Handled: true,
+					Phase:   action.ActionPhaseTarget,
+				})
 				a.dirty = true
+				actionHandled = true
+				actionStage = "mouse_target"
 				return
 			}
 		}
@@ -1069,9 +1472,12 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		// 对于 ESC 键（ActionCancel），优先尝试通过 ActionRouter 的全局处理器处理
 		// 这样 Modal 的 GlobalActionHandler 可以拦截并关闭 modal
 		if act.Type == action.ActionCancel || act.Type == action.ActionQuit {
-			result := a.actionRouter.Dispatch(act)
+			result := a.actionRouter.DispatchWithoutMiddleware(act)
+			a.applyActionMiddlewareAfter(act, result)
 			if result.Handled {
 				a.dirty = true
+				actionHandled = true
+				actionStage = "router_cancel"
 				return
 			}
 		}
@@ -1079,26 +1485,327 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		// 否则正常路由到焦点元素
 		if focused := a.focusManager.GetCurrent(); focused != nil {
 			if a.actionBridge.DispatchFromFiber(focused, act.Type, act.Payload) {
+				a.applyActionMiddlewareAfter(act, &action.RouterResult{
+					Handled: true,
+					Phase:   action.ActionPhaseTarget,
+				})
 				a.dirty = true
+				actionHandled = true
+				actionStage = "keyboard_target"
 				return
 			}
 		}
 	}
 
-	// 4.3 回退：通过 ActionRouter 分发（语义 Action 模式）
-	if act.TargetID != 0 {
-		result := a.actionRouter.Dispatch(act)
-		if result.Handled {
-			a.dirty = true
+	// 4.3 回退：统一通过 ActionRouter 分发剩余未处理 Action。
+	// 这里不能再要求必须有 TargetID；全局中间件和无目标动作
+	// （例如点击菜单外部关闭 popup）也需要进入 ActionRouter。
+	result := a.actionRouter.DispatchWithoutMiddleware(act)
+	mouseDispatchCleanup()
+	a.applyActionMiddlewareAfter(act, result)
+	if result.Handled {
+		a.dirty = true
+		actionHandled = true
+		actionStage = "router_fallback"
+	} else {
+		actionStage = "unhandled"
+	}
+}
+
+func (a *App) applyActionMiddlewareBefore(act *action.Action) *action.Action {
+	if act == nil || a.actionRouter == nil || a.actionRouter.Middleware == nil {
+		return act
+	}
+	return a.actionRouter.Middleware.Before(act)
+}
+
+func (a *App) applyActionMiddlewareAfter(act *action.Action, result *action.RouterResult) {
+	if act == nil || a.actionRouter == nil || a.actionRouter.Middleware == nil {
+		return
+	}
+	a.actionRouter.Middleware.After(act, result)
+}
+
+func mouseTargetFiber(mouseMsg *runtimemsg.MouseMsg) *rtui.Fiber {
+	if mouseMsg == nil || mouseMsg.TargetFiber == nil {
+		return nil
+	}
+	fiber, ok := mouseMsg.TargetFiber.(*rtui.Fiber)
+	if !ok || fiber == nil {
+		return nil
+	}
+	return fiber
+}
+
+func (a *App) beginMouseCapture(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || mouseMsg.Action != runtimemsg.MouseActionPress {
+		return
+	}
+	fiber := mouseTargetFiber(mouseMsg)
+	targetID := mouseMsg.TargetID
+	if targetID == 0 && fiber != nil {
+		targetID = fiber.NodeID
+	}
+	if targetID == 0 || fiber == nil {
+		a.clearMouseCapture(runtimemsg.MouseButtonUnknown)
+		return
+	}
+	a.mouseCaptureID = targetID
+	a.mouseCaptureBtn = mouseMsg.Button
+	a.mouseCaptureOn = true
+	a.mouseCaptureRef = fiber.ID
+	if log.RenderLogger.Enabled() {
+		log.RenderLogger.Debug("[MouseCapture] begin nodeID=%d ref=%s button=%v", a.mouseCaptureID, a.mouseCaptureRef, a.mouseCaptureBtn)
+	}
+}
+
+func (a *App) applyMouseCapture(mouseMsg *runtimemsg.MouseMsg) {
+	if mouseMsg == nil || !a.mouseCaptureOn {
+		return
+	}
+	if mouseMsg.Button != a.mouseCaptureBtn {
+		return
+	}
+	if mouseMsg.Action != runtimemsg.MouseActionRelease {
+		return
+	}
+	if a.hitMap == nil || a.mouseCaptureID == 0 {
+		return
+	}
+	entry := a.hitMap.FindByID(a.mouseCaptureID)
+	if entry == nil && a.mouseCaptureRef != "" {
+		for _, candidate := range a.hitMap.AllEntries() {
+			fiber, ok := candidate.TargetFiber.(*rtui.Fiber)
+			if !ok || fiber == nil {
+				continue
+			}
+			if fiber.ID != a.mouseCaptureRef {
+				continue
+			}
+			entryCopy := candidate
+			entry = &entryCopy
+			break
 		}
+	}
+	if entry == nil {
+		if log.RenderLogger.Enabled() {
+			log.RenderLogger.Debug("[MouseCapture] release no target found for nodeID=%d ref=%s", a.mouseCaptureID, a.mouseCaptureRef)
+		}
+		return
+	}
+	localX, localY := entry.LocalXY(mouseMsg.X, mouseMsg.Y)
+	mouseMsg.TargetID = entry.NodeID
+	mouseMsg.TargetFiber = entry.TargetFiber
+	mouseMsg.LocalX = localX
+	mouseMsg.LocalY = localY
+	mouseMsg.TargetBounds = runtimepkg.Box{
+		X:      entry.Bounds.X,
+		Y:      entry.Bounds.Y,
+		Width:  entry.Bounds.Width,
+		Height: entry.Bounds.Height,
+	}
+	if log.RenderLogger.Enabled() {
+		targetTag := "<nil>"
+		if fiber := mouseTargetFiber(mouseMsg); fiber != nil {
+			targetTag = fiber.Tag
+		}
+		log.RenderLogger.Debug("[MouseCapture] retarget release nodeID=%d ref=%s targetTag=%s local=(%d,%d)",
+			mouseMsg.TargetID, a.mouseCaptureRef, targetTag, mouseMsg.LocalX, mouseMsg.LocalY)
+	}
+}
+
+func (a *App) clearMouseCapture(button runtimemsg.MouseButton) {
+	if !a.mouseCaptureOn {
+		return
+	}
+	if button != runtimemsg.MouseButtonUnknown && a.mouseCaptureBtn != button {
+		return
+	}
+	a.mouseCaptureID = 0
+	a.mouseCaptureBtn = runtimemsg.MouseButtonUnknown
+	a.mouseCaptureOn = false
+	a.mouseCaptureRef = ""
+	if log.RenderLogger.Enabled() {
+		log.RenderLogger.Debug("[MouseCapture] cleared")
+	}
+}
+
+func nearestFocusableFiber(fiber *rtui.Fiber) *rtui.Fiber {
+	for node := fiber; node != nil; node = node.Return {
+		if node.Instance == nil {
+			continue
+		}
+		focusable, ok := node.Instance.(rtui.FocusableInstance)
+		if !ok || focusable.IsDisabled() {
+			continue
+		}
+		return node
+	}
+	return nil
+}
+
+func (a *App) shouldDispatchToFiberTarget(start *rtui.Fiber) bool {
+	if a == nil || start == nil {
+		return false
+	}
+
+	for node := start; node != nil; node = node.Return {
+		if node.Instance != nil {
+			if _, ok := node.Instance.(rtui.ActionHandlerInstance); ok {
+				return true
+			}
+		}
+		if node.ActionTargetID == "" {
+			continue
+		}
+		if a.scopeDispatcher != nil && a.scopeDispatcher.HasHandler(node.ActionTargetID) {
+			return true
+		}
+		if a.actionRouter != nil {
+			if _, ok := a.actionRouter.TargetHandlers[node.ActionTargetID]; ok {
+				return true
+			}
+		}
+	}
+
+	// Legacy router bubble/capture chains still require targeted dispatch even
+	// when the Fiber path itself has no ActionHandlerInstance.
+	if a.actionRouter == nil {
+		return false
+	}
+	if a.actionRouter.Root != nil {
+		return true
+	}
+	if len(a.actionRouter.CaptureHandlers) > 0 || len(a.actionRouter.BubbleHandlers) > 0 {
+		return true
+	}
+	return false
+}
+
+func (a *App) handleGlobalKeyShortcut(msg runtimemsg.Msg) bool {
+	if a.keyMap == nil {
+		return false
+	}
+	keyMsg, ok := msg.(*runtimemsg.KeyMsg)
+	if !ok {
+		return false
+	}
+	ev := frameworkevent.MsgToEvent(keyMsg)
+	keyEv, ok := ev.(*frameworkevent.KeyEvent)
+	if !ok {
+		return false
+	}
+	handler, found := a.keyMap.Lookup(keyEv)
+	if !found || handler == nil {
+		return false
+	}
+	return handler.HandleEvent(keyEv)
+}
+
+func (a *App) dispatchSelectionEvent(msg runtimemsg.Msg) bool {
+	if a.interactionMode != InteractionModeAppSelection {
+		return false
+	}
+	adapter := a.ensureSelectionAdapter()
+	if adapter == nil || !adapter.IsEnabled() {
+		return false
+	}
+
+	switch m := msg.(type) {
+	case *runtimemsg.MouseMsg:
+		handled := adapter.OnEvent(mouseMsgToRuntimeSelectionEvent(m))
+		if !handled {
+			return false
+		}
+
+		// In app-selection mode, keep mouse clicks usable for UI controls.
+		// Only consume drag-move and drag-end to avoid accidental click-through
+		// while selecting text.
+		switch m.Action {
+		case runtimemsg.MouseActionMove:
+			return adapter.IsDragging()
+		case runtimemsg.MouseActionRelease:
+			return adapter.IsDragging()
+		case runtimemsg.MouseActionPress, runtimemsg.MouseActionWheel:
+			return false
+		default:
+			return handled
+		}
+	case *runtimemsg.KeyMsg:
+		return adapter.OnEvent(keyMsgToRuntimeSelectionEvent(m))
+	default:
+		return false
+	}
+}
+
+func keyMsgToRuntimeSelectionEvent(keyMsg *runtimemsg.KeyMsg) *runtimeevent.KeyEvent {
+	mod := runtimeevent.KeyModifier(0)
+	if keyMsg.Mod.Shift {
+		mod |= runtimeevent.ModShift
+	}
+	if keyMsg.Mod.Ctrl {
+		mod |= runtimeevent.ModCtrl
+	}
+	if keyMsg.Mod.Alt {
+		mod |= runtimeevent.ModAlt
+	}
+	return &runtimeevent.KeyEvent{
+		Key:     keyMsg.Rune,
+		Special: keyMsg.Special,
+		Type:    runtimeevent.KeyPress,
+		Mod:     mod,
+	}
+}
+
+func mouseMsgToRuntimeSelectionEvent(mouseMsg *runtimemsg.MouseMsg) *runtimeevent.MouseEvent {
+	mouseType := runtimeevent.MouseMove
+	mouseAction := runtimeevent.MouseActionMove
+	switch mouseMsg.Action {
+	case runtimemsg.MouseActionPress:
+		mouseType = runtimeevent.MousePress
+		mouseAction = runtimeevent.MouseActionPress
+	case runtimemsg.MouseActionRelease:
+		mouseType = runtimeevent.MouseRelease
+		mouseAction = runtimeevent.MouseActionRelease
+	case runtimemsg.MouseActionMove:
+		mouseType = runtimeevent.MouseMove
+		mouseAction = runtimeevent.MouseActionMove
+	case runtimemsg.MouseActionWheel:
+		mouseType = runtimeevent.MouseScroll
+		mouseAction = runtimeevent.MouseActionWheel
+	}
+
+	button := runtimeevent.MouseNone
+	switch mouseMsg.Button {
+	case runtimemsg.MouseLeft:
+		button = runtimeevent.MouseLeft
+	case runtimemsg.MouseMiddle:
+		button = runtimeevent.MouseMiddle
+	case runtimemsg.MouseRight:
+		button = runtimeevent.MouseRight
+	}
+
+	return &runtimeevent.MouseEvent{
+		X:        mouseMsg.X,
+		Y:        mouseMsg.Y,
+		Type:     mouseType,
+		Action:   mouseAction,
+		TargetID: fmt.Sprintf("%d", mouseMsg.TargetID),
+		LocalX:   mouseMsg.LocalX,
+		LocalY:   mouseMsg.LocalY,
+		Button:   button,
+		Delta:    mouseMsg.Delta,
 	}
 }
 
 // handleNavigationAction 处理导航 Action（Tab, 方向键等）
 // 导航由焦点管理器处理，不经过 ActionRouter
-func (a *App) handleNavigationAction(act *action.Action) {
+func (a *App) handleNavigationAction(act *action.Action) bool {
 	if a.focusManager == nil {
-		return
+		return false
+	}
+	if keyMsg, ok := act.Payload.(*runtimemsg.KeyMsg); ok && keyMsg != nil && keyMsg.IsTab() && keyMsg.HasCtrl() {
+		return false
 	}
 
 	// 根据导航类型调用焦点管理器
@@ -1121,6 +1828,51 @@ func (a *App) handleNavigationAction(act *action.Action) {
 	if handled {
 		a.dirty = true
 	}
+	return handled
+}
+
+func (a *App) getFocusedFiber() *rtui.Fiber {
+	if a.focusManager == nil {
+		return nil
+	}
+	return a.focusManager.GetCurrent()
+}
+
+func (a *App) getFiberRoot() *rtui.Fiber {
+	if a.root == nil {
+		return nil
+	}
+	if provider, ok := a.root.(interface{ GetFiberRoot() *rtui.Fiber }); ok {
+		return provider.GetFiberRoot()
+	}
+	return nil
+}
+
+func isTextInputFiber(fiber *rtui.Fiber) bool {
+	if fiber == nil {
+		return false
+	}
+	if fiber.Tag == "input" || fiber.Tag == "textarea" {
+		return true
+	}
+	// Fallback: some component wrappers may use non-leaf tags while the runtime
+	// instance still supports text cursor navigation.
+	if fiber.Instance != nil {
+		_, ok := fiber.Instance.(interface{ CursorPos() int })
+		return ok
+	}
+	return false
+}
+
+func supportsVerticalCursorMove(fiber *rtui.Fiber) bool {
+	if fiber == nil || fiber.Instance == nil {
+		return false
+	}
+	_, ok := fiber.Instance.(interface {
+		MoveCursorUp() bool
+		MoveCursorDown() bool
+	})
+	return ok
 }
 
 // handleSystemMsg 处理无法转换为 Action 的系统消息
@@ -1139,7 +1891,7 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 	}
 
 	// 其他系统事件...
-	log.UILogger.Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
+	log.UILogger.IfEnabled().Debug("[processMsg] Unhandled system message: Type=%v", msg.Type())
 }
 
 // dispatchAction 分发 Action 到 ActionRouter
@@ -1152,7 +1904,7 @@ func (a *App) dispatchAction(act *action.Action) *action.RouterResult {
 // DEPRECATED: Action 系统现在是主路径，保留此方法仅用于调试
 func (a *App) SetLegacyMode(enabled bool) {
 	a.legacyMode = enabled
-	log.UILogger.Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
+	log.UILogger.IfEnabled().Debug("[App] ⚠️  Legacy mode enabled - Action system bypassed")
 }
 
 // handleEvent 处理事件（已废弃）
@@ -1190,7 +1942,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// 键盘事件处理
 	if ev.Type() == frameworkevent.EventKeyPress {
 		// DEBUG: 调试键盘事件
-		log.UILogger.Debug("[APP] KeyPress event received")
+		log.UILogger.IfEnabled().Debug("[APP] KeyPress event received")
 
 		// 首先检查快捷键映射
 		if keyEv, ok := ev.(*frameworkevent.KeyEvent); ok {
@@ -1237,7 +1989,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 					// This ensures UI updates even when event propagates (handled=false)
 					a.dirty = true
 
-					log.UILogger.Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
+					log.UILogger.IfEnabled().Debug("[APP] Inspector processed key '%s' (handled=%v)", keyName, handled)
 
 					// If Inspector handled the event, don't send to VNode tree
 					if handled {
@@ -1250,16 +2002,16 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 然后发送到根组件
 		if a.root != nil {
-			log.UILogger.Debug("[APP] Sending event to root, type=%T", a.root)
+			log.UILogger.IfEnabled().Debug("[APP] Sending event to root, type=%T", a.root)
 			// 使用 event.Component 接口检查，而不是匿名接口
 			// 这样可以避免类型别名导致的类型断言失败
 			if handler, ok := a.root.(frameworkevent.Component); ok {
-				log.UILogger.Debug("[APP] root implements Component, calling HandleEvent")
+				log.UILogger.IfEnabled().Debug("[APP] root implements Component, calling HandleEvent")
 				if handler.HandleEvent(ev) {
 					a.dirty = true
 				}
 			} else {
-				log.UILogger.Debug("[APP] root does NOT implement Component")
+				log.UILogger.IfEnabled().Debug("[APP] root does NOT implement Component")
 			}
 		}
 		return
@@ -1270,7 +2022,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// EventMouseWheel, EventMouseEnter, EventMouseLeave
 	if ev.Type().IsMouse() {
 		// DEBUG: 打印鼠标事件
-		log.UILogger.Debug("[handleEvent] Mouse event type=%d, sending to root Component", ev.Type())
+		log.UILogger.IfEnabled().Debug("[handleEvent] Mouse event type=%d, sending to root Component", ev.Type())
 
 		// Route mouse events to Inspector first (for hover tracking, overlay hit test, etc.)
 		if a.inspector != nil && a.isInspectorVisible() {
@@ -1278,11 +2030,11 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 				HandleMouseEvent(frameworkevent.EventType, *frameworkevent.MouseEvent) bool
 			}); ok {
 				if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-					log.UILogger.Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
+					log.UILogger.IfEnabled().Debug("[APP] Routing mouse (%d,%d) to Inspector (type=%v)", mouseEv.X, mouseEv.Y, ev.Type())
 					handled := inspectorObj.HandleMouseEvent(ev.Type(), mouseEv)
 					a.dirty = true // refresh overlay with latest mouse info
 					if handled {
-						log.UILogger.Debug("[handleEvent] Inspector handled mouse event, returning")
+						log.UILogger.IfEnabled().Debug("[handleEvent] Inspector handled mouse event, returning")
 						return
 					}
 				}
@@ -1291,18 +2043,18 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 
 		// 发送到根组件处理，由根组件负责 hit testing 和分发
 		if a.root != nil {
-			log.UILogger.Debug("[handleEvent] Calling root.HandleEvent for mouse event")
+			log.UILogger.IfEnabled().Debug("[handleEvent] Calling root.HandleEvent for mouse event")
 			if handler, ok := a.root.(frameworkevent.Component); ok {
 				handled := handler.HandleEvent(ev)
-				log.UILogger.Debug("[handleEvent] root.HandleEvent returned=%v", handled)
+				log.UILogger.IfEnabled().Debug("[handleEvent] root.HandleEvent returned=%v", handled)
 				if handled {
 					a.dirty = true
 				}
 			} else {
-				log.UILogger.Debug("[handleEvent] root does NOT implement Component interface!")
+				log.UILogger.IfEnabled().Debug("[handleEvent] root does NOT implement Component interface!")
 			}
 		} else {
-			log.UILogger.Debug("[handleEvent] root is nil!")
+			log.UILogger.IfEnabled().Debug("[handleEvent] root is nil!")
 		}
 		return
 	}
@@ -1310,7 +2062,7 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	// Click 事件（已包含目标信息）
 	if ev.Type() == frameworkevent.EventClick {
 		if a.debugMode {
-			log.UILogger.Debug("[CLICK] Target: %v", ev.Target())
+			log.UILogger.IfEnabled().Debug("[CLICK] Target: %v", ev.Target())
 		}
 		// 直接分发到目标组件
 		if target := ev.Target(); target != nil {
@@ -1333,16 +2085,40 @@ func (a *App) handleEvent(ev frameworkevent.Event) {
 	}
 }
 
-// handleTick 处理定时器
-// 光标闪烁现在由 TextInput.Paint 自己处理，不需要外部 Tick
+// handleTick drives optional TickableInstance components (e.g. blinking cursors).
+// Components opt in by implementing rtui.TickableInstance.
 func (a *App) handleTick() {
-	// 定期触发重绘以支持光标闪烁
-	// TextInput 会在 Paint 时自己检查时间并切换光标状态
-	a.dirty = true
+	rootFiber := a.getFiberRoot()
+	if rootFiber == nil {
+		a.activeTickables = false
+		return
+	}
+
+	now := time.Now()
+	hasActiveTickables := false
+	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+
+		tickable, ok := rtui.AsTickableInstance(fiber.Instance)
+		if !ok || !tickable.WantsTick() {
+			return true
+		}
+		hasActiveTickables = true
+
+		if tickable.Tick(now) {
+			a.dirty = true
+		}
+		return true
+	})
+	a.activeTickables = hasActiveTickables
 }
 
 // render 渲染界面
 func (a *App) render() {
+	a.renderMu.Lock()
+	defer a.renderMu.Unlock()
 	if a.root == nil {
 		return
 	}
@@ -1372,7 +2148,26 @@ func (a *App) render() {
 				a.terminalWidth, a.terminalHeight, layoutWidth, layoutHeight)
 		}
 
-		paintable.Paint(ctx, buf)
+		var scene *paint.SceneFrame
+		if scenePaintable, ok := a.root.(component.ScenePaintable); ok {
+			scene = scenePaintable.PaintScene(ctx, buf)
+			if scene != nil && scene.Buffer == nil {
+				scene.Buffer = buf
+			}
+		} else {
+			paintable.Paint(ctx, buf)
+		}
+
+		// Apply app-managed text selection highlight (mode C).
+		if a.interactionMode == InteractionModeAppSelection {
+			frame := runtimepkg.Frame{
+				Buffer: buf,
+				Width:  buf.Width,
+				Height: buf.Height,
+				Dirty:  true,
+			}
+			a.ensureSelectionAdapter().OnRender(&frame)
+		}
 
 		// ========================================================================
 		// Phase 1-3: Pressed State 解决方案 - 更新组件注册表
@@ -1391,7 +2186,7 @@ func (a *App) render() {
 					}
 				}
 			}
-			log.UILogger.Debug("[App.render] AFTER Paint: back buffer non-empty cells: %d", count)
+			log.UILogger.IfEnabled().Debug("[App.render] AFTER Paint: back buffer non-empty cells: %d", count)
 		}
 
 		// 调试模式：记录渲染状态
@@ -1399,54 +2194,37 @@ func (a *App) render() {
 			a.debugRecorder.RecordRender(buf)
 		}
 
-		// 将缓冲区内容输出到终端
-		// 使用环境变量控制输出模式：
-		// TUI_OUTPUT_MODE=direct  使用全量刷新（绕过差异比较）
-		// TUI_OUTPUT_MODE=diff    使用差异比较优化（默认）
-		// TUI_OUTPUT_MODE=debug   调试模式，显示 diff 信息
-		// MINT_NO_ALTERNATE_SCREEN=true  不清屏，允许复制/滚动
 		outputMode := os.Getenv("TUI_OUTPUT_MODE")
 		noAltScreen := os.Getenv("MINT_NO_ALTERNATE_SCREEN") == "true"
-		if outputMode == "direct" {
-			a.outputBufferDirect(buf)
-		} else {
-			// 首次渲染：清屏、隐藏光标、强制全量渲染
-			// 除非 MINT_NO_ALTERNATE_SCREEN=true
-			if a.firstRender {
-				if !noAltScreen {
-					fmt.Print("\x1b[2J") // 清屏
-				}
-				fmt.Print("\x1b[?25l")       // 隐藏光标
-				a.renderer.ForceFullRender() // 强制全屏渲染
+		dirtyHints := a.collectPaintDirtyHints()
+		clearGraphicsBeforeText := a.shouldClearGraphicsBeforeText(scene)
+		if clearGraphicsBeforeText {
+			if err := a.clearPresentedGraphics(); err != nil {
+				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics pre-clear failed: %v", err)
+			} else {
+				a.prepareFullTextRepaintAfterGraphicsClear()
 			}
+		}
 
-			// 使用新的 Renderer 输出（自动 diff + run merging + 光标优化）
-			output := a.renderer.Render()
-
-			if os.Getenv("MINT_DEBUG_TEST") == "true" {
-				// Count non-empty cells after Render (which swaps buffers)
-				back := a.renderer.GetBackBuffer()
-				front := a.renderer.GetFrontBuffer()
-				backCount := 0
-				frontCount := 0
-				for y := 0; y < back.Height; y++ {
-					for x := 0; x < back.Width; x++ {
-						if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
-							backCount++
-						}
-						if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
-							frontCount++
-						}
+		forceFullSceneText := a.shouldForceFullTextRenderForScene(scene)
+		if a.shouldBypassAsyncForScene(scene) {
+			a.maskSceneImageTextRegions(buf, scene)
+			dirtyHints = append(dirtyHints, a.sceneImageDirtyHints(scene)...)
+			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, false, forceFullSceneText)
+			if err := a.presentSceneFrame(scene); err != nil {
+				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics present failed: %v", err)
+				if !clearGraphicsBeforeText {
+					if clearErr := a.clearPresentedGraphics(); clearErr != nil {
+						log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
 					}
 				}
-				log.UILogger.Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
 			}
-
-			// DEBUG: 输出渲染信息（每次）
-			log.RenderLogger.Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v", a.firstRender, len(output), a.dirty)
-
-			if output != "" {
-				fmt.Print(output)
+		} else {
+			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, !clearGraphicsBeforeText, false)
+			if !clearGraphicsBeforeText {
+				if clearErr := a.clearPresentedGraphics(); clearErr != nil {
+					log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
+				}
 			}
 		}
 	}
@@ -1458,7 +2236,7 @@ func (a *App) render() {
 	// 如果不可用，回退到从布局树构建 HitMap
 	if a.root != nil {
 		// DEBUG: 输出 root 类型
-		log.RenderLogger.Debug("[APP] root type: %T", a.root)
+		log.RenderLogger.IfEnabled().Debug("[APP] root type: %T", a.root)
 
 		// 方法1：尝试从 DeclarativeNode 获取 RenderingPipeline 的 HitMap（推荐）
 		// 这个 HitMap 包含了所有布局变换后的最终位置（包括 Layer centering）
@@ -1466,24 +2244,54 @@ func (a *App) render() {
 			a.hitMap = declNode.GetHitMap()
 
 			if a.hitMap != nil {
-				log.RenderLogger.Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
+				log.RenderLogger.IfEnabled().Debug("[APP] ✅ Got HitMap from RenderingPipeline: %d entries (includes layer transforms)", a.hitMap.Size())
 
 			} else {
-				log.RenderLogger.Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
+				log.RenderLogger.IfEnabled().Debug("[APP] ⚠️  RenderingPipeline returned nil HitMap, falling back to BuildHitMap")
 			}
 		}
-		log.HitMapLogger.Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
+		log.HitMapLogger.IfEnabled().Debug("[APP] Phase 2: Fiber Reconciler handles VNode → Instance reconciliation")
 		// Phase 1-6: 将 HitMap 传递给 Pump 用于鼠标事件命中测试
 		// HitMap already contains Instance references (enriched in DeclarativeNode.fiberFirstPaint)
 		if a.pump != nil && a.hitMap != nil {
 			a.pump.SetHitMap(a.hitMap)
 		}
 	}
+	if a.aiService != nil {
+		a.renderSeq++
+		a.aiService.OnAfterRender(aiservice.RenderInfo{
+			RenderSeq:  a.renderSeq,
+			RenderedAt: time.Now(),
+		})
+	}
+	a.refreshActiveTickables()
 	a.dirty = false
 	// 清除首次渲染标记
 	if a.firstRender {
 		a.firstRender = false
 	}
+}
+
+func (a *App) refreshActiveTickables() {
+	rootFiber := a.getFiberRoot()
+	if rootFiber == nil {
+		a.activeTickables = false
+		return
+	}
+
+	active := false
+	rtui.WalkFiberDepthFirst(rootFiber, func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		tickable, ok := rtui.AsTickableInstance(fiber.Instance)
+		if !ok || !tickable.WantsTick() {
+			return true
+		}
+		active = true
+		return false
+	})
+	a.activeTickables = active
 }
 
 // outputBuffer 输出缓冲区到终端（局部刷新优化版）
@@ -1506,7 +2314,7 @@ func (a *App) outputBuffer(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT] %d changes detected", len(diffResult.Changes))
+		log.UILogger.IfEnabled().Debug("[OUTPUT] %d changes detected", len(diffResult.Changes))
 	}
 
 	// 排序变化（从上到下，从左到右）
@@ -1552,7 +2360,7 @@ func (a *App) outputBufferDirect(buf *paint.Buffer) {
 
 	// 调试模式：记录输出
 	if a.debugMode && a.debugRecorder != nil {
-		log.UILogger.Debug("[OUTPUT DIRECT] about to write %d cells to terminal", buf.Height*buf.Width)
+		log.UILogger.IfEnabled().Debug("[OUTPUT DIRECT] about to write %d cells to terminal", buf.Height*buf.Width)
 	}
 
 	// 移动光标到左上角
@@ -1636,46 +2444,60 @@ func (a *App) Quit() {
 
 // Close 关闭应用
 func (a *App) Close() error {
-	a.state = StateStopped
-
-	// 让根组件失去焦点
-	if a.root != nil {
-		if focusable, ok := a.root.(interface{ OnBlur() }); ok {
-			focusable.OnBlur()
+	a.closeOnce.Do(func() {
+		atomic.StoreInt32(&a.state, int32(StateStopped))
+		a.invokeDoneOnce.Do(func() {
+			close(a.invokeDone)
+		})
+		if a.aiService != nil {
+			_ = a.aiService.Stop()
 		}
-	}
 
-	// 停止事件泵
-	if a.pump != nil {
-		a.pump.Stop()
-	}
+		// 让根组件失去焦点
+		if a.root != nil {
+			if focusable, ok := a.root.(interface{ OnBlur() }); ok {
+				focusable.OnBlur()
+			}
+		}
 
-	// 调试模式：保存日志
-	if a.debugMode && a.debugRecorder != nil {
-		if err := a.debugRecorder.DumpToFile(); err != nil {
-			log.UILogger.Debug("Failed to save debug log: %v", err)
+		// 停止事件泵
+		if a.pump != nil {
+			a.pump.Stop()
+		}
+		if a.asyncRenderer != nil {
+			a.asyncRenderer.Stop()
+			a.asyncRenderer = nil
+		}
+		if err := a.clearPresentedGraphics(); err != nil {
+			log.RenderLogger.IfEnabled().Debug("[APP] graphics clear on close failed: %v", err)
+		}
+
+		// 调试模式：保存日志
+		if a.debugMode && a.debugRecorder != nil {
+			if err := a.debugRecorder.DumpToFile(); err != nil {
+				log.UILogger.IfEnabled().Debug("Failed to save debug log: %v", err)
+			} else {
+				log.UILogger.IfEnabled().Debug("Debug log saved")
+			}
+		}
+
+		// 显示终端光标
+		a.ShowCursor()
+
+		// 清屏，避免退出时残留内容
+		// 除非 MINT_NO_ALTERNATE_SCREEN=true（保留输出以便复制）
+		if os.Getenv("MINT_NO_ALTERNATE_SCREEN") != "true" {
+			a.clearScreen()
 		} else {
-			log.UILogger.Debug("Debug log saved")
+			// 在 NoAlternateScreen 模式下，打印一个空行分隔输出
+			fmt.Println()
 		}
-	}
 
-	// 显示终端光标
-	a.ShowCursor()
-
-	// 清屏，避免退出时残留内容
-	// 除非 MINT_NO_ALTERNATE_SCREEN=true（保留输出以便复制）
-	if os.Getenv("MINT_NO_ALTERNATE_SCREEN") != "true" {
-		a.clearScreen()
-	} else {
-		// 在 NoAlternateScreen 模式下，打印一个空行分隔输出
-		fmt.Println()
-	}
-
-	// 关闭 panic 恢复管理器
-	if a.recovery != nil {
-		a.recovery.Close()
-	}
-
+		// 关闭 panic 恢复管理器
+		if a.recovery != nil {
+			a.recovery.Close()
+		}
+	})
 	return nil
 }
 
@@ -1713,12 +2535,12 @@ func (a *App) Flush() {
 
 // GetState 获取应用状态
 func (a *App) GetState() AppState {
-	return a.state
+	return AppState(atomic.LoadInt32(&a.state))
 }
 
 // IsRunning 检查是否在运行
 func (a *App) IsRunning() bool {
-	return a.state == StateRunning
+	return AppState(atomic.LoadInt32(&a.state)) == StateRunning
 }
 
 // SetTickInterval 设置定时器间隔
@@ -1737,9 +2559,7 @@ func (a *App) SetConfigSize(width, height int) {
 	a.configWidth = width
 	a.configHeight = height
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("SetConfigSize: config=%dx%d", width, height)
-	}
+	log.UILogger.IfEnabled().Debug("SetConfigSize: config=%dx%d", width, height)
 }
 
 // GetConfigSize 获取用户配置的布局尺寸
@@ -1755,6 +2575,9 @@ func (a *App) GetConfigSize() (width, height int) {
 // 注意：这只是更新 buffer 大小，不会改变用户配置的布局约束
 func (a *App) Resize(width, height int) {
 	sizeChanged := a.terminalWidth != width || a.terminalHeight != height
+	if !sizeChanged {
+		return
+	}
 	a.terminalWidth = width
 	a.terminalHeight = height
 	a.dirty = true
@@ -1766,6 +2589,9 @@ func (a *App) Resize(width, height int) {
 
 	// 更新 Renderer 的尺寸（buffer 大小）
 	a.renderer.Resize(width, height)
+	if a.asyncRenderer != nil {
+		a.asyncRenderer.Resize(width, height)
+	}
 
 	// 更新 Inspector 的屏幕大小
 	if a.inspector != nil {
@@ -1773,7 +2599,7 @@ func (a *App) Resize(width, height int) {
 			SetScreenSize(width, height int)
 		}); ok {
 			inspectorObj.SetScreenSize(width, height)
-			log.UILogger.Debug("[APP] Inspector screen size updated to %dx%d", width, height)
+			log.UILogger.IfEnabled().Debug("[APP] Inspector screen size updated to %dx%d", width, height)
 		}
 	}
 
@@ -1798,6 +2624,15 @@ func (a *App) GetRenderer() *paint.Renderer {
 	return a.renderer
 }
 
+// SetGraphicsPresenter installs an optional graphics presenter used by
+// experimental scene/image rendering paths.
+func (a *App) SetGraphicsPresenter(presenter platform.GraphicsPresenter) {
+	a.graphicsPresenter = presenter
+	if presenter == nil {
+		a.graphicsImagesOn = false
+	}
+}
+
 // GetHitMap 获取当前的命中映射表（Phase 1: HitMap 集成）
 // 返回从最新渲染构建的 HitMap，用于鼠标事件命中测试
 //
@@ -1811,7 +2646,7 @@ func (a *App) GetRenderer() *paint.Renderer {
 //	if hitMap != nil {
 //	    entry := hitMap.HitTest(x, y)
 //	    if entry != nil {
-//	        log.UILogger.Debug("Hit node: %s", entry.NodeID)
+//	        log.UILogger.IfEnabled().Debug("Hit node: %s", entry.NodeID)
 //	    }
 //	}
 func (a *App) GetHitMap() *runtimeevent.HitMap {
@@ -1836,6 +2671,246 @@ func (a *App) ForceRenderNow() {
 	a.dirty = false
 }
 
+func (a *App) collectPaintDirtyHints() []paint.Rect {
+	dirtyHints := make([]paint.Rect, 0, 8)
+	if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
+		for _, rect := range dirtyProvider.GetPaintDirtyRects() {
+			dirtyHints = append(dirtyHints, rect)
+		}
+	}
+	return dirtyHints
+}
+
+func (a *App) shouldBypassAsyncForScene(scene *paint.SceneFrame) bool {
+	if scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return false
+	}
+	return a.graphicsPresenter.Capabilities().HasReliableGraphics()
+}
+
+func (a *App) shouldClearGraphicsBeforeText(scene *paint.SceneFrame) bool {
+	if a == nil || a.graphicsPresenter == nil || !a.graphicsImagesOn {
+		return false
+	}
+	if a.graphicsPresenter.Capabilities().SupportsDelete {
+		return false
+	}
+
+	nextLayout := snapshotPresentedGraphics(scene)
+	if len(nextLayout) == 0 {
+		return true
+	}
+	return !presentedGraphicsLayoutEqual(a.graphicsLayout, nextLayout)
+}
+
+func (a *App) shouldForceFullTextRenderForScene(scene *paint.SceneFrame) bool {
+	if a == nil || scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return false
+	}
+	return a.graphicsPresenter.Capabilities().UsesTerminalFramePresentation()
+}
+
+func (a *App) invalidateRenderedTextState() {
+	if a == nil || a.renderer == nil {
+		return
+	}
+	a.renderer.ForceFullRender()
+}
+
+func (a *App) prepareFullTextRepaintAfterGraphicsClear() {
+	if a == nil {
+		return
+	}
+	a.invalidateRenderedTextState()
+	a.firstRender = true
+}
+
+func (a *App) renderTextFrame(buf *paint.Buffer, dirtyHints []paint.Rect, outputMode string, noAltScreen bool, allowAsync bool, forceFull bool) {
+	if outputMode == "direct" {
+		a.outputBufferDirect(buf)
+		return
+	}
+
+	if forceFull {
+		a.invalidateRenderedTextState()
+	}
+	if a.firstRender {
+		if !noAltScreen {
+			fmt.Print("\x1b[2J")
+		}
+		fmt.Print("\x1b[?25l")
+	}
+
+	if allowAsync && a.asyncRenderer != nil {
+		a.asyncRenderer.SubmitFrame(buf, dirtyHints, a.firstRender)
+		return
+	}
+
+	if a.firstRender {
+		a.renderer.ForceFullRender()
+	}
+	for _, rect := range dirtyHints {
+		a.renderer.MarkDirtyRect(rect)
+	}
+
+	output := a.renderer.Render()
+
+	if os.Getenv("MINT_DEBUG_TEST") == "true" {
+		back := a.renderer.GetBackBuffer()
+		front := a.renderer.GetFrontBuffer()
+		backCount := 0
+		frontCount := 0
+		for y := 0; y < back.Height; y++ {
+			for x := 0; x < back.Width; x++ {
+				if back.Cells[y][x].Cluster != "" && back.Cells[y][x].Cluster != " " {
+					backCount++
+				}
+				if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
+					frontCount++
+				}
+			}
+		}
+		log.UILogger.IfEnabled().Debug("[App.render] AFTER renderer.Render(): back=%d cells, front=%d cells", backCount, frontCount)
+	}
+
+	log.RenderLogger.IfEnabled().Debug("[APP] FirstRender=%v, OutputLen=%d, Dirty=%v, AllowAsync=%v", a.firstRender, len(output), a.dirty, allowAsync)
+
+	if output != "" {
+		fmt.Print(output)
+	}
+}
+
+func (a *App) sceneImageDirtyHints(scene *paint.SceneFrame) []paint.Rect {
+	if scene == nil || !scene.HasImageLayers() {
+		return nil
+	}
+
+	dirty := make([]paint.Rect, 0, len(scene.ImageLayers))
+	for _, layer := range scene.ImageLayers {
+		dirty = append(dirty, layer.Bounds)
+	}
+	return dirty
+}
+
+func (a *App) maskSceneImageTextRegions(buf *paint.Buffer, scene *paint.SceneFrame) {
+	if a == nil || buf == nil || scene == nil || !scene.HasImageLayers() {
+		return
+	}
+
+	for _, layer := range scene.ImageLayers {
+		if layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
+			continue
+		}
+		for row := 0; row < layer.Bounds.Height; row++ {
+			y := layer.Bounds.Y + row
+			if y < 0 || y >= buf.Height {
+				continue
+			}
+			for col := 0; col < layer.Bounds.Width; col++ {
+				x := layer.Bounds.X + col
+				if x < 0 || x >= buf.Width {
+					continue
+				}
+				buf.SetCell(x, y, ' ', style.Style{})
+			}
+		}
+	}
+}
+
+func (a *App) presentSceneFrame(scene *paint.SceneFrame) error {
+	if scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
+		return nil
+	}
+
+	caps := a.graphicsPresenter.Capabilities()
+	terminalFrame := caps.UsesTerminalFramePresentation()
+	nextState := snapshotPresentedGraphics(scene)
+	presentedAny := false
+	for _, layer := range scene.ImageLayers {
+		if !layer.HasPixels() {
+			return fmt.Errorf("scene image layer %q has no pixels", layer.ID)
+		}
+		_, err := a.graphicsPresenter.Present(platform.DrawImageRequest{
+			ID:              layer.ID,
+			PixelWidth:      layer.PixelWidth,
+			PixelHeight:     layer.PixelHeight,
+			CellX:           layer.Bounds.X,
+			CellY:           layer.Bounds.Y,
+			CellWidth:       layer.Bounds.Width,
+			CellHeight:      layer.Bounds.Height,
+			RGBA:            append([]byte(nil), layer.RGBA...),
+			AltText:         layer.AltText,
+			ReplaceIfExists: true,
+		})
+		if err != nil {
+			if presentedAny {
+				a.graphicsImagesOn = true
+				if terminalFrame {
+					a.invalidateRenderedTextState()
+				}
+			}
+			return err
+		}
+		presentedAny = true
+	}
+
+	a.graphicsImagesOn = presentedAny
+	if presentedAny {
+		a.graphicsLayout = nextState
+		if terminalFrame {
+			a.invalidateRenderedTextState()
+		}
+	}
+	return nil
+}
+
+func (a *App) clearPresentedGraphics() error {
+	if a.graphicsPresenter == nil || !a.graphicsImagesOn {
+		return nil
+	}
+	if err := a.graphicsPresenter.Clear(); err != nil {
+		return err
+	}
+	a.graphicsImagesOn = false
+	a.graphicsLayout = nil
+	return nil
+}
+
+func snapshotPresentedGraphics(scene *paint.SceneFrame) []presentedGraphicsLayer {
+	if scene == nil || !scene.HasImageLayers() {
+		return nil
+	}
+
+	layout := make([]presentedGraphicsLayer, 0, len(scene.ImageLayers))
+	for _, layer := range scene.ImageLayers {
+		layout = append(layout, presentedGraphicsLayer{
+			ID:          layer.ID,
+			Bounds:      layer.Bounds,
+			PixelWidth:  layer.PixelWidth,
+			PixelHeight: layer.PixelHeight,
+		})
+	}
+	return layout
+}
+
+func presentedGraphicsLayoutEqual(a, b []presentedGraphicsLayer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID {
+			return false
+		}
+		if a[i].Bounds != b[i].Bounds {
+			return false
+		}
+		if a[i].PixelWidth != b[i].PixelWidth || a[i].PixelHeight != b[i].PixelHeight {
+			return false
+		}
+	}
+	return true
+}
+
 // ============================================================================
 // 测试支持 - 事件注入接口
 // ============================================================================
@@ -1847,10 +2922,21 @@ func (a *App) InjectEvent(raw platform.RawInput) error {
 		return errors.New("event pump not initialized")
 	}
 	if !a.pump.IsRunning() {
-		log.UILogger.Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", a.state, a.pump)
+		log.UILogger.IfEnabled().Debug("[APP] InjectEvent: pump not running, state=%d, pump=%v", atomic.LoadInt32(&a.state), a.pump)
 		return errors.New("event pump not running")
 	}
 	a.pump.Inject(raw)
+	return nil
+}
+
+// InjectMsg injects a runtime message directly for test-only scenarios.
+// This bypasses raw-input conversion and is useful when tests need precise
+// control over Msg payloads such as punctuation key input.
+func (a *App) InjectMsg(msg runtimemsg.Msg) error {
+	if msg == nil {
+		return errors.New("message is nil")
+	}
+	a.processMsg(msg)
 	return nil
 }
 
@@ -1870,4 +2956,14 @@ func (a *App) GetFocusManager() *rtui.FiberFocusManager {
 // This is called during render to ensure event routing uses the correct focus state
 func (a *App) SetFocusManagerFromDeclarativeNode(fm *rtui.FiberFocusManager) {
 	a.focusManager = fm
+}
+
+// SetTestMessageProbe installs a test-only callback for observing processed Msg values.
+func (a *App) SetTestMessageProbe(fn func(runtimemsg.Msg)) {
+	a.testMsgProbe = fn
+}
+
+// SetTestActionProbe installs a test-only callback for observing mapped Action values.
+func (a *App) SetTestActionProbe(fn func(*action.Action, bool, string)) {
+	a.testActionProbe = fn
 }

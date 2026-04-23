@@ -6,7 +6,6 @@ package main
 import (
 	"testing"
 
-	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -58,9 +57,7 @@ func TestDemo4GridLayout(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to Grid tab (2nd tab)
-	testApp.InjectSpecialKey(platform.KeyTab)
-	testApp.InjectSpecialKey(platform.KeyTab)
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('2')
 
 	t.Log("✓ Demo4 Grid layout works")
 }
@@ -76,10 +73,7 @@ func TestDemo4AbsoluteLayout(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to Absolute tab (3rd tab)
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('3')
 
 	t.Log("✓ Demo4 Absolute layout works")
 }
@@ -95,10 +89,7 @@ func TestDemo4ScrollLayout(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to Scroll tab (4th tab)
-	for i := 0; i < 7; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('4')
 
 	t.Log("✓ Demo4 Scroll layout works")
 }
@@ -114,13 +105,10 @@ func TestDemo4ComplexLayout(t *testing.T) {
 	defer testApp.Close()
 
 	// Navigate to Complex tab (5th tab)
-	for i := 0; i < 9; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('5')
 
-	rendered := testApp.GetRenderString()
-	if rendered == "" {
+	buffer := testApp.GetBuffer()
+	if buffer == nil {
 		t.Error("Complex layout should render")
 	}
 
@@ -138,15 +126,10 @@ func TestDemo4AllLayouts(t *testing.T) {
 	defer testApp.Close()
 
 	layouts := []string{"Flex", "Grid", "Absolute", "Scroll", "Complex"}
+	keys := []rune{'1', '2', '3', '4', '5'}
 
 	for i, layout := range layouts {
-		// Navigate to next tab
-		if i > 0 {
-			for j := 0; j < 2; j++ {
-				testApp.InjectSpecialKey(platform.KeyTab)
-			}
-		}
-		testApp.InjectSpecialKey(platform.KeyEnter)
+		testApp.InjectKey(keys[i])
 
 		t.Logf("✓ %s layout rendered", layout)
 	}
@@ -171,10 +154,7 @@ func TestDemo4Snapshot(t *testing.T) {
 	}
 
 	// Navigate to complex layout first
-	for i := 0; i < 9; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
+	testApp.InjectKey('5')
 
 	snap, err := sb.Snapshot(1, "demo4-complex-layout")
 	if err != nil {

@@ -2,7 +2,7 @@
 
 本文档说明如何控制 Modal 的显示位置。
 
-**🔗 交互式示例**: [Modal Positioning Demo](../../../../examples/fiber_firsts/modal_positioning_demo/README.md)
+**🔗 交互式示例**: [Modal Positioning Demo](/examples/fiber_firsts/modal_positioning_demo/README.md)
 
 ---
 

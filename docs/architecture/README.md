@@ -5,26 +5,20 @@ This directory contains high-level architecture documentation for the Mint TUI f
 ## Documents
 
 ### Layer System
-- [Layer System Architecture](LAYER_SYSTEM_ARCHITECTURE.md) - Overview of the layer system
+- [Layer System Architecture](../layer/LAYER_SYSTEM_ARCHITECTURE.md) - Overview of the layer system
   - Layer types (Normal, Modal, Overlay, Inspector)
   - Layer ordering and rendering
   - Event routing through layers
   - Integration with framework
 
-- [Layer System Implementation Summary](LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Implementation details
+- [Layer System Implementation Summary](../../docsArchive/layer/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Implementation details (archived)
   - How layers are integrated
   - Rendering pipeline
   - Event handling
   - Performance considerations
 
-### Agent System
-- [Agents](AGENTS.md) - AI Agent integration for the framework
-  - Agent types and capabilities
-  - Integration points
-  - Use cases
-
 ### Rendering Systems
-- [Two Rendering Systems Explained](TWO_RENDERING_SYSTEMS_EXPLAINED.md) - Comparison of rendering approaches
+- [Two Rendering Systems Explained](../../docsArchive/layer/TWO_RENDERING_SYSTEMS_EXPLAINED.md) - Comparison of rendering approaches (archived)
   - Legacy vs new rendering
   - Migration path
   - Performance differences

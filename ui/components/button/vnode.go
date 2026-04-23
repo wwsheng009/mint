@@ -8,6 +8,26 @@ import (
 )
 
 // =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propKey         = "key"
+	propLabel       = "label"
+	propVariant     = "variant"
+	propSize        = "size"
+	propFocusStyle  = "focusStyle"
+	propStyle       = "style"
+	propPressIntent = "pressIntent"
+	propDisabled    = "disabled"
+	propPadding     = "padding"
+	propMargin      = "margin"
+	propTextAlign   = "textAlign"
+	propFlex        = "flex"
+)
+
+// =============================================================================
 // Button Types
 // =============================================================================
 
@@ -158,48 +178,48 @@ func (b *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (b *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":         b.key,
-		"label":       b.label,
-		"variant":     b.variant,
-		"size":        b.size,
-		"focusStyle":  b.focusStyle,
-		"style":       b.style,
-		"pressIntent": b.pressIntent,
-		"disabled":    b.disabled,
-		"padding":     b.padding,
-		"margin":      b.Margin(),
-		"textAlign":   b.textAlign,
-		"flex":        b.flex,
+		propKey:         b.key,
+		propLabel:       b.label,
+		propVariant:     b.variant,
+		propSize:        b.size,
+		propFocusStyle:  b.focusStyle,
+		propStyle:       b.style,
+		propPressIntent: b.pressIntent,
+		propDisabled:    b.disabled,
+		propPadding:     b.padding,
+		propMargin:      b.Margin(),
+		propTextAlign:   b.textAlign,
+		propFlex:        b.flex,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (b *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		b.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		b.label = v
 	}
-	if v, ok := p["variant"].(Variant); ok {
+	if v, ok := p[propVariant].(Variant); ok {
 		b.variant = v
 	}
-	if v, ok := p["size"].(Size); ok {
+	if v, ok := p[propSize].(Size); ok {
 		b.size = v
 	}
-	if v, ok := p["focusStyle"].(FocusStyle); ok {
+	if v, ok := p[propFocusStyle].(FocusStyle); ok {
 		b.focusStyle = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		b.style = v
 	}
-	if v, ok := p["pressIntent"].(intent.Intent); ok {
+	if v, ok := p[propPressIntent].(intent.Intent); ok {
 		b.pressIntent = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		b.disabled = v
 	}
-	if v, ok := p["flex"].(int); ok {
+	if v, ok := p[propFlex].(int); ok {
 		b.flex = v
 	}
 	return b
@@ -212,18 +232,18 @@ func (b *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new ButtonInstance from this VNode description.
 func (b *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":         b.key,
-		"label":       b.label,
-		"variant":     b.variant,
-		"size":        b.size,
-		"focusStyle":  b.focusStyle,
-		"style":       b.style,
-		"pressIntent": b.pressIntent,
-		"disabled":    b.disabled,
-		"padding":     b.Padding(),
-		"margin":      b.Margin(),
-		"textAlign":   b.TextAlign(),
-		"flex":        b.flex,
+		propKey:         b.key,
+		propLabel:       b.label,
+		propVariant:     b.variant,
+		propSize:        b.size,
+		propFocusStyle:  b.focusStyle,
+		propStyle:       b.style,
+		propPressIntent: b.pressIntent,
+		propDisabled:    b.disabled,
+		propPadding:     b.Padding(),
+		propMargin:      b.Margin(),
+		propTextAlign:   b.TextAlign(),
+		propFlex:        b.flex,
 	}
 	return NewInstance(props)
 }
@@ -232,6 +252,14 @@ func (b *VNode) CreateInstance() rtui.ComponentInstance {
 
 // Builder Methods - Fluent API (return *VNode for chaining)
 // =============================================================================
+
+// Label returns the button label.
+func (b *VNode) Label() string {
+	if b == nil {
+		return ""
+	}
+	return b.label
+}
 
 // SetLabel sets the button label.
 func (b *VNode) SetLabel(label string) *VNode {

@@ -39,6 +39,15 @@ func (f *FragmentVNode) SetProps(p Props) VNode {
 	return f
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (f *FragmentVNode) SetProp(key string, value interface{}) VNode {
+	if f.props == nil {
+		f.props = make(Props)
+	}
+	f.props[key] = value
+	return f
+}
+
 // Children implements VNode
 func (f *FragmentVNode) Children() []VNode {
 	return f.children
@@ -90,12 +99,12 @@ func (f *FragmentVNode) Tag() string {
 
 // GetLayer returns the rendering layer
 func (f *FragmentVNode) GetLayer() Layer {
-	return LayerBase
+	return getNodeLayer(f)
 }
 
 // SetLayer sets the rendering layer - returns VNode for chaining
 func (f *FragmentVNode) SetLayer(l Layer) VNode {
-	return f
+	return setNodeLayer(f, l)
 }
 
 // =============================================================================
@@ -108,6 +117,7 @@ func (f *FragmentVNode) SetPortalRoot(portalRootID string) VNode {
 		f.props = make(Props)
 	}
 	f.props["portalRoot"] = portalRootID
+	f.props["_portal"] = true
 	return f
 }
 

@@ -197,6 +197,52 @@ func (s Style) IsEmpty() bool {
 		!s.isStrikethrough && !s.isReverse && !s.isBlink
 }
 
+// Hash computes a hash value for the style for fast comparison.
+// Used by the line-diff renderer for efficient change detection.
+func (s Style) Hash() uint32 {
+	var h uint32 = 2166136261 // FNV-1a offset basis for 32-bit
+
+	// Hash foreground color
+	for _, r := range s.FG {
+		h ^= uint32(r)
+		h *= 16777619
+	}
+
+	// Hash background color
+	for _, r := range s.BG {
+		h ^= uint32(r)
+		h *= 16777619
+	}
+
+	// Hash boolean flags
+	if s.isBold {
+		h ^= 1
+		h *= 16777619
+	}
+	if s.isItalic {
+		h ^= 2
+		h *= 16777619
+	}
+	if s.isUnderline {
+		h ^= 4
+		h *= 16777619
+	}
+	if s.isStrikethrough {
+		h ^= 8
+		h *= 16777619
+	}
+	if s.isReverse {
+		h ^= 16
+		h *= 16777619
+	}
+	if s.isBlink {
+		h ^= 32
+		h *= 16777619
+	}
+
+	return h
+}
+
 // Clone creates a copy of the style.
 func (s Style) Clone() Style {
 	return s

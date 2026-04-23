@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
@@ -51,16 +52,16 @@ func NewKeyMsg(rune rune, special runtimeplatform.SpecialKey, mod Modifiers) *Ke
 
 // IsPrintable 检查是否为可打印字符
 // 可打印字符是指可以直接显示的字符（字母、数字、符号等）
+// 支持 Unicode 字符（包括中文、日文、韩文、emoji 等）
 func (k *KeyMsg) IsPrintable() bool {
 	// 如果有特殊键，不是可打印字符
 	if k.Special != runtimeplatform.KeyUnknown && k.Special != runtimeplatform.KeyTab {
 		return false
 	}
 
-	// 检查 rune 是否在可打印范围内
-	// ASCII 可打印字符: 32-126
-	// Unicode 可扩展这个范围
-	return k.Rune >= 32 && k.Rune <= 126
+	// 使用 unicode.IsPrint 判断是否为可打印字符
+	// 这支持所有 Unicode 可打印字符，包括中文、日文、韩文、emoji 等
+	return unicode.IsPrint(k.Rune)
 }
 
 // HasModifier 检查是否有修饰键

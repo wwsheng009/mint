@@ -170,11 +170,16 @@ func findTreeViewInLayout(box *compute.ComputedBox, depth int, t *testing.T) boo
 		indent += "  "
 	}
 
-	fmt.Printf("[TEST]%sBox: type=%s size=%dx%d pos=(%d,%d)\n",
-		indent, box.VNode.Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
+	if box.VNode != nil {
+		fmt.Printf("[TEST]%sBox: type=%s size=%dx%d pos=(%d,%d)\n",
+			indent, box.VNode.Type(), box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
+	} else {
+		fmt.Printf("[TEST]%sBox: type=<nil> size=%dx%d pos=(%d,%d)\n",
+			indent, box.Box.Width, box.Box.Height, box.Box.X, box.Box.Y)
+	}
 
 	// Check if this is a TreeView by type or props
-	if box.VNode.Type().String() == "element" {
+	if box.VNode != nil && box.VNode.Type().String() == "element" {
 		props := box.VNode.Props()
 		if props != nil {
 			if _, hasTreeView := props["treeView"]; hasTreeView {

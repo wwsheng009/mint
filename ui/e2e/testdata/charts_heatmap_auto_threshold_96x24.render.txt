@@ -1,0 +1,7 @@
+Charts Heatmap Auto Threshold Fixture
+Auto Threshold Heatmap
+      M T W
+North ░ ░ ░
+South ░ ░ ░
+East  ░ ░ ░
+West  ░ ░ ░

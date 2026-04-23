@@ -1,10 +1,47 @@
 package input
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
+)
+
+// =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propAddonAfter    = "addonAfter"
+	propAddonBefore   = "addonBefore"
+	propAllowDecimal  = "allowDecimal"
+	propAllowNegative = "allowNegative"
+	propBorderStyle   = "borderStyle"
+	propChangeIntent  = "changeIntent"
+	propCursorConfig  = "cursorConfig"
+	propDisabled      = "disabled"
+	propFormID        = "formID"
+	propHasMax        = "hasMax"
+	propHasMin        = "hasMin"
+	propInputType     = "inputType"
+	propKey           = "key"
+	propMax           = "max"
+	propMaxLen        = "maxLen"
+	propMin           = "min"
+	propPlaceholder   = "placeholder"
+	propPrefix        = "prefix"
+	propReadOnly      = "readOnly"
+	propSearchVariant = "searchVariant"
+	propStyle         = "style"
+	propStep          = "step"
+	propSubmitIntent  = "submitIntent"
+	propSuffix        = "suffix"
+	propValue         = "value"
+	propWidth         = "width"
 )
 
 // =============================================================================
@@ -36,6 +73,10 @@ type VNode struct {
 	// === Visual Props ===
 	placeholder string
 	inputType   Type
+	prefix      string
+	suffix      string
+	addonBefore string
+	addonAfter  string
 	style       style.Style
 
 	// === Layout Props ===
@@ -45,14 +86,24 @@ type VNode struct {
 	borderStyle layout.BorderStyle
 
 	// === Intent Props (no closures!) ===
-	changeIntent  intent.Intent // emitted when value changes
-	submitIntent  intent.Intent // emitted on Enter
+	changeIntent intent.Intent // emitted when value changes
+	submitIntent intent.Intent // emitted on Enter
+	formID       string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	value    string
-	maxLen   int
-	disabled bool
-	readOnly bool
+	value         string
+	maxLen        int
+	disabled      bool
+	readOnly      bool
+	searchVariant bool
+	allowNegative bool
+	allowDecimal  bool
+	hasMin        bool
+	min           float64
+	hasMax        bool
+	max           float64
+	step          float64
+	cursorConfig  cursor.Config
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -72,9 +123,12 @@ var (
 // New creates a new Input VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("input"),
-		inputType:    TypeText,
-		borderStyle:  layout.BorderSingle, // Default border
+		ElementVNode:  rtui.NewElement("input"),
+		inputType:     TypeText,
+		borderStyle:   layout.BorderSingle, // Default border
+		allowNegative: true,
+		allowDecimal:  true,
+		cursorConfig:  cursor.DefaultConfig(),
 	}
 }
 
@@ -132,58 +186,123 @@ func (i *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (i *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          i.key,
-		"placeholder":  i.placeholder,
-		"inputType":    i.inputType,
-		"style":        i.style,
-		"width":        i.width,
-		"borderStyle":  i.borderStyle,
-		"changeIntent": i.changeIntent,
-		"submitIntent": i.submitIntent,
-		"value":        i.value,
-		"maxLen":       i.maxLen,
-		"disabled":     i.disabled,
-		"readOnly":     i.readOnly,
+		propKey:           i.key,
+		propPlaceholder:   i.placeholder,
+		propInputType:     i.inputType,
+		propPrefix:        i.prefix,
+		propSuffix:        i.suffix,
+		propAddonBefore:   i.addonBefore,
+		propAddonAfter:    i.addonAfter,
+		propStyle:         i.style,
+		propWidth:         i.width,
+		propBorderStyle:   i.borderStyle,
+		propAllowNegative: i.allowNegative,
+		propAllowDecimal:  i.allowDecimal,
+		propHasMin:        i.hasMin,
+		propMin:           i.min,
+		propHasMax:        i.hasMax,
+		propMax:           i.max,
+		propStep:          i.step,
+		propChangeIntent:  i.changeIntent,
+		propSubmitIntent:  i.submitIntent,
+		propFormID:        i.formID,
+		propValue:         i.value,
+		propMaxLen:        i.maxLen,
+		propDisabled:      i.disabled,
+		propReadOnly:      i.readOnly,
+		propSearchVariant: i.searchVariant,
+		propCursorConfig:  i.cursorConfig,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		i.key = v
 	}
-	if v, ok := p["placeholder"].(string); ok {
+	if v, ok := p[propPlaceholder].(string); ok {
 		i.placeholder = v
 	}
-	if v, ok := p["inputType"].(Type); ok {
+	if v, ok := p[propInputType].(Type); ok {
 		i.inputType = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propPrefix].(string); ok {
+		i.prefix = v
+	}
+	if v, ok := p[propSuffix].(string); ok {
+		i.suffix = v
+	}
+	if v, ok := p[propAddonBefore].(string); ok {
+		i.addonBefore = v
+	}
+	if v, ok := p[propAddonAfter].(string); ok {
+		i.addonAfter = v
+	}
+	if v, ok := p[propStyle].(style.Style); ok {
 		i.style = v
 	}
-	if v, ok := p["width"].(int); ok {
+	if v, ok := p[propWidth].(int); ok {
 		i.width = v
 	}
-	if v, ok := p["borderStyle"].(layout.BorderStyle); ok {
+	if v, ok := p[propBorderStyle].(layout.BorderStyle); ok {
 		i.borderStyle = v
 	}
-	if v, ok := p["changeIntent"].(intent.Intent); ok {
+	if v, ok := p[propAllowNegative].(bool); ok {
+		i.allowNegative = v
+	}
+	if v, ok := p[propAllowDecimal].(bool); ok {
+		i.allowDecimal = v
+	}
+	if v, ok := p[propHasMin].(bool); ok {
+		i.hasMin = v
+	}
+	if v, ok := p[propMin]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			i.min = num
+		}
+	}
+	if v, ok := p[propHasMax].(bool); ok {
+		i.hasMax = v
+	}
+	if v, ok := p[propMax]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			i.max = num
+		}
+	}
+	if v, ok := p[propStep]; ok {
+		if num, ok := coerceFloat64(v); ok {
+			if num < 0 {
+				num = -num
+			}
+			i.step = num
+		}
+	}
+	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		i.changeIntent = v
 	}
-	if v, ok := p["submitIntent"].(intent.Intent); ok {
+	if v, ok := p[propSubmitIntent].(intent.Intent); ok {
 		i.submitIntent = v
 	}
-	if v, ok := p["value"].(string); ok {
+	if v, ok := p[propFormID].(string); ok {
+		i.formID = v
+	}
+	if v, ok := p[propValue].(string); ok {
 		i.value = v
 	}
-	if v, ok := p["maxLen"].(int); ok {
+	if v, ok := p[propMaxLen].(int); ok {
 		i.maxLen = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		i.disabled = v
 	}
-	if v, ok := p["readOnly"].(bool); ok {
+	if v, ok := p[propReadOnly].(bool); ok {
 		i.readOnly = v
+	}
+	if v, ok := p[propSearchVariant].(bool); ok {
+		i.searchVariant = v
+	}
+	if v, ok := p[propCursorConfig].(cursor.Config); ok {
+		i.cursorConfig = cursor.NormalizeConfig(v)
 	}
 	return i
 }
@@ -195,18 +314,32 @@ func (i *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new InputInstance from this VNode description.
 func (i *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          i.key,
-		"placeholder":  i.placeholder,
-		"inputType":    i.inputType,
-		"style":        i.style,
-		"width":        i.width,
-		"borderStyle":  i.borderStyle,
-		"changeIntent": i.changeIntent,
-		"submitIntent": i.submitIntent,
-		"value":        i.value,
-		"maxLen":       i.maxLen,
-		"disabled":     i.disabled,
-		"readOnly":     i.readOnly,
+		propKey:           i.key,
+		propPlaceholder:   i.placeholder,
+		propInputType:     i.inputType,
+		propPrefix:        i.prefix,
+		propSuffix:        i.suffix,
+		propAddonBefore:   i.addonBefore,
+		propAddonAfter:    i.addonAfter,
+		propStyle:         i.style,
+		propWidth:         i.width,
+		propBorderStyle:   i.borderStyle,
+		propAllowNegative: i.allowNegative,
+		propAllowDecimal:  i.allowDecimal,
+		propHasMin:        i.hasMin,
+		propMin:           i.min,
+		propHasMax:        i.hasMax,
+		propMax:           i.max,
+		propStep:          i.step,
+		propChangeIntent:  i.changeIntent,
+		propSubmitIntent:  i.submitIntent,
+		propFormID:        i.formID,
+		propValue:         i.value,
+		propMaxLen:        i.maxLen,
+		propDisabled:      i.disabled,
+		propReadOnly:      i.readOnly,
+		propSearchVariant: i.searchVariant,
+		propCursorConfig:  i.cursorConfig,
 	}
 	return NewInstance(props)
 }
@@ -233,6 +366,30 @@ func (i *VNode) SetType(t Type) *VNode {
 	return i
 }
 
+// SetPrefix sets the inner prefix text rendered before the editable value.
+func (i *VNode) SetPrefix(prefix string) *VNode {
+	i.prefix = prefix
+	return i
+}
+
+// SetSuffix sets the inner suffix text rendered after the editable value.
+func (i *VNode) SetSuffix(suffix string) *VNode {
+	i.suffix = suffix
+	return i
+}
+
+// SetAddonBefore sets the outer text rendered before the input box.
+func (i *VNode) SetAddonBefore(addon string) *VNode {
+	i.addonBefore = addon
+	return i
+}
+
+// SetAddonAfter sets the outer text rendered after the input box.
+func (i *VNode) SetAddonAfter(addon string) *VNode {
+	i.addonAfter = addon
+	return i
+}
+
 // SetPassword sets the input type to password.
 func (i *VNode) SetPassword() *VNode {
 	i.inputType = TypePassword
@@ -254,6 +411,98 @@ func (i *VNode) SetDisabled(disabled bool) *VNode {
 // SetReadOnly sets the read-only state.
 func (i *VNode) SetReadOnly(readOnly bool) *VNode {
 	i.readOnly = readOnly
+	return i
+}
+
+// SetSearchVariant enables or disables the Search input variant.
+func (i *VNode) SetSearchVariant(enabled bool) *VNode {
+	i.searchVariant = enabled
+	if enabled && i.inputType == TypePassword {
+		i.inputType = TypeText
+	}
+	return i
+}
+
+// SetAllowNegative configures whether TypeNumber accepts a leading minus sign.
+func (i *VNode) SetAllowNegative(allow bool) *VNode {
+	i.allowNegative = allow
+	return i
+}
+
+// SetAllowDecimal configures whether TypeNumber accepts a decimal point.
+func (i *VNode) SetAllowDecimal(allow bool) *VNode {
+	i.allowDecimal = allow
+	return i
+}
+
+// SetMin sets the inclusive minimum number value for TypeNumber.
+func (i *VNode) SetMin(min float64) *VNode {
+	i.hasMin = true
+	i.min = min
+	return i
+}
+
+// SetMax sets the inclusive maximum number value for TypeNumber.
+func (i *VNode) SetMax(max float64) *VNode {
+	i.hasMax = true
+	i.max = max
+	return i
+}
+
+// SetStep sets the keyboard step size for TypeNumber.
+func (i *VNode) SetStep(step float64) *VNode {
+	if step < 0 {
+		step = -step
+	}
+	i.step = step
+	return i
+}
+
+// SetCursorConfig sets cursor blink/shape config for the embedded caret.
+func (i *VNode) SetCursorConfig(cfg cursor.Config) *VNode {
+	i.cursorConfig = cursor.NormalizeConfig(cfg)
+	return i
+}
+
+// SetCursorShape sets the embedded caret shape.
+func (i *VNode) SetCursorShape(shape cursor.Shape) *VNode {
+	i.cursorConfig.Shape = shape
+	return i
+}
+
+// SetInsertCursor configures a thin insertion caret.
+func (i *VNode) SetInsertCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeBar
+	i.cursorConfig.Glyph = "|"
+	return i
+}
+
+// SetBlockCursor configures a block caret.
+func (i *VNode) SetBlockCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeBlock
+	i.cursorConfig.Glyph = ""
+	return i
+}
+
+// SetUnderlineCursor configures an underline caret.
+func (i *VNode) SetUnderlineCursor() *VNode {
+	i.cursorConfig.Shape = cursor.ShapeUnderline
+	i.cursorConfig.Glyph = ""
+	return i
+}
+
+// SetCursorBlink enables or disables caret blink.
+func (i *VNode) SetCursorBlink(enabled bool) *VNode {
+	i.cursorConfig.Blink = enabled
+	if i.cursorConfig.BlinkInterval <= 0 {
+		i.cursorConfig.BlinkInterval = cursor.NormalBlinkInterval
+	}
+	return i
+}
+
+// SetCursorBlinkInterval sets caret blink interval.
+func (i *VNode) SetCursorBlinkInterval(interval time.Duration) *VNode {
+	i.cursorConfig.BlinkInterval = interval
 	return i
 }
 
@@ -287,6 +536,13 @@ func (i *VNode) SetSubmitIntent(submitIntent intent.Intent) *VNode {
 	return i
 }
 
+// SetFormID sets the form ID for Form integration.
+// When set, the component will emit FormFieldChangeIntent/FormFieldBlurIntent.
+func (i *VNode) SetFormID(formID string) *VNode {
+	i.formID = formID
+	return i
+}
+
 // SetStyleProps sets the visual style.
 func (i *VNode) SetStyleProps(s style.Style) *VNode {
 	i.style = s
@@ -307,6 +563,26 @@ func (i *VNode) InputType() Type {
 	return i.inputType
 }
 
+// Prefix returns the prefix text.
+func (i *VNode) Prefix() string {
+	return i.prefix
+}
+
+// Suffix returns the suffix text.
+func (i *VNode) Suffix() string {
+	return i.suffix
+}
+
+// AddonBefore returns the leading addon text.
+func (i *VNode) AddonBefore() string {
+	return i.addonBefore
+}
+
+// AddonAfter returns the trailing addon text.
+func (i *VNode) AddonAfter() string {
+	return i.addonAfter
+}
+
 // Value returns the initial value.
 func (i *VNode) Value() string {
 	return i.value
@@ -325,6 +601,46 @@ func (i *VNode) Disabled() bool {
 // ReadOnly returns the read-only state.
 func (i *VNode) ReadOnly() bool {
 	return i.readOnly
+}
+
+// SearchVariant reports whether the Search input variant is enabled.
+func (i *VNode) SearchVariant() bool {
+	return i.searchVariant
+}
+
+// AllowNegative reports whether TypeNumber accepts a leading minus sign.
+func (i *VNode) AllowNegative() bool {
+	return i.allowNegative
+}
+
+// AllowDecimal reports whether TypeNumber accepts a decimal point.
+func (i *VNode) AllowDecimal() bool {
+	return i.allowDecimal
+}
+
+// HasMin reports whether TypeNumber has a minimum value constraint.
+func (i *VNode) HasMin() bool {
+	return i.hasMin
+}
+
+// Min returns the inclusive minimum value for TypeNumber.
+func (i *VNode) Min() float64 {
+	return i.min
+}
+
+// HasMax reports whether TypeNumber has a maximum value constraint.
+func (i *VNode) HasMax() bool {
+	return i.hasMax
+}
+
+// Max returns the inclusive maximum value for TypeNumber.
+func (i *VNode) Max() float64 {
+	return i.max
+}
+
+// Step returns the keyboard step size for TypeNumber.
+func (i *VNode) Step() float64 {
+	return i.step
 }
 
 // Width returns the explicit width.

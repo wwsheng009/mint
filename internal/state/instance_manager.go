@@ -116,6 +116,9 @@ func (m *InstanceManager) SetByID(nodeID uint64, inst ComponentInstance) bool {
 	m.instances[key] = inst
 	m.lastAccess[key] = time.Now()
 
+	// Call OnMount for newly registered instances
+	inst.OnMount()
+
 	return true
 }
 

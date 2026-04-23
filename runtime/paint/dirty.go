@@ -297,16 +297,16 @@ func (d *DirtyTracker) extractDirtyRegions(grid *dirtyGrid, width, height int) [
 	}
 
 	// DEBUG: 调试区域提取
-	log.RenderLogger.Debug("[extractDirtyRegions] found %d regions", len(regions))
+	log.RenderLogger.IfEnabled().Debug("[extractDirtyRegions] found %d regions", len(regions))
 	for i, r := range regions {
-		log.RenderLogger.Debug("  Region[%d]: X=%d, Y=%d, W=%d, H=%d", i, r.X, r.Y, r.Width, r.Height)
+		log.RenderLogger.IfEnabled().Debug("  Region[%d]: X=%d, Y=%d, W=%d, H=%d", i, r.X, r.Y, r.Width, r.Height)
 	}
 
 	// 合并重叠或相邻的区域
 	merged := d.mergeDirtyRegions(regions)
 
 	if len(regions) != len(merged) {
-		log.RenderLogger.Debug("[extractDirtyRegions] merged from %d to %d regions", len(regions), len(merged))
+		log.RenderLogger.IfEnabled().Debug("[extractDirtyRegions] merged from %d to %d regions", len(regions), len(merged))
 	}
 
 	return merged

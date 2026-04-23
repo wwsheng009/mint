@@ -24,11 +24,12 @@ type Manager struct {
 	ordered       []devtools.FrameID  // Ordered frame IDs for iteration
 	pool          *SnapshotPool
 	maxSnapshots  int
-	autoCapture   bool
-	autoInterval  time.Duration
-	lastAutoFrame devtools.FrameID
-	persistDir    string  // Directory for persistent storage
-	enabled       bool
+	autoCapture        bool
+	autoInterval       time.Duration
+	lastAutoFrame      devtools.FrameID
+	hasAutoCapture     bool // true after first NoteAutoCapture call
+	persistDir         string  // Directory for persistent storage
+	enabled            bool
 }
 
 // NewManager creates a new snapshot manager.
@@ -283,7 +284,7 @@ func (m *Manager) ShouldAutoCapture(frameID devtools.FrameID) bool {
 	}
 
 	// Capture first frame
-	if m.lastAutoFrame == 0 {
+	if !m.hasAutoCapture {
 		return true
 	}
 
@@ -305,6 +306,7 @@ func (m *Manager) NoteAutoCapture(frameID devtools.FrameID) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastAutoFrame = frameID
+	m.hasAutoCapture = true
 }
 
 // =============================================================================

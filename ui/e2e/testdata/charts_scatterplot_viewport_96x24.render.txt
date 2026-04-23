@@ -1,0 +1,11 @@
+Charts ScatterPlot Viewport Fixture
+ScatterPlot Viewport
+● API
+◆ Worker
+  ┆  ┆ ┆  ●
+┈┈┈┈┈┈┈◆┈┈┈
+┈┈┈┈┈┈┈┈┈┈┈
+┈┈┈●┈┈┈┈┈┈┈
+◆ ┆  ┆ ┆
+───────────
+x:2..8 y:3..9

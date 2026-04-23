@@ -624,5 +624,5 @@ customItem.SetProp("width", 20)
 ## See Also
 
 - [Flex Layout Comparison](./flex_layout.md)
-- [Flex Wrap Limitation](./flex_wrap_limitation.md) - Why Wrap was needed
-- [Layout Best Practices](../guide/layout.md)
+- [Flex Wrap Limitation](/docsArchive/issues/flex_wrap_limitation.md) - Why Wrap was needed
+- [Layout Best Practices](/docs/layout/README.md)

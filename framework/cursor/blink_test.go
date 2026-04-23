@@ -12,6 +12,7 @@ import (
 func TestBlinkPositionStability(t *testing.T) {
 	c := NewCursor()
 	c.SetBlinkInterval(50 * time.Millisecond)
+	c.ResetBlink()
 
 	buf := paint.NewBuffer(80, 24)
 	ctx := component.NewPaintContext(buf, 10, 5, 80, 24) // 父组件起始位置 (10, 5)
@@ -31,31 +32,35 @@ func TestBlinkPositionStability(t *testing.T) {
 		t.Errorf("初始光标位置错误: 预期 (%d, %d) 有反色", expectedX, expectedY)
 	}
 
-	// 等待闪烁切换
-	time.Sleep(60 * time.Millisecond)
-
-	// 再次绘制（光标应该不可见）
-	buf2 := paint.NewBuffer(80, 24)
-	c.Paint(ctx, buf2)
-
-	if !buf2.Cells[expectedY][expectedX].Style.IsReverse() {
+	// 等待直到光标进入隐藏周期，避免测试依赖于第一次 Paint 的具体时间点
+	if waitForCursorPaintVisibility(c, ctx, expectedX, expectedY, false, 250*time.Millisecond) {
 		t.Logf("✓ 闪烁后光标隐藏正确")
 	} else {
 		t.Errorf("闪烁后光标应该隐藏但仍然可见")
 	}
 
-	// 再次等待闪烁切换
-	time.Sleep(60 * time.Millisecond)
-
-	// 第三次绘制（光标应该再次可见）
-	buf3 := paint.NewBuffer(80, 24)
-	c.Paint(ctx, buf3)
-
-	if buf3.Cells[expectedY][expectedX].Style.IsReverse() {
+	// 继续等待直到光标回到显示周期
+	if waitForCursorPaintVisibility(c, ctx, expectedX, expectedY, true, 250*time.Millisecond) {
 		t.Logf("✓ 再次闪烁后光标显示正确")
 	} else {
 		t.Errorf("再次闪烁后光标应该显示但仍然隐藏")
 	}
+}
+
+func waitForCursorPaintVisibility(c *Cursor, ctx component.PaintContext, x, y int, wantVisible bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		buf := paint.NewBuffer(ctx.AvailableWidth, ctx.AvailableHeight)
+		c.Paint(ctx, buf)
+		if buf.Cells[y][x].Style.IsReverse() == wantVisible {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	buf := paint.NewBuffer(ctx.AvailableWidth, ctx.AvailableHeight)
+	c.Paint(ctx, buf)
+	return buf.Cells[y][x].Style.IsReverse() == wantVisible
 }
 
 // TestMultiplePaintCallsSameFrame 测试同一帧内多次调用 Paint

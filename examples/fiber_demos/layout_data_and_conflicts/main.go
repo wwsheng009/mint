@@ -12,7 +12,7 @@ import (
 
 // 本程序显示布局数据并检测冲突
 func main() {
-	fmt.Println("=== Layout Data and Conflict Detection ===\n")
+	fmt.Println("=== Layout Data and Conflict Detection ===")
 
 	fixtures := component_fixtures.StandardFixtures()
 
@@ -93,7 +93,7 @@ func displayLayoutData(layout *compute_engine.ComputedLayout) {
 	fmt.Printf("  Max Depth: %d\n", stats.maxDepth)
 
 	// 节点列表
-	fmt.Println("\n--- All Nodes (%d) ---", len(stats.nodes))
+	fmt.Printf("\n--- All Nodes (%d) ---\n", len(stats.nodes))
 	displayNodesWithTree(stats.nodes, 0)
 
 	// ASCII可视化
@@ -450,7 +450,7 @@ func detectConflicts(layout *compute_engine.ComputedLayout, constraints runtime.
 					Node1:     node1,
 					Node2:     node2,
 					Position:  fmt.Sprintf("(%d,%d)", node1.X, node1.Y),
-					Details:   fmt.Sprintf("%s overlaps with %s",
+					Details:   fmt.Sprintf("%s (%s) overlaps with %s (%s)",
 						node1.NodeType, node1.Content, node2.NodeType, node2.Content),
 					Severity:  "Warning",
 				}

@@ -34,7 +34,7 @@ func getLogOutput() LogOutput {
 			logOutput = OutputFile
 		default:
 			// Default to file output
-			logOutput = OutputBoth
+			logOutput = OutputFile
 		}
 	})
 	return logOutput

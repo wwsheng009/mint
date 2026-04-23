@@ -15,7 +15,7 @@ import (
 func cursorDebugLog(format string, args ...interface{}) {
 	timestamp := time.Now().Format("15:04:05.000")
 	fullFormat := fmt.Sprintf("[%s] [Cursor] %s\n", timestamp, format)
-	log.CursorLogger.Debug(fullFormat, args...)
+	log.CursorLogger.IfEnabled().Debug(fullFormat, args...)
 }
 
 // ==============================================================================

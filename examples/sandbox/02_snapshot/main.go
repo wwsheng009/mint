@@ -1,5 +1,5 @@
 // 02_snapshot/main.go
-// 快照系统示例
+// 快照系统示例 (Store 模式)
 //
 // 演示如何使用 SnapshotManager 保存和恢复应用状态。
 // 支持三种快照级别：Minimal、Standard、Full。
@@ -10,10 +10,25 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
+// ============================================================================
+// AppState - 定义应用状态
+// ============================================================================
+
+type AppState struct {
+	Count int    // 计数器值
+	Text  string // 文本内容
+	Mode  int    // 模式索引
+}
+
+// ============================================================================
 // Intent Types
+// ============================================================================
+
 type IncrementSnapshotIntent struct{}
 func (IncrementSnapshotIntent) IntentType() string { return "Increment" }
 func (IncrementSnapshotIntent) StayPressed() bool  { return true }
@@ -26,50 +41,60 @@ type ToggleModeIntent struct{}
 func (ToggleModeIntent) IntentType() string { return "ToggleMode" }
 func (ToggleModeIntent) StayPressed() bool  { return true }
 
-// StatefulApp 有状态的应用，用于演示快照功能
+type SetSnapshotTextIntent struct {
+	Text string
+}
+func (SetSnapshotTextIntent) IntentType() string { return "SetSnapshotText" }
+func (SetSnapshotTextIntent) StayPressed() bool  { return false }
+
+// ============================================================================
+// Store 初始化
+// ============================================================================
+
+var snapshotStore = store.NewStore(AppState{
+	Count: 0,
+	Text:  "",
+	Mode:  0,
+})
+
+// ============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(IncrementSnapshotIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count++
+			return s
+		}).
+		On(DecrementSnapshotIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Count--
+			return s
+		}).
+		On(ToggleModeIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Mode = (s.Mode + 1) % 3
+			return s
+		}).
+		On(SetSnapshotTextIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Text = i.(SetSnapshotTextIntent).Text
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), snapshotStore)
+}
+
+// ============================================================================
+// StatefulApp - 有状态的应用
+// ============================================================================
+
 func StatefulApp() ui.VNode {
-	count, setCount, _ := ui.UseStateInt(0)
-	text, _ := ui.UseStateString("")
-	mode, setMode, _ := ui.UseStateInt(0)
-
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["count"] = count
-		ctx.GlobalState["setCount"] = setCount
-		ctx.GlobalState["mode"] = mode
-		ctx.GlobalState["setMode"] = setMode
-	}
-
-	// Register intent handlers
-	ui.On(IncrementSnapshotIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount + 1)
-			}
-		}
-	})
-	ui.On(DecrementSnapshotIntent{}, func(actx *intent.ActionContext) {
-		currentCount := actx.GetIntState("count", 0)
-		if fn, ok := actx.GetState("setCount"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentCount - 1)
-			}
-		}
-	})
-	ui.On(ToggleModeIntent{}, func(actx *intent.ActionContext) {
-		currentMode := actx.GetIntState("mode", 0)
-		if fn, ok := actx.GetState("setMode"); ok {
-			if setter, ok := fn.(func(int)); ok {
-				setter(currentMode + 1)
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	count := ui.UseStoreSelector(snapshotStore, func(s AppState) int { return s.Count })
+	text := ui.UseStoreSelector(snapshotStore, func(s AppState) string { return s.Text })
+	mode := ui.UseStoreSelector(snapshotStore, func(s AppState) int { return s.Mode })
 
 	// 模式显示
 	modeNames := []string{"正常", "编辑", "查看"}
-	modeName := modeNames[mode%3]
+	modeName := modeNames[mode]
 
 	return ui.VStack(
 		ui.NewTextBuilder("╔══════════════════════════════╗").
@@ -133,11 +158,15 @@ func StatefulApp() ui.VNode {
 	)
 }
 
+// ============================================================================
+// Main
+// ============================================================================
+
 func main() {
 	err := ui.Run(StatefulApp,
 		ui.WithWidth(40),
 		ui.WithHeight(20),
-		ui.WithTitle("Snapshot Demo"),
+		ui.WithTitle("Snapshot Demo (Store 模式)"),
 	)
 	if err != nil {
 		panic(err)

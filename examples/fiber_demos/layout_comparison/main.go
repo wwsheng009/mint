@@ -15,7 +15,7 @@ import (
 // 本程序比较 runtime/compute 和 runtime/layout 两个布局引擎
 // 展示它们在处理相同VNode树时的异同
 func main() {
-	fmt.Println("=== Layout Engine Comparison: runtime/compute vs runtime/layout ===\n")
+	fmt.Println("=== Layout Engine Comparison: runtime/compute vs runtime/layout ===")
 
 
 	// Initialize Intent Runtime (required for tests that call ui.On)

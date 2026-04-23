@@ -1,0 +1,16 @@
+Charts Candlestick Volume Fixture
+Candlestick Volume
+▓ Up
+█ Down
+■ Flat
+▆ Volume
+    │
+│┈│┈│┈│
+▓┈█┈■┈▓
+▓┈│┈│┈│
+│
+▆     ▆
+▆ ▆ ▆ ▆
+▆ ▆ ▆ ▆
+───────
+M T W T

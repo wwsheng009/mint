@@ -58,7 +58,7 @@ func TestMouseTracker_Click(t *testing.T) {
 
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Action)
-	assert.Equal(t, "mouse_click", string(result.Action.Type))
+	assert.Equal(t, "click", string(result.Action.Type))
 	assert.False(t, result.IsDoubleClick)
 	assert.False(t, result.IsTripleClick)
 	assert.True(t, result.IsDragStart)
@@ -85,7 +85,7 @@ func TestMouseTracker_RightClick(t *testing.T) {
 
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Action)
-	assert.Equal(t, "mouse_right_click", string(result.Action.Type))
+	assert.Equal(t, "right_click", string(result.Action.Type))
 
 	payload := result.Action.Payload.(MouseEventPayload)
 	assert.Equal(t, platform.MouseRight, payload.Button)
@@ -107,7 +107,7 @@ func TestMouseTracker_MiddleClick(t *testing.T) {
 
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Action)
-	assert.Equal(t, "mouse_middle_click", string(result.Action.Type))
+	assert.Equal(t, "middle_click", string(result.Action.Type))
 
 	payload := result.Action.Payload.(MouseEventPayload)
 	assert.Equal(t, platform.MouseMiddle, payload.Button)
@@ -144,7 +144,7 @@ func TestMouseTracker_DoubleClick(t *testing.T) {
 
 	assert.NotNil(t, result2)
 	assert.True(t, result2.IsDoubleClick)
-	assert.Equal(t, "mouse_double_click", string(result2.Action.Type))
+	assert.Equal(t, "double_click", string(result2.Action.Type))
 }
 
 // TestMouseTracker_TripleClick 测试鼠标三击
@@ -189,7 +189,7 @@ func TestMouseTracker_TripleClick(t *testing.T) {
 
 	assert.NotNil(t, result3)
 	assert.True(t, result3.IsTripleClick)
-	assert.Equal(t, "mouse_triple_click", string(result3.Action.Type))
+	assert.Equal(t, "triple_click", string(result3.Action.Type))
 }
 
 // TestMouseTracker_DoubleClick_Timeout 测试双击超时
@@ -222,7 +222,7 @@ func TestMouseTracker_DoubleClick_Timeout(t *testing.T) {
 	result2 := tracker.ProcessInput(input2)
 
 	assert.False(t, result2.IsDoubleClick)
-	assert.Equal(t, "mouse_click", string(result2.Action.Type))
+	assert.Equal(t, "click", string(result2.Action.Type))
 }
 
 // TestMouseTracker_DoubleClick_Distance 测试双击位置距离
@@ -441,7 +441,7 @@ func TestMouseTracker_DifferentButtons(t *testing.T) {
 	result := tracker.ProcessInput(rightClick)
 
 	assert.False(t, result.IsDoubleClick)
-	assert.Equal(t, "mouse_right_click", string(result.Action.Type))
+	assert.Equal(t, "right_click", string(result.Action.Type))
 }
 
 // TestMouseTracker_NonMouseInput 测试非鼠标输入

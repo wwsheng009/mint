@@ -1,57 +1,106 @@
-// Mouse Focus Demo - Demonstrates mouse click focus switching for Input components
+// Mouse Focus Demo - Demonstrates mouse click focus switching for Input components (Store 模式)
 package main
 
 import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// SubmitFormIntent 提交表单
+// =============================================================================
+// AppState - 定义应用状态
+// =============================================================================
+
+type AppState struct {
+	Name      string // 姓名
+	Email     string // 邮箱
+	Password  string // 密码
+	Submitted bool   // 是否已提交
+}
+
+// =============================================================================
+// Intent Types
+// =============================================================================
+
 type SubmitFormIntent struct{}
 func (SubmitFormIntent) IntentType() string { return "SubmitForm" }
 func (SubmitFormIntent) StayPressed() bool  { return true }
 
-// ClearSubmittedStateIntent 清除提交状态
 type ClearSubmittedStateIntent struct{}
 func (ClearSubmittedStateIntent) IntentType() string { return "ClearSubmitted" }
 func (ClearSubmittedStateIntent) StayPressed() bool  { return true }
 
-// MouseFocusDemo demonstrates mouse click focus switching between multiple input fields
+type SetInputNameIntent struct {
+	Name string
+}
+func (SetInputNameIntent) IntentType() string { return "SetInputName" }
+func (SetInputNameIntent) StayPressed() bool  { return false }
+
+type SetInputEmailIntent struct {
+	Email string
+}
+func (SetInputEmailIntent) IntentType() string { return "SetInputEmail" }
+func (SetInputEmailIntent) StayPressed() bool  { return false }
+
+type SetInputPasswordIntent struct {
+	Password string
+}
+func (SetInputPasswordIntent) IntentType() string { return "SetInputPassword" }
+func (SetInputPasswordIntent) StayPressed() bool  { return false }
+
+// =============================================================================
+// Store 初始化
+// ============================================================================
+
+var inputDemoStore = store.NewStore(AppState{
+	Name:      "",
+	Email:     "",
+	Password:  "",
+	Submitted: false,
+})
+
+// =============================================================================
+// Reducer 注册
+// ============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(SubmitFormIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Submitted = true
+			return s
+		}).
+		On(ClearSubmittedStateIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Submitted = false
+			return s
+		}).
+		On(SetInputNameIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Name = i.(SetInputNameIntent).Name
+			return s
+		}).
+		On(SetInputEmailIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Email = i.(SetInputEmailIntent).Email
+			return s
+		}).
+		On(SetInputPasswordIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.Password = i.(SetInputPasswordIntent).Password
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), inputDemoStore)
+}
+
+// =============================================================================
+// MouseFocusDemo - 演示多个输入字段的鼠标点击焦点切换
+// ============================================================================
+
 func MouseFocusDemo() ui.VNode {
-	// Use UseState to create component-level state (single source of truth)
-	name, setName := ui.UseStateString("")
-	email, setEmail := ui.UseStateString("")
-	password, setPassword := ui.UseStateString("")
-	submitted, setSubmitted := ui.UseStateBool(false)
-
-	// Save setters to GlobalState for Intent Handler usage
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["nameSetter"] = setName
-		ctx.GlobalState["emailSetter"] = setEmail
-		ctx.GlobalState["passwordSetter"] = setPassword
-		ctx.GlobalState["submittedSetter"] = setSubmitted
-	}
-
-	// Register Submit intent handler
-	ui.On(SubmitFormIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("submittedSetter"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(true)
-			}
-		}
-	})
-
-	// Register ClearSubmitted intent handler
-	ui.On(ClearSubmittedStateIntent{}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("submittedSetter"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(false)
-			}
-		}
-	})
+	// ✅ 订阅存储的状态
+	name := ui.UseStoreSelector(inputDemoStore, func(s AppState) string { return s.Name })
+	email := ui.UseStoreSelector(inputDemoStore, func(s AppState) string { return s.Email })
+	password := ui.UseStoreSelector(inputDemoStore, func(s AppState) string { return s.Password })
+	submitted := ui.UseStoreSelector(inputDemoStore, func(s AppState) bool { return s.Submitted })
 
 	// Show submitted view
 	if submitted {
@@ -74,7 +123,6 @@ func MouseFocusDemo() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewInputBuilder().
-				ForField(intent.BindField("name")).
 				Value(name).
 				Placeholder("Enter your name").
 				Width(30).
@@ -87,7 +135,6 @@ func MouseFocusDemo() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewInputBuilder().
-				ForField(intent.BindField("email")).
 				Value(email).
 				Placeholder("Enter your email").
 				Width(30).
@@ -100,7 +147,6 @@ func MouseFocusDemo() ui.VNode {
 		ui.HStack(
 			ui.Text("  "),
 			ui.NewInputBuilder().
-				ForField(intent.BindField("password")).
 				Value(password).
 				Placeholder("Enter password").
 				Password().
@@ -163,6 +209,10 @@ func SubmittedView(name, email, password string) ui.VNode {
 	)
 }
 
+// =============================================================================
+// Main
+// ============================================================================
+
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║   Input Mouse Focus Demo                                   ║")
@@ -170,7 +220,7 @@ func main() {
 	fmt.Println("")
 	fmt.Println("This demo demonstrates:")
 	fmt.Println("  - Mouse click to switch focus between inputs")
-	fmt.Println("  - Real-time text input with MVP data flow")
+	fmt.Println("  - Real-time text input with Store-based state")
 	fmt.Println("")
 	fmt.Println("Expected Behavior:")
 	fmt.Println("  ✓ Click on Name/Email/Password - focus moves to clicked field")
@@ -184,30 +234,7 @@ func main() {
 	err := ui.Run(MouseFocusDemo,
 		ui.WithWidth(50),
 		ui.WithHeight(35),
-		ui.WithTitle("Mouse Focus Demo"),
-		ui.WithInit(func() {
-			// Register FieldChangeIntent handler (form field change)
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i intent.FieldChangeIntent) intent.IntentResult {
-				switch i.Field {
-				case "name":
-					setName, _ := ctx.GetState("nameSetter")
-					if fn, ok := setName.(func(string)); ok {
-						fn(i.Value)
-					}
-				case "email":
-					setEmail, _ := ctx.GetState("emailSetter")
-					if fn, ok := setEmail.(func(string)); ok {
-						fn(i.Value)
-					}
-				case "password":
-					setPassword, _ := ctx.GetState("passwordSetter")
-					if fn, ok := setPassword.(func(string)); ok {
-						fn(i.Value)
-					}
-				}
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithTitle("Mouse Focus Demo (Store 模式)"),
 	)
 	if err != nil {
 		fmt.Printf("Error running app: %v\n", err)

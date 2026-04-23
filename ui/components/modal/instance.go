@@ -1,9 +1,11 @@
 package modal
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 	"sync"
 
+	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -23,6 +25,7 @@ import (
 type modalRegistry struct {
 	mu     sync.RWMutex
 	modals map[*Instance]bool
+	order  []*Instance
 }
 
 var (
@@ -38,7 +41,9 @@ func (r *modalRegistry) register(inst *Instance) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.removeLocked(inst)
 	r.modals[inst] = true
+	r.order = append(r.order, inst)
 }
 
 // unregister removes a modal from the global registry
@@ -48,27 +53,49 @@ func (r *modalRegistry) unregister(inst *Instance) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.modals, inst)
+	r.removeLocked(inst)
 }
 
 // getOpenModals returns all open modals
-// The returned slice is ordered from newest to oldest (last opened first)
+// The returned slice is ordered from oldest to newest.
 func (r *modalRegistry) getOpenModals() []*Instance {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make([]*Instance, 0, len(r.modals))
-	for inst := range r.modals {
-		result = append(result, inst)
+	result := make([]*Instance, 0, len(r.order))
+	for _, inst := range r.order {
+		if inst != nil && inst.isOpen {
+			result = append(result, inst)
+		}
 	}
 	return result
 }
 
 // hasOpenModal checks if there are any open modals
 func (r *modalRegistry) hasOpenModal() bool {
+	return r.getTopmostOpenModal() != nil
+}
+
+func (r *modalRegistry) getTopmostOpenModal() *Instance {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return len(r.modals) > 0
+	for i := len(r.order) - 1; i >= 0; i-- {
+		inst := r.order[i]
+		if inst != nil && inst.isOpen {
+			return inst
+		}
+	}
+	return nil
+}
+
+func (r *modalRegistry) removeLocked(inst *Instance) {
+	delete(r.modals, inst)
+	for i, existing := range r.order {
+		if existing == inst {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			return
+		}
+	}
 }
 
 // =============================================================================
@@ -88,13 +115,16 @@ type Instance struct {
 	closeIntent intent.Intent
 
 	// === Modal Props ===
-	isOpen    bool
-	centered  bool
-	closeable bool
+	isOpen          bool
+	centered        bool
+	closeable       bool
+	closeOnEsc      bool
+	closeOnBackdrop bool
 
 	// === Layout Props ===
-	width  int
-	height int
+	width   int
+	height  int
+	padding int
 
 	// === Content ===
 	content rtui.VNode
@@ -106,6 +136,10 @@ type Instance struct {
 
 	// === Registration State ===
 	registered bool // Tracks if this instance is in the global registry
+
+	// === Visual State ===
+	shadowStyle style.Style
+	showShadow  bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -128,20 +162,25 @@ var (
 // NewInstance creates a new ModalInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:         getStringProp(props, "key", ""),
-		title:       getStringProp(props, "title", ""),
-		modalStyle:  getStyleProp(props),
-		borderStyle: getStringProp(props, "borderStyle", "single"),
-		closeIntent: getIntentProp(props),
-		isOpen:      getBoolProp(props, "isOpen", false),
-		centered:    getBoolProp(props, "centered", true),
-		closeable:   getBoolProp(props, "closeable", true),
-		width:       getIntProp(props, "width", 40),
-		height:      getIntProp(props, "height", 15),
-		content:     getChildProp(props, "content"),
-		footer:      getChildProp(props, "footer"),
-		dirty:       true,
-		registered:  false, // Not registered yet
+		key:             proputil.GetString(props, "key", ""),
+		title:           proputil.GetString(props, "title", ""),
+		modalStyle:      proputil.GetStyle(props, "style", style.Style{}),
+		shadowStyle:     getShadowStyleProp(props),
+		borderStyle:     proputil.GetString(props, "borderStyle", "single"),
+		closeIntent:     proputil.GetIntent(props, "closeIntent", nil),
+		isOpen:          proputil.GetBool(props, "isOpen", false),
+		centered:        proputil.GetBool(props, "centered", true),
+		closeable:       proputil.GetBool(props, "closeable", true),
+		closeOnEsc:      proputil.GetBool(props, "closeOnEsc", true),
+		closeOnBackdrop: proputil.GetBool(props, "closeOnBackdrop", true),
+		width:           proputil.GetInt(props, "width", 40),
+		height:          proputil.GetInt(props, "height", 15),
+		padding:         proputil.GetInt(props, "padding", 0),
+		content:         getChildProp(props, "content"),
+		footer:          getChildProp(props, "footer"),
+		dirty:           true,
+		registered:      false, // Not registered yet
+		showShadow:      proputil.GetBool(props, "showShadow", true),
 	}
 	return inst
 }
@@ -156,33 +195,51 @@ func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
 }
 func (inst *Instance) Destroy() {
-	// Unregister from global registry if registered
+	inst.cleanup()
+}
+func (inst *Instance) OnMount() {}
+func (inst *Instance) OnUnmount() {
+	inst.cleanup()
+}
+
+func (inst *Instance) cleanup() {
 	if inst.registered {
 		globalRegistry.unregister(inst)
 		inst.registered = false
 	}
-
+	inst.isOpen = false
 	inst.content = nil
 	inst.footer = nil
 }
-func (inst *Instance) OnMount()   {}
-func (inst *Instance) OnUnmount() {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldOpen := inst.isOpen
 	oldTitle := inst.title
+	oldBorderStyle := inst.borderStyle
+	oldModalStyle := inst.modalStyle
+	oldShadowStyle := inst.shadowStyle
+	oldPadding := inst.padding
+	oldShowShadow := inst.showShadow
+	oldCloseOnEsc := inst.closeOnEsc
+	oldCloseOnBackdrop := inst.closeOnBackdrop
+	oldHasFooter := inst.footer != nil
 
-	inst.title = getStringProp(props, "title", inst.title)
-	inst.modalStyle = getStyleProp(props)
-	inst.borderStyle = getStringProp(props, "borderStyle", inst.borderStyle)
-	inst.closeIntent = getIntentProp(props)
-	inst.isOpen = getBoolProp(props, "isOpen", inst.isOpen)
-	inst.centered = getBoolProp(props, "centered", inst.centered)
-	inst.closeable = getBoolProp(props, "closeable", inst.closeable)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
+	inst.title = proputil.GetString(props, "title", inst.title)
+	inst.modalStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.shadowStyle = getShadowStyleProp(props)
+	inst.borderStyle = proputil.GetString(props, "borderStyle", inst.borderStyle)
+	inst.closeIntent = proputil.GetIntent(props, "closeIntent", nil)
+	inst.isOpen = proputil.GetBool(props, "isOpen", inst.isOpen)
+	inst.centered = proputil.GetBool(props, "centered", inst.centered)
+	inst.closeable = proputil.GetBool(props, "closeable", inst.closeable)
+	inst.closeOnEsc = proputil.GetBool(props, "closeOnEsc", inst.closeOnEsc)
+	inst.closeOnBackdrop = proputil.GetBool(props, "closeOnBackdrop", inst.closeOnBackdrop)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.padding = proputil.GetInt(props, "padding", inst.padding)
 	inst.content = getChildProp(props, "content")
 	inst.footer = getChildProp(props, "footer")
+	inst.showShadow = proputil.GetBool(props, "showShadow", inst.showShadow)
 	// Track modal open/close state in global registry for GlobalActionHandler
 	// 1. If state changed from closed to open, register
 	if !oldOpen && inst.isOpen {
@@ -197,7 +254,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.registered = true
 	}
 
-	changed := oldOpen != inst.isOpen || oldTitle != inst.title
+	changed := oldOpen != inst.isOpen ||
+		oldTitle != inst.title ||
+		oldBorderStyle != inst.borderStyle ||
+		oldModalStyle != inst.modalStyle ||
+		oldShadowStyle != inst.shadowStyle ||
+		oldPadding != inst.padding ||
+		oldShowShadow != inst.showShadow ||
+		oldCloseOnEsc != inst.closeOnEsc ||
+		oldCloseOnBackdrop != inst.closeOnBackdrop ||
+		oldHasFooter != (inst.footer != nil)
 	if changed {
 		inst.dirty = true
 	}
@@ -206,14 +272,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":         inst.key,
-		"title":       inst.title,
-		"isOpen":      inst.isOpen,
-		"centered":    inst.centered,
-		"closeable":   inst.closeable,
-		"width":       inst.width,
-		"height":      inst.height,
-		"borderStyle": inst.borderStyle,
+		propKey:             inst.key,
+		propTitle:           inst.title,
+		propIsOpen:          inst.isOpen,
+		propCentered:        inst.centered,
+		propCloseable:       inst.closeable,
+		propCloseOnEsc:      inst.closeOnEsc,
+		propCloseOnBackdrop: inst.closeOnBackdrop,
+		propWidth:           inst.width,
+		propHeight:          inst.height,
+		propPadding:         inst.padding,
+		propBorderStyle:     inst.borderStyle,
+		propShowShadow:      inst.showShadow,
 	}
 }
 
@@ -266,41 +336,70 @@ func (inst *Instance) GetBorder() layout.Border {
 	if !inst.isOpen {
 		return layout.Border{Style: layout.BorderNone}
 	}
+	return layout.NewBorder(inst.layoutBorderStyle())
+}
 
-	// Convert borderStyle string to layout.BorderStyle
-	var borderStyle layout.BorderStyle
-	switch inst.borderStyle {
-	case "double":
-		borderStyle = layout.BorderDouble
-	case "rounded":
-		borderStyle = layout.BorderRounded
-	case "dashed":
-		borderStyle = layout.BorderDashed
-	default:
-		borderStyle = layout.BorderSingle
+func (inst *Instance) GetBoxModel() layout.BoxModel {
+	if !inst.isOpen {
+		return layout.BoxModel{}
 	}
 
-	// Modal uses a title row layout:
-	// - Top border (1 row)
-	// - Title row (1 row) -> only if title exists
-	// - Horizontal separator (1 row) -> only if title exists
-	// - Content area
-	// - Bottom border (1 row)
-	//
-	// For layout purposes:
-	// Horizontal: always 1 char per side (left/right border)
-	// Vertical:
-	//   Without title: 1 + 1 = 2 rows (top + bottom)
-	//   With title: 1 + 1 + 1 + 1 = 4 rows (top + title + separator + bottom)
-
-	border := layout.NewBorder(borderStyle)
-
-	// Add label info (title) for layout awareness
+	topPadding := inst.padding
 	if inst.title != "" {
-		border.Label = inst.title
+		topPadding += 2
 	}
 
-	return border
+	return layout.BoxModel{
+		Padding: layout.Padding{
+			Top:    topPadding,
+			Right:  inst.padding,
+			Bottom: inst.padding,
+			Left:   inst.padding,
+		},
+		Border: layout.NewBorder(inst.layoutBorderStyle()),
+	}
+}
+
+func (inst *Instance) GetFlexStyle() *layout.FlexStyle {
+	if !inst.isOpen {
+		return nil
+	}
+	return &layout.FlexStyle{
+		Direction: layout.FlexColumn,
+		MainAxis:  layout.MainStart,
+		CrossAxis: layout.CrossStart,
+		Gap:       0,
+	}
+}
+
+func (inst *Instance) GetSize() (int, int) {
+	return inst.width, inst.height
+}
+
+func (inst *Instance) SetSize(width, height int) {
+	if width > 0 {
+		inst.width = width
+	}
+	if height > 0 {
+		inst.height = height
+	}
+	inst.bounds[2] = width
+	inst.bounds[3] = height
+}
+
+func (inst *Instance) layoutBorderStyle() layout.BorderStyle {
+	switch inst.borderStyle {
+	case propDouble:
+		return layout.BorderDouble
+	case propRounded:
+		return layout.BorderRounded
+	case propDashed:
+		return layout.BorderDashed
+	case "none":
+		return layout.BorderNone
+	default:
+		return layout.BorderSingle
+	}
 }
 
 // =============================================================================
@@ -314,68 +413,204 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	width := inst.width
-	height := inst.height
+	width := maxInt(inst.width, 2)
+	height := maxInt(inst.height, 2)
 
 	// Set bounds for hit testing
 	inst.bounds = [4]int{x, y, width, height}
 
 	var cmds []paint.DrawCmd
-	modalStyle := inst.modalStyle
+	bodyStyle := inst.resolveBodyStyle()
+	chromeStyle := inst.resolveChromeStyle()
 
 	// Get border characters
 	borderChars := inst.getBorderChars()
 
+	if inst.showShadow {
+		cmds = append(cmds, inst.paintShadow(x, y, width, height)...)
+	}
+
 	// Build top border
-	topBorder := string(borderChars.topLeft) + strings.Repeat(string(borderChars.horizontal), width-2) + string(borderChars.topRight)
-	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, modalStyle))
+	topBorder := string(borderChars.topLeft) + strings.Repeat(string(borderChars.horizontal), maxInt(0, width-2)) + string(borderChars.topRight)
+	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, chromeStyle))
 
 	// Draw title row if present
-	if inst.title != "" {
-		titlePadding := 1
-		maxTitleLen := width - 2 - 2*titlePadding
-		title := inst.title
-		if len(title) > maxTitleLen {
-			title = title[:maxTitleLen]
+	bodyStartY := y + 1
+	if inst.title != "" && height >= 4 {
+		titleRow := string(borderChars.vertical) + inst.composeHeaderRow(width-2) + string(borderChars.vertical)
+		cmds = append(cmds, paint.NewTextCmd(x, y+1, titleRow, chromeStyle))
+		if titleText := inst.headerTitle(width - 2); titleText != "" {
+			cmds = append(cmds, paint.NewTextCmd(x+1, y+1, titleText, inst.resolveTitleStyle()))
 		}
-		titlePadLeft := strings.Repeat(" ", titlePadding)
-		titlePadRight := strings.Repeat(" ", width-2-titlePadding-len(title)-titlePadding)
-		titleRow := string(borderChars.vertical) + titlePadLeft + title + titlePadRight + string(borderChars.vertical)
-		cmds = append(cmds, paint.NewTextCmd(x, y+1, titleRow, modalStyle))
+		if hintText, hintX := inst.headerHint(width - 2); hintText != "" {
+			cmds = append(cmds, paint.NewTextCmd(x+1+hintX, y+1, hintText, inst.resolveHintStyle()))
+		}
 
 		// Separator after title
-		separator := string(borderChars.leftT) + strings.Repeat(string(borderChars.horizontal), width-2) + string(borderChars.rightT)
-		cmds = append(cmds, paint.NewTextCmd(x, y+2, separator, modalStyle))
+		separator := string(borderChars.leftT) + strings.Repeat(string(borderChars.horizontal), maxInt(0, width-2)) + string(borderChars.rightT)
+		cmds = append(cmds, paint.NewTextCmd(x, y+2, separator, chromeStyle))
+		bodyStartY = y + 3
 	}
 
 	// Draw bottom border
-	bottomBorder := string(borderChars.bottomLeft) + strings.Repeat(string(borderChars.horizontal), width-2) + string(borderChars.bottomRight)
-	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, modalStyle))
+	bottomBorder := string(borderChars.bottomLeft) + strings.Repeat(string(borderChars.horizontal), maxInt(0, width-2)) + string(borderChars.bottomRight)
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, chromeStyle))
 
-	// NOTE: We do NOT draw the side borders or content area here!
-	// They are handled by the paint engine's border rendering logic.
-	// Content and footer children are rendered by the framework's layout engine.
-
-	// Draw side borders (left and right for each row from border to bottom-1)
-	startRow := y + 1
-	if inst.title != "" {
-		startRow = y + 3
-	}
-	endRow := y + height - 1
-	for i := startRow; i < endRow; i++ {
-		// Left border
-		cmds = append(cmds, paint.NewTextCmd(x, i, string(borderChars.vertical), modalStyle))
-		// Right border
-		cmds = append(cmds, paint.NewTextCmd(x+width-1, i, string(borderChars.vertical), modalStyle))
+	// Draw side borders and fill the body background so child content sits on a consistent surface.
+	for row := bodyStartY; row < y+height-1; row++ {
+		cmds = append(cmds, paint.NewTextCmd(x, row, string(borderChars.vertical), chromeStyle))
+		if width > 2 {
+			cmds = append(cmds, paint.NewTextCmd(x+1, row, strings.Repeat(" ", width-2), bodyStyle))
+		}
+		cmds = append(cmds, paint.NewTextCmd(x+width-1, row, string(borderChars.vertical), chromeStyle))
 	}
 
 	return cmds
 }
 
+func (inst *Instance) paintShadow(x, y, width, height int) []paint.DrawCmd {
+	if width <= 1 || height <= 1 {
+		return nil
+	}
+	shadowStyle := inst.resolveShadowStyle()
+	var cmds []paint.DrawCmd
+	for row := y + 1; row < y+height; row++ {
+		cmds = append(cmds, paint.NewTextCmd(x+width, row, " ", shadowStyle))
+	}
+	if width > 2 {
+		cmds = append(cmds, paint.NewTextCmd(x+1, y+height, strings.Repeat(" ", width), shadowStyle))
+	}
+	return cmds
+}
+
+func (inst *Instance) composeHeaderRow(innerWidth int) string {
+	if innerWidth <= 0 {
+		return ""
+	}
+	return strings.Repeat(" ", innerWidth)
+}
+
+func (inst *Instance) headerTitle(innerWidth int) string {
+	if innerWidth <= 0 {
+		return ""
+	}
+
+	available := innerWidth
+	if hint := inst.closeHint(); hint != "" {
+		available -= paint.StringWidth(hint) + 1
+	}
+	if available <= 0 {
+		return ""
+	}
+
+	title := inst.fitDisplayWidth(" "+inst.title, available)
+	return inst.padRightDisplayWidth(title, available)
+}
+
+func (inst *Instance) headerHint(innerWidth int) (string, int) {
+	hint := inst.closeHint()
+	if innerWidth <= 0 || hint == "" {
+		return "", 0
+	}
+	hint = inst.fitDisplayWidth(hint, innerWidth)
+	return hint, maxInt(0, innerWidth-paint.StringWidth(hint))
+}
+
+func (inst *Instance) closeHint() string {
+	if inst.closeable && inst.closeOnEsc {
+		return "ESC "
+	}
+	return ""
+}
+
+func (inst *Instance) resolveBodyStyle() style.Style {
+	s := inst.modalStyle
+	if s.FG == "" {
+		s = s.Foreground(theme.Text())
+	}
+	if s.BG == "" {
+		s = s.Background(theme.Surface())
+	}
+	return s
+}
+
+func (inst *Instance) resolveChromeStyle() style.Style {
+	bodyStyle := inst.resolveBodyStyle()
+	chrome := style.NewStyle().Foreground(theme.Border()).Background(bodyStyle.BG)
+	if inst.modalStyle.FG != "" {
+		chrome.FG = inst.modalStyle.FG
+	}
+	chrome = chrome.Merge(inst.modalStyle)
+	if chrome.BG == "" {
+		chrome.BG = bodyStyle.BG
+	}
+	return chrome
+}
+
+func (inst *Instance) resolveTitleStyle() style.Style {
+	return inst.resolveBodyStyle().Bold(true)
+}
+
+func (inst *Instance) resolveHintStyle() style.Style {
+	hintStyle := style.NewStyle().Foreground(theme.Muted()).Background(inst.resolveBodyStyle().BG)
+	if inst.modalStyle.BG != "" {
+		hintStyle.BG = inst.modalStyle.BG
+	}
+	return hintStyle
+}
+
+func (inst *Instance) resolveShadowStyle() style.Style {
+	s := inst.shadowStyle
+	if s.BG == "" {
+		s = s.Background(theme.Shadow())
+	}
+	return s
+}
+
+func (inst *Instance) fitDisplayWidth(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if paint.StringWidth(text) <= width {
+		return text
+	}
+
+	var b strings.Builder
+	current := 0
+	for _, r := range text {
+		rw := paint.StringWidth(string(r))
+		if current+rw > width {
+			break
+		}
+		current += rw
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func (inst *Instance) padRightDisplayWidth(text string, width int) string {
+	padding := width - paint.StringWidth(text)
+	if padding <= 0 {
+		return text
+	}
+	return text + strings.Repeat(" ", padding)
+}
+
 // getBorderChars returns the border characters based on borderStyle.
 func (inst *Instance) getBorderChars() borderChars {
 	switch inst.borderStyle {
-	case "double":
+	case "none":
+		return borderChars{
+			horizontal:  ' ',
+			vertical:    ' ',
+			topLeft:     ' ',
+			topRight:    ' ',
+			bottomLeft:  ' ',
+			bottomRight: ' ',
+			leftT:       ' ',
+			rightT:      ' ',
+		}
+	case propDouble:
 		return borderChars{
 			horizontal:  '═',
 			vertical:    '║',
@@ -386,7 +621,7 @@ func (inst *Instance) getBorderChars() borderChars {
 			leftT:       '╠',
 			rightT:      '╣',
 		}
-	case "rounded":
+	case propRounded:
 		return borderChars{
 			horizontal:  '─',
 			vertical:    '│',
@@ -397,7 +632,7 @@ func (inst *Instance) getBorderChars() borderChars {
 			leftT:       '├',
 			rightT:      '┤',
 		}
-	case "dashed":
+	case propDashed:
 		return borderChars{
 			horizontal:  '─',
 			vertical:    '│',
@@ -438,16 +673,15 @@ type borderChars struct {
 // =============================================================================
 
 func (inst *Instance) HandleAction(act *action.Action) bool {
-	if !inst.isOpen || !inst.closeable {
+	if !inst.isOpen {
 		return false
 	}
 
 	switch act.Type {
 	case action.ActionCancel, action.ActionQuit:
-		// Cancel or quit to close modal
-		inst.isOpen = false
-		inst.dirty = true
-		inst.emitCloseIntent()
+		if inst.closeable && inst.closeOnEsc {
+			inst.requestClose()
+		}
 		return true
 	case action.ActionScroll, action.ActionNavigateUp, action.ActionNavigateDown,
 		action.ActionNavigatePageUp, action.ActionNavigatePageDown,
@@ -461,15 +695,15 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 // HandleKeyMessage handles keyboard messages for ESC key.
 func (inst *Instance) HandleKeyMessage(keyMsg *runtimemsg.KeyMsg) bool {
-	if !inst.isOpen || !inst.closeable {
+	if !inst.isOpen {
 		return false
 	}
 
 	// ESC to close
 	if keyMsg.Special == runtimeplatform.KeyEscape {
-		inst.isOpen = false
-		inst.dirty = true
-		inst.emitCloseIntent()
+		if inst.closeable && inst.closeOnEsc {
+			inst.requestClose()
+		}
 		return true
 	}
 
@@ -478,16 +712,16 @@ func (inst *Instance) HandleKeyMessage(keyMsg *runtimemsg.KeyMsg) bool {
 
 // HandleMouseMessage handles mouse messages for clicking outside modal.
 func (inst *Instance) HandleMouseMessage(mouseMsg *runtimemsg.MouseMsg) bool {
-	if !inst.isOpen || !inst.closeable {
+	if !inst.isOpen {
 		return false
 	}
 
 	if mouseMsg.Action == runtimemsg.MouseActionPress {
 		// Check if click is outside modal bounds
 		if !inst.containsPoint(mouseMsg.X, mouseMsg.Y) {
-			inst.isOpen = false
-			inst.dirty = true
-			inst.emitCloseIntent()
+			if inst.closeable && inst.closeOnBackdrop {
+				inst.requestClose()
+			}
 			return true
 		}
 	}
@@ -511,12 +745,30 @@ func (inst *Instance) emitCloseIntent() {
 	}
 }
 
+func (inst *Instance) requestClose() {
+	if !inst.isOpen {
+		return
+	}
+	inst.isOpen = false
+	inst.dirty = true
+	if inst.registered {
+		globalRegistry.unregister(inst)
+		inst.registered = false
+	}
+	inst.emitCloseIntent()
+}
+
 // =============================================================================
 // Bounds Support
 // =============================================================================
 
 func (inst *Instance) GetBounds() (x, y, w, h int) {
 	return inst.bounds[0], inst.bounds[1], inst.bounds[2], inst.bounds[3]
+}
+
+func (inst *Instance) SetPosition(x, y int) {
+	inst.bounds[0] = x
+	inst.bounds[1] = y
 }
 
 func (inst *Instance) SetBounds(x, y, w, h int) {
@@ -535,49 +787,13 @@ func (inst *Instance) SetIntentEmitter(fn func(intent.Intent)) {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["modalStyle"]; ok {
+func getShadowStyleProp(props rtui.Props) style.Style {
+	if v, ok := props[propShadowStyle]; ok {
 		if s, ok := v.(style.Style); ok {
 			return s
 		}
 	}
 	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["closeIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getChildProp(props rtui.Props, key string) rtui.VNode {
@@ -587,4 +803,11 @@ func getChildProp(props rtui.Props, key string) rtui.VNode {
 		}
 	}
 	return nil
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

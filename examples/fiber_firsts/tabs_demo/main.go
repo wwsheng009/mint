@@ -13,6 +13,7 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/ui/components/tabs"
@@ -22,109 +23,102 @@ import (
 // DemoApp creates the demo UI
 func DemoApp() rtui.VNode {
 	return ui.NewVStack().
-		SetWidth(70).
+		SetWidth(72).
 		SetGap(1).
 		SetChildrenList([]rtui.VNode{
-			// Title
 			sectionTitle("Fiber-First Tabs Component Demo"),
 			newtext.New(""),
-			newtext.New("Tabs navigation with Fiber-first architecture:"),
-			newtext.New("  • Pure descriptive VNode"),
-			newtext.New("  • Intent-based event handling"),
-			newtext.New("  • Multiple tab positions (Top/Bottom/Left/Right)"),
-			newtext.New("  • Keyboard navigation (arrows, Home, End)"),
-			newtext.New("  • Click-to-switch tabs"),
-			newtext.New("  • Disabled tabs support"),
+			newtext.New("Enhanced tabs now support:"),
+			newtext.New("  • controlled selection via ActiveTab / ActiveTabID"),
+			newtext.New("  • icons, badges, hotkeys, hidden tabs"),
+			newtext.New("  • wrap, custom divider, loop navigation"),
+			newtext.New("  • top / bottom / left / right layouts"),
 			newtext.New(""),
 
-			// =====================================================
-			// Section 1: Basic Tabs
-			// =====================================================
-			subTitle("1. Basic Tabs (Top Position)"),
+			subTitle("1. Metadata + controlled selection"),
 			tabs.NewBuilder().
-				AddTab("home", "Home").
-				AddTab("about", "About").
-				AddTab("contact", "Contact").
-				AddTab("settings", "Settings").
-				Width(60).
-				Height(10).
+				ComponentID("workspace").
+				AddTabItem(tabs.Item("home", "Home").WithIcon("H").WithHotkey('h')).
+				AddTabItem(tabs.Item("search", "Search").WithIcon("S").WithHotkey('s')).
+				AddTabItem(tabs.Item("alerts", "Alerts").WithIcon("!").WithBadge("12").WithHotkey('a')).
+				AddTabItem(tabs.Item("locked", "Locked").WithIcon("X").WithDisabled(true)).
+				ActiveTabID("alerts").
+				ShowHotkeys(true).
+				Width(68).
+				Top().
+				ActiveTabStyle(style.NewStyle().Foreground(style.Cyan).Bold(true)).
+				DisabledTabStyle(style.NewStyle().Foreground(style.BrightBlack)).
+				Build(),
+			newtext.New("  H/S/A choose tabs, disabled tab stays visible but cannot activate.").Foreground("bright-black"),
+			newtext.New(""),
+
+			subTitle("2. Wrapped tabs + custom divider"),
+			tabs.NewBuilder().
+				AddTabItem(tabs.Item("files", "Files").WithHotkey('1')).
+				AddTabItem(tabs.Item("outline", "Outline").WithHotkey('2')).
+				AddTabItem(tabs.Item("search", "Search").WithHotkey('3')).
+				AddTabItem(tabs.Item("source", "Source Control").WithHotkey('4')).
+				AddTabItem(tabs.Item("ports", "Ports").WithHotkey('5')).
+				AddTabItem(tabs.Item("timeline", "Timeline").WithHotkey('6')).
+				ActiveTab(3).
+				ShowHotkeys(true).
+				WrapTabs(true).
+				Divider(" / ").
+				Width(32).
 				Top().
 				Build(),
+			newtext.New("  WrapTabs uses local hit areas, so clicking works after wrapping.").Foreground("bright-black"),
 			newtext.New(""),
 
-			// =====================================================
-			// Section 2: Tabs with Disabled Tab
-			// =====================================================
-			subTitle("2. Tabs with Disabled Tab"),
-			tabs.NewBuilder().
-				AddTab("active1", "Active").
-				AddTabWithOptions("disabled", "Disabled", true).
-				AddTab("active2", "Active").
-				Width(50).
-				Height(8).
-				Top().
-				Build(),
-			newtext.New(""),
-
-			// =====================================================
-			// Section 3: Tab Positions
-			// =====================================================
-			subTitle("3. Different Tab Positions"),
+			subTitle("3. Left / right / bottom positions"),
 			ui.NewHStack().
 				SetGap(2).
 				SetChildrenList([]rtui.VNode{
 					tabs.NewBuilder().
-						AddTab("t1", "Top").
-						AddTab("t2", "Pos").
-						Width(25).
-						Height(6).
-						Top().
+						AddTab("nav", "Nav").
+						AddTab("repo", "Repo").
+						AddTab("test", "Test").
+						ActiveTab(1).
+						Width(18).
+						Height(4).
+						Left().
 						Build(),
 					tabs.NewBuilder().
-						AddTab("b1", "Btm").
-						AddTab("b2", "Pos").
-						Width(25).
-						Height(6).
+						AddTab("logs", "Logs").
+						AddTab("tasks", "Tasks").
+						AddTab("debug", "Debug").
+						ActiveTab(0).
+						Width(18).
+						Height(4).
 						Bottom().
 						Build(),
+					tabs.NewBuilder().
+						AddTab("git", "Git").
+						AddTab("ci", "CI").
+						AddTab("perf", "Perf").
+						ActiveTab(2).
+						Width(18).
+						Height(4).
+						Right().
+						Build(),
 				}),
+			newtext.New("  Bottom/Right now honor component size instead of always painting at row 0.").Foreground("bright-black"),
 			newtext.New(""),
 
-			// =====================================================
-			// Section 4: Multiple Tabs
-			// =====================================================
-			subTitle("4. Many Tabs"),
+			subTitle("4. Hidden tabs + loop navigation"),
 			tabs.NewBuilder().
-				AddTab("tab1", "File").
-				AddTab("tab2", "Edit").
-				AddTab("tab3", "View").
-				AddTab("tab4", "Go").
-				AddTab("tab5", "Run").
-				AddTab("tab6", "Tools").
-				AddTab("tab7", "Help").
-				AddTab("tab8", "Debug").
-				Width(65).
-				Height(8).
+				AddTabItem(tabs.Item("overview", "Overview").WithIcon("O")).
+				AddTabItem(tabs.Item("internals", "Internals").WithIcon("I").WithHidden(true)).
+				AddTabItem(tabs.Item("metrics", "Metrics").WithIcon("M").WithBadge("99+")).
+				AddTabItem(tabs.Item("trace", "Trace").WithIcon("T")).
+				LoopNavigation(true).
+				ActiveTabID("metrics").
+				Width(68).
 				Top().
 				Build(),
 			newtext.New(""),
 
-			// =====================================================
-			// Section 5: Compact Tabs
-			// =====================================================
-			subTitle("5. Compact Short Name Tabs"),
-			tabs.NewBuilder().
-				AddTab("h", "H").
-				AddTab("a", "A").
-				AddTab("c", "C").
-				Width(30).
-				Height(5).
-				Top().
-				Build(),
-			newtext.New(""),
-
-			// Footer
-			highlight("Tabs: Navigation, keyboard support, disabled states, flexible positioning"),
+			highlight("Tabs: metadata, controlled state, wrapping, intents, and richer navigation"),
 		})
 }
 
@@ -159,7 +153,7 @@ func main() {
 
 	// Create DeclarativeNode WITH Fiber reconciler
 	node := render.NewDeclarativeNodeFromFuncWithFiber(DemoApp)
-    node.SetApp(fwApp)
+	node.SetApp(fwApp)
 
 	// Enable Fiber-first mode
 	node.SetRenderMode(render.RenderModeFiberFirst)
@@ -169,13 +163,13 @@ func main() {
 	fmt.Printf("  Fiber-First Enabled: %v\n", node.IsFiberFirstEnabled())
 
 	// Create buffer
-	buf := paint.NewBuffer(70, 40)
+	buf := paint.NewBuffer(72, 34)
 
 	// Create paint context
 	ctx := component.PaintContext{
-		Bounds:          paint.Rect{X: 0, Y: 0, Width: 70, Height: 40},
-		AvailableWidth:  70,
-		AvailableHeight: 40,
+		Bounds:          paint.Rect{X: 0, Y: 0, Width: 72, Height: 34},
+		AvailableWidth:  72,
+		AvailableHeight: 34,
 	}
 
 	fmt.Printf("\n%s\n", strings.Repeat("=", 70))
@@ -186,7 +180,7 @@ func main() {
 	node.Paint(ctx, buf)
 
 	// Output result
-	utils.PrintBuffer(buf, 70, 40)
+	utils.PrintBuffer(buf, 72, 34)
 
 	// Feature summary
 	fmt.Println("\n" + strings.Repeat("=", 70))
@@ -195,11 +189,11 @@ func main() {
 	fmt.Println("  ✓ VNode: Pure description (no state, no closures, no paint)")
 	fmt.Println("  ✓ Instance: Runtime state management (activeTab)")
 	fmt.Println("  ✓ Intent: Replaces closure-based callbacks")
+	fmt.Println("  ✓ Metadata: Icon, Badge, Hotkey, Hidden, Disabled")
 	fmt.Println("  ✓ Positions: Top, Bottom, Left, Right")
-	fmt.Println("  ✓ Keyboard: Arrow keys, Home, End for navigation")
-	fmt.Println("  ✓ Mouse: Click tabs to switch")
-	fmt.Println("  ✓ Disabled: Support for disabled tabs")
-	fmt.Println("  ✓ Styles: Separate styles for normal and active tabs")
-	fmt.Println("  ✓ Builder: Fluent API with AddTab, Position, Width, Height")
+	fmt.Println("  ✓ Keyboard: arrows, Home/End, Ctrl+Tab, hotkeys, digits")
+	fmt.Println("  ✓ Mouse: local hit testing works with wrapped and offset tabs")
+	fmt.Println("  ✓ Styles: separate normal / active / disabled tab styles")
+	fmt.Println("  ✓ Builder: controlled active tab, wrap, divider, loop navigation")
 	fmt.Println(strings.Repeat("=", 70))
 }

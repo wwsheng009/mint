@@ -567,5 +567,5 @@ mint-inspect instances --all
 ### 相关文档
 
 - [BEST_PRACTICES.md](./BEST_PRACTICES.md) - 状态管理最佳实践
-- [PERFORMANCE.md](./PERFORMANCE.md) - 性能优化指南
-- [MIGRATION.md](./MIGRATION.md) - 从闭包模式迁移
+- [PERFORMANCE.md](/docsArchive/performance/FINAL_SUMMARY.md) - 性能优化指南
+- [MIGRATION.md](/docsArchive/MIGRATION.md) - 从闭包模式迁移

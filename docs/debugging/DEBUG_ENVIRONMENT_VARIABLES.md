@@ -31,10 +31,10 @@ This document lists all environment variables used to control debug output in th
 | `TUI_DEBUG_PUMP` | Enable event pump debug output | `false` | `framework/event/pump.go` |
 | `TUI_DEBUG_UI` | Enable UI framework debug output | `false` | `ui/app.go` |
 | `TUI_RENDER_DEBUG` | Enable rendering debug output | `false` | `runtime/paint/renderer.go`, `runtime/paint/dirty.go` |
-| `TUI_FORM_DEBUG` | Enable form component debug output | `false` | `framework/form/form.go` |
-| `TUI_CURSOR_DEBUG` | Enable cursor component debug output | `false` | `framework/cursor/cursor.go` |
-| `TUI_INPUT_DEBUG` | Enable input component debug output | `false` | `framework/input/textinput.go` |
-| `TUI_INPUT_DEBUG_FILE` | Path to input debug log file | `""` | `framework/input/textinput.go` |
+| `TUI_FORM_DEBUG` | Enable form component debug output | `false` | `ui/components/form/instance.go` |
+| `TUI_CURSOR_DEBUG` | Enable cursor component debug output | `false` | `ui/components/cursor/instance.go` |
+| `TUI_INPUT_DEBUG` | Enable input component debug output | `false` | `ui/components/input/instance.go` |
+| `TUI_INPUT_DEBUG_FILE` | Path to input debug log file | `""` | `ui/components/input/instance.go` |
 
 ## Usage Examples
 

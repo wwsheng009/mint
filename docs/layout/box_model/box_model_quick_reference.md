@@ -409,7 +409,7 @@ func TestBoxModel(t *testing.T) {
 ## 相关文档
 
 - [Box Model 当前状态分析](box_model_current_state.md)
-- [Box Model 优化方案](box_model_optimization_plan.md)
+- [Box Model 优化方案](/docsArchive/box_model_optimization_plan.md)
 - [Box Model 流程图](box_model_flow_diagram.md)
-- [Margin 与测量](margin_and_measurement.md)
-- [Margin Bug 分析](margin_bug_analysis.md)
+- [Margin 与测量](../margin/margin_and_measurement.md)
+- [Margin Bug 分析](../margin/margin_bug_analysis.md)

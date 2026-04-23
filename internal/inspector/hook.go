@@ -20,16 +20,16 @@ func CreateInspectorHook(inspector *StandaloneInspector) render.VNodeHook {
 	return func(vnode rtui.VNode) rtui.VNode {
 		// If Inspector is not visible, return original VNode unchanged
 		if !inspector.IsVisible() {
-			log.InspectorLogger.Debug("[InspectorHook] Inspector not visible, skipping injection")
+			log.InspectorLogger.IfEnabled().Debug("[InspectorHook] Inspector not visible, skipping injection")
 			return vnode
 		}
 
-		log.InspectorLogger.Debug("[InspectorHook] Injecting Inspector overlay")
+		log.InspectorLogger.IfEnabled().Debug("[InspectorHook] Injecting Inspector overlay")
 
 		// Get Inspector content (UI only, no Layer set)
 		inspectorContent := inspector.RenderContent()
 		if inspectorContent == nil {
-			log.InspectorLogger.Debug("[InspectorHook] RenderContent() returned nil")
+			log.InspectorLogger.IfEnabled().Debug("[InspectorHook] RenderContent() returned nil")
 			return vnode
 		}
 
@@ -79,7 +79,7 @@ func RegisterInspector(inspector *StandaloneInspector, hookManager interface{}) 
 	if hm, ok := hookManager.(hookManagerWrapper); ok {
 		hm.RegisterVNodeHook(hook)
 
-		log.InspectorLogger.Debug("[Inspector] Registered with render hook system")
+		log.InspectorLogger.IfEnabled().Debug("[Inspector] Registered with render hook system")
 	}
 }
 

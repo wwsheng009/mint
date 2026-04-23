@@ -1,6 +1,7 @@
 package virtuallist
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -21,19 +22,20 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	items          []string
-	itemCount      int
-	itemHeight     int
-	visibleCount   int
-	height         int
-	width          int
-	listStyle      style.Style
-	selectedStyle  style.Style
-	allowScroll    bool
+	items         []string
+	itemCount     int
+	itemHeight    int
+	visibleCount  int
+	height        int
+	width         int
+	listStyle     style.Style
+	selectedStyle style.Style
+	itemStyleFn   func(int, string) style.Style
+	allowScroll   bool
 
 	// === Runtime State ===
-	scrollOffset   int  // Current scroll offset
-	selectedIndex  int  // Currently selected item
+	scrollOffset  int    // Current scroll offset
+	selectedIndex int    // Currently selected item
 	bounds        [4]int // x, y, w, h
 	dirty         bool
 }
@@ -55,20 +57,26 @@ var (
 // NewInstance creates a new VirtualListInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:            getStringProp(props, "key", ""),
-		items:          getItemsProp(props, []string{}),
-		itemCount:      getIntProp(props, "itemCount", 0),
-		itemHeight:     getIntProp(props, "itemHeight", 1),
-		visibleCount:   getIntProp(props, "visibleCount", 10),
-		height:         getIntProp(props, "height", 10),
-		width:          getIntProp(props, "width", 40),
-		listStyle:      getStyleProp(props, "listStyle"),
-		selectedStyle:  getStyleProp(props, "selectedStyle"),
-		allowScroll:    getBoolProp(props, "allowScroll", true),
-		scrollOffset:   getIntProp(props, "scrollOffset", 0),
-		selectedIndex:  getIntProp(props, "selectedIndex", -1),
+		key:           proputil.GetString(props, "key", ""),
+		items:         getItemsProp(props, []string{}),
+		itemCount:     proputil.GetInt(props, "itemCount", 0),
+		itemHeight:    proputil.GetInt(props, "itemHeight", 1),
+		visibleCount:  proputil.GetInt(props, "visibleCount", 10),
+		height:        proputil.GetInt(props, "height", 10),
+		width:         proputil.GetInt(props, "width", 40),
+		listStyle:     proputil.GetStyle(props, "listStyle", style.Style{}),
+		selectedStyle: proputil.GetStyle(props, "selectedStyle", style.Style{}),
+		allowScroll:   proputil.GetBool(props, "allowScroll", true),
+		scrollOffset:  proputil.GetInt(props, "scrollOffset", 0),
+		selectedIndex: proputil.GetInt(props, "selectedIndex", -1),
 		dirty:         true,
 	}
+	if fn, ok := props[propItemStyleFn].(func(int, string) style.Style); ok {
+		inst.itemStyleFn = fn
+	}
+	inst.normalizeItemCount()
+	inst.clampOffset()
+	inst.clampSelectedIndex()
 	return inst
 }
 
@@ -79,26 +87,32 @@ func NewInstance(props rtui.Props) *Instance {
 func (inst *Instance) Key() string           { return inst.key }
 func (inst *Instance) SetKey(key string)     { inst.key = key }
 func (inst *Instance) Init(props rtui.Props) { inst.SetProps(props) }
-func (inst *Instance) Destroy()             { inst.items = nil }
-func (inst *Instance) OnMount()             { inst.dirty = true }
-func (inst *Instance) OnUnmount()           {}
+func (inst *Instance) Destroy()              { inst.items = nil }
+func (inst *Instance) OnMount()              { inst.dirty = true }
+func (inst *Instance) OnUnmount()            {}
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldOffset := inst.scrollOffset
 	oldSelected := inst.selectedIndex
 
 	inst.items = getItemsProp(props, inst.items)
-	inst.itemCount = getIntProp(props, "itemCount", inst.itemCount)
-	inst.itemHeight = getIntProp(props, "itemHeight", inst.itemHeight)
-	inst.visibleCount = getIntProp(props, "visibleCount", inst.visibleCount)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.listStyle = getStyleProp(props, "listStyle")
-	inst.selectedStyle = getStyleProp(props, "selectedStyle")
-	inst.allowScroll = getBoolProp(props, "allowScroll", inst.allowScroll)
-	inst.scrollOffset = getIntProp(props, "scrollOffset", inst.scrollOffset)
-	inst.selectedIndex = getIntProp(props, "selectedIndex", inst.selectedIndex)
+	inst.itemCount = proputil.GetInt(props, "itemCount", inst.itemCount)
+	inst.itemHeight = proputil.GetInt(props, "itemHeight", inst.itemHeight)
+	inst.visibleCount = proputil.GetInt(props, "visibleCount", inst.visibleCount)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.listStyle = proputil.GetStyle(props, "listStyle", style.Style{})
+	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", style.Style{})
+	if fn, ok := props[propItemStyleFn].(func(int, string) style.Style); ok {
+		inst.itemStyleFn = fn
+	} else if _, exists := props[propItemStyleFn]; exists {
+		inst.itemStyleFn = nil
+	}
+	inst.allowScroll = proputil.GetBool(props, "allowScroll", inst.allowScroll)
+	inst.scrollOffset = proputil.GetInt(props, "scrollOffset", inst.scrollOffset)
+	inst.selectedIndex = proputil.GetInt(props, "selectedIndex", inst.selectedIndex)
 
+	inst.normalizeItemCount()
 	// Clamp offset
 	inst.clampOffset()
 
@@ -114,23 +128,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":            inst.key,
-		"items":          inst.items,
-		"itemCount":      inst.itemCount,
-		"itemHeight":     inst.itemHeight,
-		"visibleCount":   inst.visibleCount,
-		"height":         inst.height,
-		"width":          inst.width,
-		"allowScroll":    inst.allowScroll,
-		"scrollOffset":    inst.scrollOffset,
-		"selectedIndex":  inst.selectedIndex,
+		propKey:           inst.key,
+		propItems:         inst.items,
+		propItemCount:     inst.itemCount,
+		propItemHeight:    inst.itemHeight,
+		propVisibleCount:  inst.visibleCount,
+		propHeight:        inst.height,
+		propWidth:         inst.width,
+		propAllowScroll:   inst.allowScroll,
+		propScrollOffset:  inst.scrollOffset,
+		propSelectedIndex: inst.selectedIndex,
+		propItemStyleFn:   inst.itemStyleFn,
 	}
 }
 
-func (inst *Instance) MarkDirty()    { inst.dirty = true }
-func (inst *Instance) IsDirty() bool { return inst.dirty }
+func (inst *Instance) MarkDirty()                         { inst.dirty = true }
+func (inst *Instance) IsDirty() bool                      { return inst.dirty }
 func (inst *Instance) GetContext() *rtui.ComponentContext { return nil }
-func (inst *Instance) ClearDirty()   { inst.dirty = false }
+func (inst *Instance) ClearDirty()                        { inst.dirty = false }
 
 // =============================================================================
 // Measurable Interface
@@ -166,39 +181,41 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	var cmds []paint.DrawCmd
 	listStyle := inst.listStyle
+	width := inst.paintWidth()
+	height := inst.paintHeight()
+	contentWidth := maxInt(0, width-4)
 
 	// Get visible range
 	start, end := inst.getVisibleRange()
 
 	// Draw top border
-	topBorder := "┌" + strings.Repeat("─", inst.width-2) + "┐"
+	topBorder := "┌" + strings.Repeat("─", maxInt(0, width-2)) + "┐"
 	cmds = append(cmds, paint.NewTextCmd(x, y, topBorder, listStyle))
 
 	// Draw visible items
 	for i := start; i < end; i++ {
 		rowY := y + 1 + (i - start)
-		if rowY >= y + inst.height - 1 {
+		if rowY >= y+height-1 {
 			break
 		}
 
 		// Get item text
-		itemText := ""
+		rawItemText := ""
 		if i < len(inst.items) {
-			itemText = inst.items[i]
+			rawItemText = inst.items[i]
 		}
 
-		// Truncate if too long
-		if len(itemText) > inst.width-4 {
-			itemText = itemText[:inst.width-4] + ".."
-		}
-
-		// Add padding
-		itemText = "│ " + itemText + strings.Repeat(" ", inst.width-4-len(itemText)) + "│"
+		itemText := inst.truncateText(rawItemText, contentWidth)
+		paddingWidth := maxInt(0, contentWidth-paint.StringWidth(itemText))
+		itemText = "│ " + itemText + strings.Repeat(" ", paddingWidth) + " │"
 
 		// Highlight selected item
 		itemStyle := listStyle
+		if inst.itemStyleFn != nil {
+			itemStyle = itemStyle.Merge(inst.itemStyleFn(i, rawItemText))
+		}
 		if i == inst.selectedIndex {
-			itemStyle = inst.selectedStyle
+			itemStyle = itemStyle.Merge(inst.selectedStyle)
 		}
 
 		cmds = append(cmds, paint.NewTextCmd(x, rowY, itemText, itemStyle))
@@ -206,15 +223,15 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 	// Fill remaining space with empty rows
 	visibleItemCount := end - start
-	for i := visibleItemCount; i < inst.height-2; i++ {
+	for i := visibleItemCount; i < height-2; i++ {
 		rowY := y + 1 + i
-		emptyRow := "│" + strings.Repeat(" ", inst.width-2) + "│"
+		emptyRow := "│" + strings.Repeat(" ", maxInt(0, width-2)) + "│"
 		cmds = append(cmds, paint.NewTextCmd(x, rowY, emptyRow, listStyle))
 	}
 
 	// Draw bottom border
-	bottomBorder := "└" + strings.Repeat("─", inst.width-2) + "┘"
-	cmds = append(cmds, paint.NewTextCmd(x, y+inst.height-1, bottomBorder, listStyle))
+	bottomBorder := "└" + strings.Repeat("─", maxInt(0, width-2)) + "┘"
+	cmds = append(cmds, paint.NewTextCmd(x, y+height-1, bottomBorder, listStyle))
 
 	return cmds
 }
@@ -376,6 +393,63 @@ func (inst *Instance) clampSelectedIndex() {
 	}
 }
 
+func (inst *Instance) normalizeItemCount() {
+	if inst.itemCount <= 0 || inst.itemCount < len(inst.items) {
+		inst.itemCount = len(inst.items)
+	}
+}
+
+func (inst *Instance) paintWidth() int {
+	if inst.bounds[2] > 0 {
+		return maxInt(4, inst.bounds[2])
+	}
+	return maxInt(4, inst.width)
+}
+
+func (inst *Instance) paintHeight() int {
+	if inst.bounds[3] > 0 {
+		return maxInt(2, inst.bounds[3])
+	}
+	return maxInt(2, inst.height)
+}
+
+func (inst *Instance) truncateText(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if paint.StringWidth(text) <= maxWidth {
+		return text
+	}
+	if maxWidth <= 2 {
+		return trimToWidth(text, maxWidth)
+	}
+	return trimToWidth(text, maxWidth-2) + ".."
+}
+
+func trimToWidth(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	var builder strings.Builder
+	currentWidth := 0
+	for _, r := range text {
+		runeWidth := paint.RuneWidth(r)
+		if currentWidth+runeWidth > maxWidth {
+			break
+		}
+		builder.WriteRune(r)
+		currentWidth += runeWidth
+	}
+	return builder.String()
+}
+
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
+}
+
 func (inst *Instance) getVisibleRange() (start, end int) {
 	start = inst.scrollOffset
 	end = start + inst.visibleCount
@@ -431,12 +505,12 @@ func (inst *Instance) GetItem(index int) string {
 // Getters
 // =============================================================================
 
-func (inst *Instance) GetOffset() int          { return inst.scrollOffset }
-func (inst *Instance) ItemHeight() int        { return inst.itemHeight }
-func (inst *Instance) VisibleCount() int     { return inst.visibleCount }
-func (inst *Instance) ListHeight() int        { return inst.height }
-func (inst *Instance) ListWidth() int         { return inst.width }
-func (inst *Instance) SelectedIndex() int      { return inst.selectedIndex }
+func (inst *Instance) GetOffset() int     { return inst.scrollOffset }
+func (inst *Instance) ItemHeight() int    { return inst.itemHeight }
+func (inst *Instance) VisibleCount() int  { return inst.visibleCount }
+func (inst *Instance) ListHeight() int    { return inst.height }
+func (inst *Instance) ListWidth() int     { return inst.width }
+func (inst *Instance) SelectedIndex() int { return inst.selectedIndex }
 
 // =============================================================================
 // Bounds Support
@@ -454,46 +528,8 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props, key string) style.Style {
-	v, ok := props[key]
-	if !ok {
-		return style.Style{}
-	}
-	if s, ok := v.(style.Style); ok {
-		return s
-	}
-	return style.Style{}
-}
-
 func getItemsProp(props rtui.Props, def []string) []string {
-	v, ok := props["items"]
+	v, ok := props[propItems]
 	if !ok {
 		return def
 	}

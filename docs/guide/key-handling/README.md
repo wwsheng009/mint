@@ -31,7 +31,7 @@ The Mint framework has a sophisticated keyboard input handling system that:
   - Workarounds and alternatives
 
 ### Ctrl Key Fixes
-- [Ctrl Key Fix Summary](CTRL_KEY_FIX_SUMMARY.md) - Summary of Ctrl detection fixes
+- [Ctrl Key Fix Summary](/docsArchive/guide/key-handling/CTRL_KEY_FIX_SUMMARY.md) - Summary of Ctrl detection fixes (archived)
   - Root cause analysis
   - What was fixed
   - Test results
@@ -43,7 +43,7 @@ The Mint framework has a sophisticated keyboard input handling system that:
   - Backward compatibility
 
 ### Key Debug Feature
-- [Key Debug Feature Summary](KEY_DEBUG_FEATURE_SUMMARY.md) - Real-time key debugging
+- [Key Debug Feature Summary](/docsArchive/guide/key-handling/KEY_DEBUG_FEATURE_SUMMARY.md) - Real-time key debugging (archived)
   - What was implemented
   - How to use it
   - Display format
@@ -138,6 +138,6 @@ go test -v -run TestCtrlModifierDetection
 
 ## See Also
 
-- [Windows Platform Documentation](../../runtime/platform/) - Platform input layer
-- [Framework Event System](../../framework/event/) - Event handling
-- [Inspector Documentation](../examples/inspector/) - Inspector key handling
+- [Windows Platform Documentation](/runtime/platform/) - Platform input layer
+- [Framework Event System](/framework/event/) - Event handling
+- [Inspector Documentation](/docs/inspector/) - Inspector key handling

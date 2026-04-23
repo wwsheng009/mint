@@ -283,7 +283,7 @@ func (a *App) Run() error {
 #### 方式一：用户按键退出
 
 ```go
-// ui/keymap.go - 注册退出快捷键
+// runtime/action/keymap.go - 注册退出快捷键
 
 func initKeyMap(app *framework.App) {
     // Ctrl+C 或 Ctrl+D 退出
@@ -1105,7 +1105,7 @@ const (
 
 ### C. 相关文档
 
-- [ENGINE_SANDBOX_INTEGRATION.md](./ENGINE_SANDBOX_INTEGRATION.md) - Engine 与 Sandbox 集成架构
+- [ENGINE_SANDBOX_INTEGRATION.md](/docsArchive/ENGINE_SANDBOX_INTEGRATION.md) - Engine 与 Sandbox 集成架构
 - [SANDBOX_DEBUG_GUIDE.md](./SANDBOX_DEBUG_GUIDE.md) - Sandbox 调试技巧
 - [SANDBOX_ADVANCED_FEATURES.md](./SANDBOX_ADVANCED_FEATURES.md) - Sandbox 高级功能（录制/回放、快照、TestHelper）
 - [API_REFERENCE.md](./API_REFERENCE.md) - API 完整参考

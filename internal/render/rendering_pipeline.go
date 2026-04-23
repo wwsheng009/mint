@@ -32,7 +32,7 @@ func NewRenderingPipeline() *RenderingPipeline {
 		paintEngine:  NewPaintEngine(),
 	}
 
-	log.PipelineLogger.Debug("[RenderingPipeline] Initialized with layout.Engine")
+	log.PipelineLogger.IfEnabled().Debug("[RenderingPipeline] Initialized with layout.Engine")
 	return pipeline
 }
 
@@ -51,10 +51,10 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // 2. Paint phase: render using computed positions
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if vnode == nil {
-		log.PaintLogger.Debug("[RenderingPipeline.Render] vnode is nil, returning")
+		log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] vnode is nil, returning")
 		return nil
 	}
-	log.PaintLogger.Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
+	log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
 	// Convert constraints to layout.Constraints
 	layoutConstraints := layout.Constraints{
 		MinWidth:  constraints.MinWidth,
@@ -80,30 +80,30 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 	// Phase 1: Layout using layout.Engine
 	result := p.layoutEngine.Layout(node, layoutConstraints)
 	if result == nil || result.Root == nil {
-		log.PipelineLogger.Debug("❌ Layout returned nil result, falling back to legacy")
+		log.PipelineLogger.IfEnabled().Debug("❌ Layout returned nil result, falling back to legacy")
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
-	log.PaintLogger.Debug("[RenderingPipeline.Render] Layout: Root=%dx%d", result.Root.Width, result.Root.Height)
-	log.PipelineLogger.Debug("✅ Layout complete, starting Paint phase")
+	log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] Layout: Root=%dx%d", result.Root.Width, result.Root.Height)
+	log.PipelineLogger.IfEnabled().Debug("✅ Layout complete, starting Paint phase")
 
 	// Convert LayoutBox to PaintableBox
 	paintableLayout := converter.ConvertToLayout(result.Root)
 	if paintableLayout == nil || paintableLayout.Root == nil {
-		log.PipelineLogger.Debug("❌ PaintableLayout conversion failed, falling back to legacy")
+		log.PipelineLogger.IfEnabled().Debug("❌ PaintableLayout conversion failed, falling back to legacy")
 		return p.renderLegacy(vnode, 0, 0, buffer)
 	}
 
 	// Phase 2: Paint using PaintableLayout
 	err := p.paintEngine.PaintLayout(paintableLayout, buffer)
 
-	log.PipelineLogger.Debug("Paint complete, err=%v", err)
+	log.PipelineLogger.IfEnabled().Debug("Paint complete, err=%v", err)
 
 	// Build HitMap from layout result with TargetFiber enrichment
 	p.lastHitMap = convertLayoutHitMap(result.HitMap, fiber)
 
 	if p.lastHitMap != nil {
-		log.PipelineLogger.Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
+		log.PipelineLogger.IfEnabled().Debug("Saved HitMap: %d entries", p.lastHitMap.Size())
 	}
 
 	return err
@@ -174,7 +174,7 @@ func (p *RenderingPipeline) RenderLayers(
 		return nil
 	}
 
-	log.PipelineLogger.Debug("RenderLayers started (layout.Engine path)")
+	log.PipelineLogger.IfEnabled().Debug("RenderLayers started (layout.Engine path)")
 
 	// Convert constraints to layout.Constraints
 	layoutConstraints := layout.Constraints{
@@ -201,7 +201,7 @@ func (p *RenderingPipeline) RenderLayers(
 	// Perform layout using layout.Engine
 	result := p.layoutEngine.Layout(node, layoutConstraints)
 	if result == nil || result.Root == nil {
-		log.PipelineLogger.Debug("Layout returned nil result")
+		log.PipelineLogger.IfEnabled().Debug("Layout returned nil result")
 		return nil
 	}
 
@@ -211,7 +211,7 @@ func (p *RenderingPipeline) RenderLayers(
 	// Convert LayoutBox to PaintableBox
 	paintableLayout := converter.ConvertToLayout(result.Root)
 	if paintableLayout == nil || paintableLayout.Root == nil {
-		log.PipelineLogger.Debug("PaintableLayout conversion failed")
+		log.PipelineLogger.IfEnabled().Debug("PaintableLayout conversion failed")
 		return nil
 	}
 
@@ -221,18 +221,18 @@ func (p *RenderingPipeline) RenderLayers(
 
 	// Build PaintablePlanes from PaintableBox tree
 	paintablePlanes := p.buildPaintablePlanes(paintableLayout.Root)
-	log.PipelineLogger.Debug("PaintablePlanes: %d boxes", paintablePlanes.CountBoxes())
+	log.PipelineLogger.IfEnabled().Debug("PaintablePlanes: %d boxes", paintablePlanes.CountBoxes())
 
 	// Paint using PaintablePlanes
 	if err := p.paintEngine.PaintPaintablePlanes(paintablePlanes, buffer); err != nil {
-		log.PipelineLogger.Debug("PaintPaintablePlanes failed: %v", err)
+		log.PipelineLogger.IfEnabled().Debug("PaintPaintablePlanes failed: %v", err)
 		return err
 	}
 
 	// Build HitMap from PaintablePlanes
 	p.lastHitMap = p.buildHitMapFromPaintablePlanes(paintablePlanes)
 
-	log.PipelineLogger.Debug("RenderLayers complete")
+	log.PipelineLogger.IfEnabled().Debug("RenderLayers complete")
 	return nil
 }
 
@@ -240,7 +240,6 @@ func (p *RenderingPipeline) RenderLayers(
 type PaintableConverter interface {
 	ConvertToLayout(lbox *layout.LayoutBox) *paint.PaintableLayout
 }
-
 
 // buildPaintablePlanes builds PaintablePlanes from PaintableBox tree
 func (p *RenderingPipeline) buildPaintablePlanes(root *paint.PaintableBox) *paint.PaintablePlanes {
@@ -277,6 +276,7 @@ func (p *RenderingPipeline) buildHitMapFromPaintablePlanes(pp *paint.PaintablePl
 		if box == nil || box.Node == nil {
 			return true
 		}
+		boxX, boxY := box.X, box.Y
 
 		// Get NodeID from PaintableNode
 		nodeID := uint64(0)
@@ -289,13 +289,13 @@ func (p *RenderingPipeline) buildHitMapFromPaintablePlanes(pp *paint.PaintablePl
 			NodeID: nodeID,
 			Node:   nil, // PaintableBox doesn't have direct LayoutNode access
 			Bounds: layout.Rect{
-				X:      box.X,
-				Y:      box.Y,
+				X:      boxX,
+				Y:      boxY,
 				Width:  box.Width,
 				Height: box.Height,
 			},
 			LocalXY: func(screenX, screenY int) (int, int) {
-				return screenX - box.X, screenY - box.Y
+				return screenX - boxX, screenY - boxY
 			},
 			ZOrder: zOrder,
 		})

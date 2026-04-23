@@ -156,22 +156,21 @@ Component library documentation
 Keyboard input system documentation
 - [Complete Guide](guide/key-handling/KEY_HANDLING_COMPLETE_GUIDE.md) - Comprehensive key handling reference
 - [Alt+K Debug Guide](guide/key-handling/ALT_K_DEBUG_GUIDE.md) - Debugging Alt+K issues
-- [Ctrl Key Fix Summary](guide/key-handling/CTRL_KEY_FIX_SUMMARY.md) - Ctrl detection fixes
+- [Ctrl Key Fix Summary](/docsArchive/guide/key-handling/CTRL_KEY_FIX_SUMMARY.md) - Ctrl detection fixes (archived)
 - [Case Preservation](guide/key-handling/CTRL_SHIFT_CASE_PRESERVATION.md) - Shift handling
 
 ### Architecture (`architecture/`)
 System architecture and design
-- [Layer System Architecture](architecture/LAYER_SYSTEM_ARCHITECTURE.md) - Layer system overview
-- [Implementation Summary](architecture/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Implementation details
-- [Agents](architecture/AGENTS.md) - Agent system
-- [Two Rendering Systems](architecture/TWO_RENDERING_SYSTEMS_EXPLAINED.md) - Rendering approaches
+- [Layer System Architecture](/docs/layer/LAYER_SYSTEM_ARCHITECTURE.md) - Layer system overview
+- [Implementation Summary](/docsArchive/layer/LAYER_SYSTEM_IMPLEMENTATION_SUMMARY.md) - Implementation details (archived)
+- [Two Rendering Systems](/docsArchive/layer/TWO_RENDERING_SYSTEMS_EXPLAINED.md) - Rendering approaches (archived)
 
 ### Inspector (`examples/inspector/`)
 UI Inspector tool documentation
-- [Quick Reference](examples/inspector/INSPECTOR_QUICK_REFERENCE.md) - All shortcuts and features
-- [All Fixes Summary](examples/inspector/INSPECTOR_ALL_FIXES_SUMMARY.md) - Complete fix history
-- [Key Debug Feature](examples/inspector/INSPECTOR_KEY_DEBUG.md) - Debug key presses
-- [Modal Behavior](examples/inspector/INSPECTOR_MODAL_BEHAVIOR_FIXED.md) - Modal behavior
+- [Quick Reference](/docsArchive/INSPECTOR_QUICK_REFERENCE.md) - All shortcuts and features (archived)
+- [All Fixes Summary](/docsArchive/INSPECTOR_ALL_FIXES_SUMMARY.md) - Complete fix history (archived)
+- [Key Debug Feature](/docsArchive/INSPECTOR_KEY_DEBUG.md) - Debug key presses (archived)
+- [Modal Behavior](/docsArchive/INSPECTOR_MODAL_BEHAVIOR_FIXED.md) - Modal behavior (archived)
 
 ### Testing (`testing/`)
 Test documentation and results
@@ -179,5 +178,4 @@ Test documentation and results
 
 ### Sandbox (`sandbox/`)
 Testing sandbox documentation
-- [Event Integration](sandbox/SANDBOX_EVENT_INTEGRATION_ANALYSIS.md) - Event system integration
-
+- [Event Integration](/docs/sandbox/SANDBOX_EVENT_INTEGRATION_ANALYSIS.md) - Event system integration

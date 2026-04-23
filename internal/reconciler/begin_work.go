@@ -88,6 +88,10 @@ func manageWorkInProgressInstance(current, workInProgress *Fiber) {
 		instanceCtx := instance.GetContext()
 		instanceCtx.GlobalState = sharedCtx.GlobalState
 		instanceCtx.StateMu = sharedCtx.StateMu
+		instanceCtx.SetIntentRuntime(sharedCtx.GetIntentRuntime())
+		instanceCtx.SetScheduleUpdate(func() {
+			sharedCtx.ScheduleUpdate()
+		})
 	}
 }
 
@@ -177,15 +181,15 @@ func beginWorkComponent(current, workInProgress *Fiber) *Fiber {
 		return workInProgress
 	}
 
-	// Get the component context for hooks execution
+	// Get the component-local context for hooks execution.
+	// Component hooks must never run against the shared root context, or nested
+	// components will corrupt each other's hook slots and trigger order panics.
 	ctx := instance.GetContext()
-	if currentReconciler != nil {
-		// Use shared context from root if available
-		ctx = currentReconciler.ctx
-	} else {
+	if ctx == nil {
 		// Fallback: create temporary context
 		ctx = rtui.NewComponentContextForRoot()
 	}
+	ctx.SetOwnerInstance(instance)
 
 	// CRITICAL: Reset hook index before re-rendering
 	ctx.ResetContext()
@@ -261,6 +265,11 @@ func beginWorkElement(current, workInProgress *Fiber) *Fiber {
 	if workInProgress.Props != nil {
 		if c, ok := workInProgress.Props["children"].([]rtui.VNode); ok {
 			children = c
+		}
+	}
+	if provider, ok := workInProgress.Instance.(rtui.RuntimeChildrenProvider); ok {
+		if runtimeChildren := provider.RuntimeChildren(); len(runtimeChildren) > 0 {
+			children = append(children, runtimeChildren...)
 		}
 	}
 
@@ -388,7 +397,7 @@ func beginWorkErrorBoundary(current, workInProgress *Fiber) *Fiber {
 				workInProgress.ErrorBoundary.SetError(fmt.Errorf("panic: %v", panicValue), fmt.Sprintf("panic in %s: %v", workInProgress.ErrorBoundary.Name(), panicValue), string(debug.Stack()))
 			}
 		}
-		
+
 		if workInProgress.ErrorBoundaryFallbackFiber != nil {
 			// Use the fallback fiber as the child
 			workInProgress.Child = workInProgress.ErrorBoundaryFallbackFiber

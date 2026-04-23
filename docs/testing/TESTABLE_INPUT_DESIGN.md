@@ -64,9 +64,9 @@
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │              输入抽象层 (runtime/input/)                        │
-│  - input_source.go: 新增 - 定义输入源接口                       │
-│  - real_input_source.go: 新增 - 真实输入源                      │
-│  - mock_input_source.go: 新增 - 模拟输入源                      │
+│  - reader.go: 现有输入读取 (InputReader)                        │
+│  - keymap.go: 事件到 Action 映射                                │
+│  - mouse_tracker.go: 鼠标状态跟踪                               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -78,7 +78,9 @@
 
 ## 3. 详细设计
 
-### 3.1 输入源接口 (`runtime/input/input_source.go`)
+### 3.1 输入源接口（设计草案）
+
+当前实现位于 `runtime/input/reader.go`，尚未抽象为统一的 InputSource 接口。
 
 ```go
 package input
@@ -106,7 +108,9 @@ type InputSource interface {
 }
 ```
 
-### 3.2 真实输入源 (`runtime/input/real_input_source.go`)
+### 3.2 真实输入源（设计草案）
+
+当前真实输入读取位于 `runtime/platform/input_*.go`，由 `runtime/input/reader.go` 负责对接。
 
 ```go
 package input
@@ -163,7 +167,7 @@ func (r *RealInputSource) IsMock() bool {
 }
 ```
 
-### 3.3 模拟输入源 (`runtime/input/mock_input_source.go`)
+### 3.3 模拟输入源（设计草案）
 
 ```go
 package input
@@ -423,7 +427,7 @@ func (t *TestApp) AssertRender(contains string) error {
 }
 ```
 
-### 3.6 测试示例 (`examples/test_button/main_test.go`)
+### 3.6 测试示例 (`ui/components/button/button_test.go`)
 
 ```go
 package main
@@ -581,9 +585,9 @@ func runTestMode() {
 ## 4. 实现计划
 
 ### 阶段1: 核心抽象层
-1. 创建 `runtime/input/input_source.go` - 定义输入源接口
-2. 创建 `runtime/input/real_input_source.go` - 包装现有平台输入
-3. 创建 `runtime/input/mock_input_source.go` - 实现模拟输入
+1. 规划统一的 InputSource 接口（设计草案）
+2. 评估在 `runtime/input/reader.go` 上抽象真实输入源
+3. 设计可注入的 Mock 输入源以支持测试
 
 ### 阶段2: Framework集成
 1. 修改 `framework/app.go` 支持可配置输入源

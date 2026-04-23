@@ -7,13 +7,13 @@ import (
 
 // ComponentVNode represents a function component
 type ComponentVNode struct {
-	name       string
-	fn         ComponentFunc
+	name        string
+	fn          ComponentFunc
 	fnWithProps ComponentFuncWithProps
-	props      Props
-	key        string
-	id         string
-	style      style.Style
+	props       Props
+	key         string
+	id          string
+	style       style.Style
 }
 
 // NewComponent creates a new component VNode
@@ -29,10 +29,10 @@ func NewComponent(name string, fn ComponentFunc) *ComponentVNode {
 // NewComponentWithProps creates a new component VNode that accepts props
 func NewComponentWithProps(name string, fn ComponentFuncWithProps) *ComponentVNode {
 	return &ComponentVNode{
-		name:       name,
+		name:        name,
 		fnWithProps: fn,
-		props:      make(Props),
-		style:      style.Style{},
+		props:       make(Props),
+		style:       style.Style{},
 	}
 }
 
@@ -49,6 +49,15 @@ func (c *ComponentVNode) Props() Props {
 // SetProps implements VNode - returns VNode for chaining
 func (c *ComponentVNode) SetProps(p Props) VNode {
 	c.props = p
+	return c
+}
+
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (c *ComponentVNode) SetProp(key string, value interface{}) VNode {
+	if c.props == nil {
+		c.props = make(Props)
+	}
+	c.props[key] = value
 	return c
 }
 
@@ -127,6 +136,7 @@ func (c *ComponentVNode) SetPortalRoot(portalRootID string) VNode {
 		c.props = make(Props)
 	}
 	c.props["portalRoot"] = portalRootID
+	c.props["_portal"] = true
 	return c
 }
 

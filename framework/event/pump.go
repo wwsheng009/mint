@@ -29,13 +29,15 @@ type EventSource interface {
 
 // Pump reads raw input from an EventSource and converts to Msg.
 type Pump struct {
-	source   EventSource
-	messages chan runtimemsg.Msg // Changed from events chan Event
-	quit     chan struct{}
-	quitApp  chan struct{}  // 用于 Ctrl+C 退出通知
-	running  int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
-	mu       sync.RWMutex   // Protects messages channel from close while sending
-	wg       sync.WaitGroup // Waits for convertLoop to exit
+	source      EventSource
+	messages    chan runtimemsg.Msg // Changed from events chan Event
+	quit        chan struct{}
+	quitApp     chan struct{} // 用于 Ctrl+C 退出通知
+	quitAppOnce sync.Once
+	running     int32          // Use atomic for cross-goroutine visibility (0=stopped, 1=running)
+	ctrlCAsQuit int32          // 1=true, 0=false
+	mu          sync.RWMutex   // Protects messages channel from close while sending
+	wg          sync.WaitGroup // Waits for convertLoop to exit
 
 	// HitMap for mouse event hit testing (set by App after each render)
 	hitMap   *event.HitMap
@@ -45,11 +47,12 @@ type Pump struct {
 // NewPump creates a new event pump with a platform input reader.
 func NewPump(reader platform.InputReader) *Pump {
 	return &Pump{
-		source:   &PlatformEventSource{reader: reader},
-		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:     make(chan struct{}),
-		quitApp:  make(chan struct{}), // 用于通知应用退出
-		running:  0,
+		source:      &PlatformEventSource{reader: reader},
+		messages:    make(chan runtimemsg.Msg, 100), // Changed from events
+		quit:        make(chan struct{}),
+		quitApp:     make(chan struct{}), // 用于通知应用退出
+		running:     0,
+		ctrlCAsQuit: 1,
 	}
 }
 
@@ -57,11 +60,12 @@ func NewPump(reader platform.InputReader) *Pump {
 // This allows using MockSandbox or other test event sources.
 func NewPumpWithSource(source EventSource) *Pump {
 	return &Pump{
-		source:   source,
-		messages: make(chan runtimemsg.Msg, 100), // Changed from events
-		quit:     make(chan struct{}),
-		quitApp:  make(chan struct{}), // 用于通知应用退出
-		running:  0,
+		source:      source,
+		messages:    make(chan runtimemsg.Msg, 100), // Changed from events
+		quit:        make(chan struct{}),
+		quitApp:     make(chan struct{}), // 用于通知应用退出
+		running:     0,
+		ctrlCAsQuit: 1,
 	}
 }
 
@@ -80,7 +84,7 @@ func (p *Pump) Start() error {
 	atomic.StoreInt32(&p.running, 1)
 
 	// DEBUG: 打印启动信息
-	log.PumpLogger.Debug("[PUMP] Started, convertLoop running...")
+	log.PumpLogger.IfEnabled().Debug("[PUMP] Started, convertLoop running...")
 
 	// Start conversion loop
 	p.wg.Add(1)
@@ -145,10 +149,14 @@ func (p *Pump) convertToKeyMsg(raw platform.RawInput) runtimemsg.Msg {
 		modifiers.Shift = true
 	}
 
-	// 检查 Ctrl+C 组合键 - 触发退出
-	if raw.Modifiers&platform.ModCtrl != 0 && raw.Key == 'c' {
+	// 检查 Ctrl+C 组合键 - 触发退出（可配置）
+	if atomic.LoadInt32(&p.ctrlCAsQuit) != 0 &&
+		raw.Modifiers&platform.ModCtrl != 0 &&
+		(raw.Key == 'c' || raw.Key == 'C') {
 		// Ctrl+C 被按下，通知应用退出
-		close(p.quitApp)
+		p.quitAppOnce.Do(func() {
+			close(p.quitApp)
+		})
 		// 仍然返回消息让上层处理（如果需要）
 	}
 
@@ -210,9 +218,6 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 	hitMap := p.hitMap
 	p.hitMapMu.RUnlock()
 
-	// Log mouse position using logger
-	log.UILogger.Debug("Raw position: (%d, %d) | Action: %v", raw.MouseX, raw.MouseY, raw.MouseAction)
-
 	var targetID uint64
 	var targetFiber interface {
 		GetActionTargetID() string
@@ -237,27 +242,13 @@ func (p *Pump) convertToMouseMsg(raw platform.RawInput) runtimemsg.Msg {
 				Height: entry.Bounds.Height,
 			}
 
-			// Log successful hit test
-			log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) TargetFiber=%v",
-				entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
-				entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.TargetFiber != nil)
-
-			// Also log all entries at this position for debugging overlapping buttons
-			allEntries := hitMap.FindAllAt(raw.MouseX, raw.MouseY)
-			if len(allEntries) > 1 {
-				log.UILogger.Debug("Multiple hits at (%d,%d):", raw.MouseX, raw.MouseY)
-				for i, e := range allEntries {
-					log.UILogger.Debug("  [%d] ID='%s' Bounds=(%d,%d,%dx%d) ZOrder=%d TargetFiber=%v",
-						i, e.NodeID, e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, e.ZOrder, e.TargetFiber != nil)
-				}
+			// Debug logging only when enabled
+			if log.UILogger.Enabled() {
+				log.UILogger.Debug("HitTest: Found '%d' at Bounds=(%d,%d,%dx%d) Local=(%d,%d) TargetFiber=%v",
+					entry.NodeID, entry.Bounds.X, entry.Bounds.Y,
+					entry.Bounds.Width, entry.Bounds.Height, localX, localY, entry.TargetFiber != nil)
 			}
-		} else {
-			// No hit
-			log.UILogger.Debug("HitTest: No hit at (%d,%d)", raw.MouseX, raw.MouseY)
 		}
-	} else {
-		// HitMap is nil
-		log.UILogger.Debug("HitMap is nil!")
 	}
 
 	// Calculate Delta for wheel events
@@ -316,6 +307,15 @@ func (p *Pump) IsRunning() bool {
 // This allows the application to detect Ctrl+C and exit gracefully.
 func (p *Pump) QuitAppRequested() <-chan struct{} {
 	return p.quitApp
+}
+
+// SetCtrlCAsQuit configures whether Ctrl+C should request app quit.
+func (p *Pump) SetCtrlCAsQuit(enabled bool) {
+	if enabled {
+		atomic.StoreInt32(&p.ctrlCAsQuit, 1)
+	} else {
+		atomic.StoreInt32(&p.ctrlCAsQuit, 0)
+	}
 }
 
 // PumpWithTimeout gets a message with timeout.
@@ -388,16 +388,16 @@ func (p *Pump) SetHitMap(hitMap *event.HitMap) {
 // 注意：此方法仅用于测试，不应用于生产代码
 func (p *Pump) Inject(raw platform.RawInput) {
 	if atomic.LoadInt32(&p.running) == 0 {
-		log.PumpLogger.Debug("[PUMP] Inject: pump not running!")
+		log.PumpLogger.IfEnabled().Debug("[PUMP] Inject: pump not running!")
 		return
 	}
 	message := p.convertToMsg(raw)
 	if message != nil {
-		log.PumpLogger.Debug("[PUMP] Injecting message: Type=%v", message.Type())
+		log.PumpLogger.IfEnabled().Debug("[PUMP] Injecting message: Type=%v", message.Type())
 		// Safe to send because Stop() waits for all goroutines to exit first
 		select {
 		case p.messages <- message:
-			log.PumpLogger.Debug("[PUMP] Message sent to channel")
+			log.PumpLogger.IfEnabled().Debug("[PUMP] Message sent to channel")
 		case <-p.quit:
 		}
 	}

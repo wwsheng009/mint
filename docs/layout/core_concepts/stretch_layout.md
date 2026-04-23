@@ -224,7 +224,7 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 `getChildConstraints()` 函数确保 flex 子元素在构建阶段也获得正确的约束：
 
 ```go
-// runtime/compute/engine.go:578-732
+// runtime/layout/layout_engine.go:578-732
 func (e *Engine) getChildConstraints(parent, child VNode,
     parentConstraints runtime.BoxConstraints, parentSize runtime.Size) runtime.BoxConstraints {
 
@@ -284,7 +284,7 @@ func (e *Engine) getChildConstraints(parent, child VNode,
 `StretchCross` 让所有子元素自动填充跨轴空间：
 
 ```go
-// runtime/compute/engine.go:578-645
+// runtime/layout/layout_engine.go:578-645
 func (e *Engine) layoutVStack(box *ComputedBox, x, y int) {
     layoutInfo := rtui.GetLayoutInfo(box.VNode)
     stretchCross := layoutInfo.StretchCross
@@ -573,7 +573,7 @@ TUI_PIPELINE_DEBUG=true go run ./examples/demo1
 #### 修改 Flex 行为
 
 1. 确认修改哪个阶段（Measure/Build/Layout）
-2. 同步修改 `runtime/ui/layout.go` 和 `runtime/compute/engine.go`
+2. 同步修改 `runtime/ui/layout.go` 和 `runtime/layout/layout_engine.go`
 3. 更新测试用例
 4. 检查是否影响现有组件
 
@@ -592,7 +592,7 @@ TUI_PIPELINE_DEBUG=true go run ./examples/demo1
 |------|------|
 | `runtime/ui/layout.go` | LayoutNode, HStack, VStack 实现 |
 | `runtime/ui/layout_util.go` | GetLayoutInfo, LayoutInfo 结构 |
-| `runtime/compute/engine.go` | 布局引擎，getChildConstraints |
+| `runtime/layout/layout_engine.go` | 布局引擎，getChildConstraints |
 | `runtime/compute/types.go` | BoxConstraints, ComputedBox |
 | `internal/render/rendering_pipeline.go` | 渲染管线 |
 | `internal/render/paint_engine.go` | 绘制引擎 |

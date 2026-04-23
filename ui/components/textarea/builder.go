@@ -1,9 +1,12 @@
 package textarea
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // Builder provides a fluent API for building Textarea VNodes.
@@ -36,6 +39,21 @@ func (b *Builder) Cols(cols int) *Builder {
 	return b
 }
 
+func (b *Builder) ScrollOffset(offset int) *Builder {
+	b.node.SetScrollOffset(offset)
+	return b
+}
+
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.node.SetShowScrollbar(show)
+	return b
+}
+
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.node.SetScrollbarStyle(s)
+	return b
+}
+
 func (b *Builder) MaxLen(len int) *Builder {
 	b.node.SetMaxLen(len)
 	return b
@@ -43,6 +61,48 @@ func (b *Builder) MaxLen(len int) *Builder {
 
 func (b *Builder) Disabled(v bool) *Builder {
 	b.node.SetDisabled(v)
+	return b
+}
+
+// CursorConfig sets cursor blink/shape config for the embedded caret.
+func (b *Builder) CursorConfig(cfg cursor.Config) *Builder {
+	b.node.SetCursorConfig(cfg)
+	return b
+}
+
+// CursorShape sets embedded caret shape.
+func (b *Builder) CursorShape(shape cursor.Shape) *Builder {
+	b.node.SetCursorShape(shape)
+	return b
+}
+
+// InsertCursor sets a thin insertion caret.
+func (b *Builder) InsertCursor() *Builder {
+	b.node.SetInsertCursor()
+	return b
+}
+
+// BlockCursor sets a block caret.
+func (b *Builder) BlockCursor() *Builder {
+	b.node.SetBlockCursor()
+	return b
+}
+
+// UnderlineCursor sets an underline caret.
+func (b *Builder) UnderlineCursor() *Builder {
+	b.node.SetUnderlineCursor()
+	return b
+}
+
+// CursorBlink enables/disables caret blink.
+func (b *Builder) CursorBlink(enabled bool) *Builder {
+	b.node.SetCursorBlink(enabled)
+	return b
+}
+
+// CursorBlinkInterval sets caret blink interval.
+func (b *Builder) CursorBlinkInterval(interval time.Duration) *Builder {
+	b.node.SetCursorBlinkInterval(interval)
 	return b
 }
 
@@ -86,6 +146,21 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	b.node.SetProps(rtui.Props{
 		"changeIntent": binding, // binding implements both FieldIntent and Intent
 	})
+	return b
+}
+
+// ForForm binds the textarea to a form using FormBinding (Phase 6).
+// When the textarea value changes, it emits a FormFieldChangeIntent.
+// Example:
+//
+//	formBinding := form.ForForm("myForm")
+//	var message = intent.StateKey[string]("message")
+//	textarea.NewBuilder().
+//	    ForField(intent.ForField(message)).
+//	    ForForm(formBinding).
+//	    Build()
+func (b *Builder) ForForm(binding intent.FormBinding) *Builder {
+	b.node.SetFormID(binding.GetFormID())
 	return b
 }
 

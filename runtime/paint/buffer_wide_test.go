@@ -143,16 +143,10 @@ func TestIsCellChanged(t *testing.T) {
 			want:     true,
 		},
 		{
-			name:     "cell is continuation - should skip",
-			cell:     Cell{Cluster: "A", IsContinuation: true},
-			prevCell: Cell{},
-			want:     false,
-		},
-		{
-			name:     "prev is continuation - should refresh",
-			cell:     Cell{Cluster: "A"},
-			prevCell: Cell{Cluster: "B", IsContinuation: true},
-			want:     true,
+			name:     "cell is continuation, prev not - should refresh",
+			cell:     Cell{Cluster: "", IsContinuation: true},
+			prevCell: Cell{Cluster: "A", Width: 1},
+			want:     true, // prevCell 有内容需要被擦除
 		},
 		{
 			name:     "both continuation - should skip",

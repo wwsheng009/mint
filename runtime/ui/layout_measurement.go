@@ -72,7 +72,7 @@ func (l *LayoutNode) measureHStackLayout(
 			if constraints.MinWidth > width {
 				constraints.MinWidth = width
 			}
-			log.LayoutLogger.Debug("[HStack.MeasureLayout] Using width prop: %d", width)
+			log.LayoutLogger.IfEnabled().Debug("[HStack.MeasureLayout] Using width prop: %d", width)
 		}
 		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
 		// This ensures flex children receive bounded constraints
@@ -85,7 +85,7 @@ func (l *LayoutNode) measureHStackLayout(
 			}
 			// Recalculate innerMaxHeight with new constraint
 			innerMaxHeight = max(0, height-paddingHeight)
-			log.RenderLogger.Debug("[HStack.MeasureLayout] Using height prop: %d, innerMaxHeight=%d", height, innerMaxHeight)
+			log.RenderLogger.IfEnabled().Debug("[HStack.MeasureLayout] Using height prop: %d, innerMaxHeight=%d", height, innerMaxHeight)
 
 		}
 	}
@@ -273,7 +273,7 @@ func (l *LayoutNode) measureVStackLayout(
 			}
 			// Recalculate innerMaxWidth with new constraint
 			innerMaxWidth = max(0, width-paddingWidth)
-			log.LayoutLogger.Debug("[VStack.MeasureLayout] Using width prop: %d, innerMaxWidth=%d", width, innerMaxWidth)
+			log.LayoutLogger.IfEnabled().Debug("[VStack.MeasureLayout] Using width prop: %d, innerMaxWidth=%d", width, innerMaxWidth)
 		}
 		// ⭐ CRITICAL FIX: Also check height prop for bounded height constraint
 		// This ensures flex children receive bounded constraints and can properly
@@ -286,7 +286,7 @@ func (l *LayoutNode) measureVStackLayout(
 			if constraints.MinHeight > height {
 				constraints.MinHeight = height
 			}
-			log.RenderLogger.Debug("[VStack.MeasureLayout] Using height prop: %d", height)
+			log.RenderLogger.IfEnabled().Debug("[VStack.MeasureLayout] Using height prop: %d", height)
 
 		}
 	}

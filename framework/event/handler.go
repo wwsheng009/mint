@@ -1,6 +1,9 @@
 package event
 
 import (
+	"strings"
+	"unicode"
+
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/event"
 )
@@ -91,7 +94,7 @@ func NewKeyMap() *KeyMap {
 
 // BindFunc binds a keyboard combo to a handler function.
 func (k *KeyMap) BindFunc(combo string, handler func(*KeyEvent)) error {
-	k.bindings[combo] = EventHandlerFunc(func(ev Event) bool {
+	k.bindings[normalizeCombo(combo)] = EventHandlerFunc(func(ev Event) bool {
 		if keyEv, ok := ev.(*KeyEvent); ok {
 			handler(keyEv)
 			return true
@@ -103,7 +106,7 @@ func (k *KeyMap) BindFunc(combo string, handler func(*KeyEvent)) error {
 
 // Bind binds a keyboard combo to an event handler.
 func (k *KeyMap) Bind(combo string, handler EventHandler) error {
-	k.bindings[combo] = handler
+	k.bindings[normalizeCombo(combo)] = handler
 	return nil
 }
 
@@ -111,6 +114,7 @@ func (k *KeyMap) Bind(combo string, handler EventHandler) error {
 func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	// Build combo string with modifiers
 	combo := k.buildComboString(ev.Key, ev.Modifiers)
+	combo = normalizeCombo(combo)
 
 	// Debug output
 	if log.UILogger.Enabled() || log.InspectorLogger.Enabled() {
@@ -122,7 +126,7 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 	if combo != "" {
 		if handler, ok := k.bindings[combo]; ok {
 			if log.UILogger.Enabled() || log.InspectorLogger.Enabled() {
-				log.UILogger.Debug("[KeyMap] Found handler for combo '%s'", combo)
+				log.UILogger.IfEnabled().Debug("[KeyMap] Found handler for combo '%s'", combo)
 			}
 			return handler, true
 		}
@@ -130,14 +134,14 @@ func (k *KeyMap) Lookup(ev *KeyEvent) (EventHandler, bool) {
 
 	// Try character key without modifiers
 	if ev.Key.Rune > 0 {
-		if handler, ok := k.bindings[string(ev.Key.Rune)]; ok {
+		if handler, ok := k.bindings[normalizeCombo(string(unicode.ToLower(ev.Key.Rune)))]; ok {
 			return handler, true
 		}
 	}
 
 	// Try special key name without modifiers
 	if ev.Key.Name != "" {
-		if handler, ok := k.bindings[ev.Key.Name]; ok {
+		if handler, ok := k.bindings[normalizeCombo(ev.Key.Name)]; ok {
 			return handler, true
 		}
 	}
@@ -166,13 +170,19 @@ func (k *KeyMap) buildComboString(key Key, modifiers Modifier) string {
 
 	// Add key name or rune
 	if key.Rune > 0 {
-		combo += string(key.Rune)
+		combo += string(unicode.ToLower(key.Rune))
 	} else if key.Name != "" {
-		combo += key.Name
+		combo += strings.ToLower(key.Name)
 	} else {
 		return ""
 	}
 
+	return combo
+}
+
+func normalizeCombo(combo string) string {
+	combo = strings.ToLower(combo)
+	combo = strings.ReplaceAll(combo, " ", "")
 	return combo
 }
 

@@ -1,6 +1,7 @@
 package button
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -46,6 +47,7 @@ type Instance struct {
 	state  control.InteractionState
 	bounds [4]int // x, y, w, h
 	dirty  bool
+	parent rtui.ComponentInstance
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -61,6 +63,7 @@ var (
 	_ rtui.FocusableInstance     = (*Instance)(nil)
 	_ rtui.ActionHandlerInstance = (*Instance)(nil)
 	_ control.Instance           = (*Instance)(nil)
+	_ intent.TreeComponent       = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -73,22 +76,22 @@ var (
 // NewInstance creates a new ButtonInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:         getStringProp(props, "key", ""),
-		label:       getStringProp(props, "label", ""),
+		key:         proputil.GetString(props, propKey, ""),
+		label:       proputil.GetString(props, propLabel, ""),
 		variant:     getVariantProp(props, VariantDefault),
 		size:        getSizeProp(props, SizeMedium),
 		focusStyle:  getFocusStyleProp(props, FocusStyleReverse),
-		buttonStyle: getStyleProp(props),
-		pressIntent: getIntentProp(props),
+		buttonStyle: proputil.GetStyle(props, propStyle, style.Style{}),
+		pressIntent: proputil.GetIntent(props, propPressIntent, nil),
 		padding:     getPaddingProp(props),
 		textAlign:   getTextAlignProp(props, rtui.AlignStart),
-		flex:        getIntProp(props, "flex", 0),
+		flex:        proputil.GetInt(props, propFlex, 0),
 		dirty:       true,
 	}
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, propDisabled, false),
 	}
 
 	// Initialize behaviors
@@ -156,21 +159,21 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldFocusStyle := inst.focusStyle
 	oldIntent := inst.pressIntent
 
-	inst.label = getStringProp(props, "label", inst.label)
+	inst.label = proputil.GetString(props, propLabel, inst.label)
 	inst.variant = getVariantProp(props, inst.variant)
 	inst.size = getSizeProp(props, inst.size)
 	inst.focusStyle = getFocusStyleProp(props, inst.focusStyle)
-	inst.buttonStyle = getStyleProp(props)
-	inst.pressIntent = getIntentProp(props)
+	inst.buttonStyle = proputil.GetStyle(props, propStyle, style.Style{})
+	inst.pressIntent = proputil.GetIntent(props, propPressIntent, nil)
 	inst.padding = getPaddingProp(props)
 	inst.textAlign = getTextAlignProp(props, inst.textAlign)
 
-	newFlex := getIntProp(props, "flex", inst.flex)
+	newFlex := proputil.GetInt(props, propFlex, inst.flex)
 	if newFlex != inst.flex {
 		inst.flex = newFlex
 	}
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, propDisabled, inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -202,12 +205,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
 		"key":        inst.key,
-		"label":      inst.label,
+		propLabel:    inst.label,
 		"variant":    inst.variant,
 		"size":       inst.size,
 		"focusStyle": inst.focusStyle,
-		"disabled":   inst.state.Disabled,
-		"flex":       inst.flex,
+		propDisabled: inst.state.Disabled,
+		propFlex:     inst.flex,
 	}
 }
 
@@ -224,6 +227,16 @@ func (inst *Instance) IsDirty() bool {
 // GetContext implements ComponentInstance (no hooks for Button).
 func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
+}
+
+// Parent implements intent.TreeComponent for local intent bubbling.
+func (inst *Instance) Parent() interface{} {
+	return inst.parent
+}
+
+// SetParent stores the runtime parent instance for local intent bubbling.
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
 }
 
 // =============================================================================
@@ -452,9 +465,9 @@ func (inst *Instance) SetStyle(s style.Style) {
 // GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "label":
+	case propLabel:
 		return inst.label, true
 	case "variant":
 		return inst.variant, true
@@ -462,7 +475,7 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 		return inst.size, true
 	case "focusStyle":
 		return inst.focusStyle, true
-	case "pressIntent":
+	case propPressIntent:
 		return inst.pressIntent, true
 	default:
 		return nil, false
@@ -472,7 +485,7 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.dirty = true
@@ -575,33 +588,6 @@ func (inst *Instance) GetNaturalSize() (width, height int) {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
 func getVariantProp(props rtui.Props, def Variant) Variant {
 	if v, ok := props["variant"]; ok {
 		if variant, ok := v.(Variant); ok {
@@ -627,24 +613,6 @@ func getFocusStyleProp(props rtui.Props, def FocusStyle) FocusStyle {
 		}
 	}
 	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["pressIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
 }
 
 func getPaddingProp(props rtui.Props) [4]int {

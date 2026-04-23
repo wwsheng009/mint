@@ -1,3 +1,20 @@
+// Counter Demo using Store + Reducer architecture
+//
+// 以下三种 Intent 管理模式对比：
+//   1. 组件级状态（旧）- UseState + Simple* Intent - 推荐用于组件内状态
+//   2. 全局状态（旧）- GlobalState + runtime/intent 内置 Intent - 适用于跨组件共享
+//   3. Store + Reducer（新）✅ - 单一状态源 + 纯函数 + 自动注册 - 推荐用于生产环境
+//
+// 架构优势：
+//   - 单一状态源
+//   - 纯函数 Reducer
+//   - 编译期类型检查（无类型断言）
+//   - 自动注册（无需手动注册 Handler）
+//   - 数据流清晰（UI.Instance → Intent → Reducer → Store → VNode）
+//
+// 运行: go run main.go
+//
+// 详细说明请参考: docs/architecture/store/DEVELOPMENT_GUIDE.md
 package main
 
 import (
@@ -6,27 +23,80 @@ import (
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// Counter is a dynamic counter component using ComponentContext and Intent
-// 采用【模式2：全局状态】runtime/intent 内置 Intent
-// 适用于跨组件共享的状态，使用 Key 标识状态位置
-//
-// 三种 Intent 管理模式：
-//   1. 组件级状态 - ui.On + UseState + Simple* Intent（推荐组件内状态）
-//   2. 全局状态 - runtime/intent 内置函数（本示例）
-//   3. 自定义 Intent - 自定义类型 + ui.On（复杂场景）
-//
-// 详细说明请参考: docs/architecture/mvp/INTENT_MANAGEMENT_PATTERNS.md
-func Counter() ui.VNode {
-	// Get current context (initialized by Fiber-first framework during render)
-	ctx := ui.GetCurrentContext()
+// =============================================================================
+// AppState (Single Source of Truth)
+// =============================================================================
 
-	// Read count from GlobalState (incremented by IncrementIntent)
-	// 使用全局状态，通过 Key "count" 标识
-	// IncrementIntent 内置 handler 会自动处理
-	count := ctx.GetIntState("count", 0)
+// AppState represents the counter state.
+type AppState struct {
+	Count int
+}
+
+// =============================================================================
+// Custom Intent Types (替代 runtime/intent 内置 Intent)
+// =============================================================================
+
+// IncrementIntent increments the count.
+type IncrementIntent struct {
+	Amount int
+}
+
+func (IncrementIntent) IntentType() string { return "Increment" }
+func (IncrementIntent) StayPressed() bool  { return true }
+
+// DecrementIntent decrements the count.
+type DecrementIntent struct {
+	Amount int
+}
+
+func (DecrementIntent) IntentType() string { return "Decrement" }
+func (DecrementIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// Reducer (Pure Function)
+// =============================================================================
+
+// appReducer handles all state transitions for the counter.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle IncrementIntent
+	appReducer.On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+		ii := i.(IncrementIntent)
+		s.Count += ii.Amount
+		return s
+	})
+
+	// Handle DecrementIntent
+	appReducer.On(DecrementIntent{}, func(s AppState, i intent.Intent) AppState {
+		di := i.(DecrementIntent)
+		s.Count -= di.Amount
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the counter state.
+var appStore = store.NewStore(AppState{
+	Count: 0,
+})
+
+// =============================================================================
+// Counter Component
+// =============================================================================
+
+func Counter() ui.VNode {
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
 	// Check if running in Fiber mode
 	isFiber := os.Getenv("MINT_USE_FIBER") == "true"
@@ -35,7 +105,7 @@ func Counter() ui.VNode {
 		fiberStr = "ON"
 	}
 
-	log.TempLogger.Debug("[Counter] Render: count=%d, Fiber=%s", count, fiberStr)
+	log.TempLogger.IfEnabled().Debug("[Counter] Render: count=%d, Fiber=%s", state.Count, fiberStr)
 
 	return ui.VStack(
 		ui.NewTextBuilder("Mint UI Counter Demo").
@@ -43,26 +113,24 @@ func Counter() ui.VNode {
 			Bold(true).
 			Build(),
 		ui.Text(""),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).
+		ui.NewTextBuilder(fmt.Sprintf("Count: %d", state.Count)).
 			FgColor("green").
 			Build(),
 		ui.Text(""),
 		// Debug info line
-		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Using GlobalState + IncrementIntent", fiberStr)).
+		ui.NewTextBuilder(fmt.Sprintf("[Fiber: %s] Store + Reducer + Custom Intent", fiberStr)).
 			FgColor("yellow").
 			Build(),
 		ui.Text(""),
 		ui.HStack(
-			// Decrement button using Intent (Fiber-first)
-			// Intent created with fresh parameter values at render time
+			// Decrement button using custom DecrementIntent
 			ui.NewButtonBuilder("  -  ").
-				OnPress(intent.Decrement("count", 1)).
+				OnPress(DecrementIntent{Amount: 1}).
 				Build(),
 			ui.Text("   "),
-			// Increment button using Intent (Fiber-first)
-			// Intent created with fresh parameter values at render time
+			// Increment button using custom IncrementIntent
 			ui.NewButtonBuilder("  +  ").
-				OnPress(intent.Increment("count", 1)).
+				OnPress(IncrementIntent{Amount: 1}).
 				Build(),
 		),
 		ui.Text(""),
@@ -76,11 +144,18 @@ func Counter() ui.VNode {
 	)
 }
 
+// =============================================================================
+// Main Function
+// =============================================================================
+
 func main() {
+	// Register all handlers automatically
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(Counter,
 		ui.WithWidth(40),
 		ui.WithHeight(12),
-		ui.WithTitle("Counter Demo"),
+		ui.WithTitle("Counter Demo (Store+Reducer)"),
 	)
 	if err != nil {
 		panic(err)

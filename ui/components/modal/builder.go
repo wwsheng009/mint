@@ -4,7 +4,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
-	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // =============================================================================
@@ -72,9 +71,21 @@ func (b *Builder) Height(height int) *Builder {
 	return b
 }
 
+// Padding sets the inner padding.
+func (b *Builder) Padding(padding int) *Builder {
+	b.vnode.SetPadding(padding)
+	return b
+}
+
 // Size sets both width and height.
 func (b *Builder) Size(w, h int) *Builder {
 	b.vnode.Size(w, h)
+	return b
+}
+
+// InnerSize sets the content size and automatically includes chrome padding.
+func (b *Builder) InnerSize(w, h int) *Builder {
+	b.vnode.InnerSize(w, h)
 	return b
 }
 
@@ -96,6 +107,18 @@ func (b *Builder) Closeable(closeable bool) *Builder {
 	return b
 }
 
+// CloseOnEsc controls whether ESC closes the modal.
+func (b *Builder) CloseOnEsc(closeOnEsc bool) *Builder {
+	b.vnode.SetCloseOnEsc(closeOnEsc)
+	return b
+}
+
+// CloseOnBackdrop controls whether clicking outside closes the modal.
+func (b *Builder) CloseOnBackdrop(closeOnBackdrop bool) *Builder {
+	b.vnode.SetCloseOnBackdrop(closeOnBackdrop)
+	return b
+}
+
 // BorderStyle sets the border style.
 func (b *Builder) BorderStyle(style string) *Builder {
 	b.vnode.SetBorderStyle(style)
@@ -111,6 +134,18 @@ func (b *Builder) OnClose(intent intent.Intent) *Builder {
 // Style sets the visual style.
 func (b *Builder) Style(s style.Style) *Builder {
 	b.vnode.SetStyle(s)
+	return b
+}
+
+// Shadow controls whether the modal renders a shadow.
+func (b *Builder) Shadow(show bool) *Builder {
+	b.vnode.SetShadow(show)
+	return b
+}
+
+// ShadowStyle sets the shadow style.
+func (b *Builder) ShadowStyle(s style.Style) *Builder {
+	b.vnode.SetShadowStyle(s)
 	return b
 }
 
@@ -131,14 +166,15 @@ func (b *Builder) BgColor(c style.Color) *Builder {
 }
 
 // Border style convenience methods
-func (b *Builder) Single() *Builder   { b.vnode.Single(); return b }
-func (b *Builder) Double() *Builder   { b.vnode.Double(); return b }
-func (b *Builder) Rounded() *Builder  { b.vnode.Rounded(); return b }
-func (b *Builder) Dashed() *Builder   { b.vnode.Dashed(); return b }
+func (b *Builder) Single() *Builder  { b.vnode.Single(); return b }
+func (b *Builder) Double() *Builder  { b.vnode.Double(); return b }
+func (b *Builder) Rounded() *Builder { b.vnode.Rounded(); return b }
+func (b *Builder) Dashed() *Builder  { b.vnode.Dashed(); return b }
 
 // Open state convenience methods
 func (b *Builder) Opened() *Builder   { return b.Open(true) }
 func (b *Builder) Closed() *Builder   { return b.Open(false) }
+func (b *Builder) NoShadow() *Builder { return b.Shadow(false) }
 
 // Build returns the configured VNode.
 func (b *Builder) Build() rtui.VNode {
@@ -191,28 +227,6 @@ func Modal() *Builder {
 // WithTitle creates a titled Modal builder.
 func WithTitle(title string) *Builder {
 	return NewBuilder().Title(title).Rounded()
-}
-
-// Alert creates an alert-style modal.
-func Alert(title, message string) rtui.VNode {
-	return NewBuilder().
-		Title(title).
-		Content(newtext.New(message)).
-		Width(40).
-		Height(10).
-		Rounded().
-		Build()
-}
-
-// Confirm creates a confirm-style modal.
-func Confirm(title, message string) rtui.VNode {
-	return NewBuilder().
-		Title(title).
-		Content(newtext.New(message)).
-		Width(40).
-		Height(10).
-		Rounded().
-		Build()
 }
 
 // =============================================================================

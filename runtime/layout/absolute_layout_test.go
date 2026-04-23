@@ -368,13 +368,13 @@ func TestAbsoluteStyle_AllAnchors(t *testing.T) {
 		expectedY int
 	}{
 		{"AnchorTopLeft", AnchorTopLeft, 50, 50},
-		{"AnchorTop", AnchorTop, 40, 50},     // 50 - 20/2 = 40
-		{"AnchorTopRight", AnchorTopRight, 30, 50}, // 50 - 20 = 30
-		{"AnchorLeft", AnchorLeft, 50, 45},   // 50 - 10/2 = 45
-		{"AnchorCenter", AnchorCenter, 40, 45}, // 50-10, 50-5
-		{"AnchorRight", AnchorRight, 30, 45}, // 50-20, 50-5
-		{"AnchorBottomLeft", AnchorBottomLeft, 50, 40}, // 50 - 10 = 40
-		{"AnchorBottom", AnchorBottom, 40, 40}, // 50-10, 50-10
+		{"AnchorTop", AnchorTop, 40, 50},                 // 50 - 20/2 = 40
+		{"AnchorTopRight", AnchorTopRight, 30, 50},       // 50 - 20 = 30
+		{"AnchorLeft", AnchorLeft, 50, 45},               // 50 - 10/2 = 45
+		{"AnchorCenter", AnchorCenter, 40, 45},           // 50-10, 50-5
+		{"AnchorRight", AnchorRight, 30, 45},             // 50-20, 50-5
+		{"AnchorBottomLeft", AnchorBottomLeft, 50, 40},   // 50 - 10 = 40
+		{"AnchorBottom", AnchorBottom, 40, 40},           // 50-10, 50-10
 		{"AnchorBottomRight", AnchorBottomRight, 30, 40}, // 50-20, 50-10
 	}
 
@@ -452,6 +452,23 @@ func (m *MockFlexNode) SetChildren(children []Node) {
 	m.children = children
 }
 
+type mockFlowPositionNode struct {
+	*MockNode
+	positionType PositionType
+	anchor       Anchor
+}
+
+func newMockFlowPositionNode(id string, width, height int, positionType PositionType) *mockFlowPositionNode {
+	return &mockFlowPositionNode{
+		MockNode:     NewMockNode(id, width, height),
+		positionType: positionType,
+		anchor:       AnchorTopLeft,
+	}
+}
+
+func (n *mockFlowPositionNode) GetPositionType() PositionType { return n.positionType }
+func (n *mockFlowPositionNode) GetAnchor() Anchor             { return n.anchor }
+
 // =============================================================================
 // Edge Cases
 // =============================================================================
@@ -479,6 +496,23 @@ func TestEngine_AbsoluteLayout_NoStyle(t *testing.T) {
 	assert.NotNil(t, result)
 	// Default layout should stack children vertically
 	assert.Len(t, result.Root.Children, 1)
+}
+
+func TestEngine_DefaultFlow_AbsoluteChildDoesNotConsumeVerticalSpace(t *testing.T) {
+	container := NewMockNode("container", 40, 10)
+	absoluteChild := newMockFlowPositionNode("absolute", 5, 1, PositionAbsolute)
+	normalChild := NewMockMeasurableNode("normal", 8, 2)
+	container.children = []Node{absoluteChild, normalChild}
+
+	engine := NewEngine()
+	result := engine.Layout(container, UnboundedConstraints())
+
+	assert.NotNil(t, result)
+	assert.NotNil(t, result.Root)
+	assert.Len(t, result.Root.Children, 2)
+
+	assert.Equal(t, 0, result.Root.Children[0].Y, "absolute child should stay at initial y")
+	assert.Equal(t, 0, result.Root.Children[1].Y, "normal child should not be pushed by absolute sibling")
 }
 
 func TestEngine_AbsoluteLayout_ZeroSizeChild(t *testing.T) {

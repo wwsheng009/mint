@@ -1,36 +1,26 @@
-// Typed Intent Demo - Demonstrates type-safe StateKey[T] and TypedFieldChange[T]
+// Typed Intent Demo - Demonstrates Store + Reducer architecture
 //
-// This example shows:
-// 1. Defining type-safe state keys with StateKey[T]
-// 2. Using TypedFieldChange[T] for type-safe updates
-// 3. Handling typed intents in a Reducer
-// 4. The benefits of compile-time type checking
+// This example shows type-safe form handling with FieldMap and ForField
+// MIGRATED from hooks-based API to Store + Reducer
 package main
 
 import (
 	"fmt"
-	"strconv"
+	"net/http"
+	"os"
+	"runtime/pprof"
+	"strings"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/intent"
-	"github.com/wwsheng009/mint/ui"
-)
-
-// =============================================================================
-// Type-Safe State Keys
-// =============================================================================
-
-// Define all state keys in one place for type safety and discoverability.
-// This eliminates string keys and provides compile-time type checking.
-var (
-	// Form fields with type safety
-	Username = intent.NewStateKey[string]("username")
-	Email    = intent.NewStateKey[string]("email")
-	Age      = intent.NewStateKey[int]("age")
-	Active   = intent.NewStateKey[bool]("active")
-
-	// Error states
-	UsernameErr = intent.NewStateKey[string]("username_err")
-	EmailErr    = intent.NewStateKey[string]("email_err")
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/statemachine"
+	mintui "github.com/wwsheng009/mint/ui"
+	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/checkbox"
+	"github.com/wwsheng009/mint/ui/components/divider"
+	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
 )
 
 // =============================================================================
@@ -38,39 +28,33 @@ var (
 // =============================================================================
 
 type FormState struct {
-	Username    string
-	Email       string
-	Age         int
-	Active      bool
-	UsernameErr string
-	EmailErr    string
+	Username string
+	Email    string
+	Age      int
+	Active   bool
+	City     string       // OptionGroup single-select
+	Interests string       // OptionGroup multi-select (comma-separated)
+	ErrorMsg string
+	Submitted bool
+	SubmitTime time.Time
 }
 
 // =============================================================================
 // Intent Types
 // =============================================================================
 
-// SubmitIntent triggers form submission
 type SubmitIntent struct{}
 
 func (SubmitIntent) IntentType() string { return "Submit" }
 
-// ResetIntent clears the form
 type ResetIntent struct{}
 
 func (ResetIntent) IntentType() string { return "Reset" }
 
-// ToggleActiveIntent toggles the active checkbox
-type ToggleActiveIntent struct{}
-
-func (ToggleActiveIntent) IntentType() string { return "ToggleActive" }
-
-// IncrementAgeIntent increments age
 type IncrementAgeIntent struct{}
 
 func (IncrementAgeIntent) IntentType() string { return "IncrementAge" }
 
-// DecrementAgeIntent decrements age
 type DecrementAgeIntent struct{}
 
 func (DecrementAgeIntent) IntentType() string { return "DecrementAge" }
@@ -79,259 +63,370 @@ func (DecrementAgeIntent) IntentType() string { return "DecrementAge" }
 // Reducer - Centralized Logic
 // =============================================================================
 
-// FormReducer handles all state changes in one place
-func FormReducer(state FormState, i intent.Intent) FormState {
-	switch v := i.(type) {
-	// Type-safe string field changes
-	case intent.TypedFieldChange[string]:
-		switch v.Key.String() {
-		case Username.String():
-			state.Username = v.Value
+// appReducerBuilder - FieldMap + pattern
+var appReducerBuilder = reducer.NewBuilder[FormState]()
+
+func init() {
+	// Handle field changes using FieldMap
+	fieldMapBuilder := reducer.BindField(appReducerBuilder)
+	fieldMapBuilder.BindFieldMap(map[string]func(FormState, string) FormState{
+		"Username": func(s FormState, val string) FormState {
+			s.Username = val
 			// Real-time validation
-			if len(state.Username) < 3 {
-				state.UsernameErr = "Username must be at least 3 characters"
+			if len(s.Username) < 3 && len(s.Username) > 0 {
+				s.ErrorMsg = "Username must be at least 3 characters"
 			} else {
-				state.UsernameErr = ""
+				// Clear username error if it exists
+				if strings.HasPrefix(s.ErrorMsg, "Username") {
+					s.ErrorMsg = ""
+				}
 			}
-		case Email.String():
-			state.Email = v.Value
+			return s
+		},
+		"Email": func(s FormState, val string) FormState {
+			s.Email = val
 			// Email validation
-			if state.Email != "" && !isValidEmail(state.Email) {
-				state.EmailErr = "Invalid email format"
-			} else {
-				state.EmailErr = ""
+			if s.Email != "" && !strings.Contains(s.Email, "@") {
+				s.ErrorMsg = "Invalid email format"
+			} else if len(s.ErrorMsg) == 0 || strings.HasPrefix(s.ErrorMsg, "Username") {
+				s.ErrorMsg = ""
 			}
-		}
-
-	// Type-safe int field changes
-	case intent.TypedFieldChange[int]:
-		if v.Key.String() == Age.String() {
-			state.Age = v.Value
-			if state.Age < 0 {
-				state.Age = 0
+			return s
+		},
+		"Age": func(s FormState, val string) FormState {
+			age, err := reducer.ParseInt(val)
+			if err == nil {
+				s.Age = age
+				if s.Age < 0 {
+					s.Age = 0
+				}
 			}
-		}
+			return s
+		},
+		"Active": func(s FormState, val string) FormState {
+			s.Active = val == "true" || (strings.ToLower(val) == "on")
+			return s
+		},
+		"City": func(s FormState, val string) FormState {
+			s.City = val
+			return s
+		},
+		"Interests": func(s FormState, val string) FormState {
+			s.Interests = val
+			return s
+		},
+	})
 
-	// Type-safe bool field changes
-	case intent.TypedFieldChange[bool]:
-		if v.Key.String() == Active.String() {
-			state.Active = v.Value
-		}
-
-	// Action intents
-	case SubmitIntent:
-		// Validate all fields on submit
-		hasError := false
-		if len(state.Username) < 3 {
-			state.UsernameErr = "Username must be at least 3 characters"
-			hasError = true
-		}
-		if state.Email != "" && !isValidEmail(state.Email) {
-			state.EmailErr = "Invalid email format"
-			hasError = true
-		}
-		if !hasError {
-			fmt.Printf("\n✅ Form submitted successfully!\n")
-			fmt.Printf("   Username: %s\n", state.Username)
-			fmt.Printf("   Email: %s\n", state.Email)
-			fmt.Printf("   Age: %d\n", state.Age)
-			fmt.Printf("   Active: %v\n\n", state.Active)
-		}
-
-	case ResetIntent:
-		return FormState{}
-
-	case ToggleActiveIntent:
-		state.Active = !state.Active
-
-	case IncrementAgeIntent:
-		state.Age++
-
-	case DecrementAgeIntent:
-		state.Age--
-		if state.Age < 0 {
-			state.Age = 0
-		}
-	}
-
-	return state
+	// Extend from fieldMapBuilder to add action handlers
+	appReducerBuilder = fieldMapBuilder.GetBuilder().
+		On(SubmitIntent{}, func(s FormState, i intent.Intent) FormState {
+			// Validate all fields on submit
+			if len(s.Username) < 3 {
+				s.ErrorMsg = "Username must be at least 3 characters"
+				return s
+			}
+			if len(s.Email) == 0 || !strings.Contains(s.Email, "@") {
+				s.ErrorMsg = "Invalid email format"
+				return s
+			}
+			s.Submitted = true
+			s.SubmitTime = time.Now()
+			return s
+		}).
+		On(ResetIntent{}, func(s FormState, i intent.Intent) FormState {
+			return FormState{}
+		}).
+		On(IncrementAgeIntent{}, func(s FormState, i intent.Intent) FormState {
+			s.Age++
+			return s
+		}).
+		On(DecrementAgeIntent{}, func(s FormState, i intent.Intent) FormState {
+			s.Age--
+			if s.Age < 0 {
+				s.Age = 0
+			}
+			return s
+		})
 }
+
+// AppReducer is the built Reducer
+var AppReducer = appReducerBuilder.Build()
 
 // =============================================================================
 // View Components
 // =============================================================================
 
-func TypedFormDemo() ui.VNode {
-	// Get component state using hooks
-	username, setUsername := ui.UseStateString("")
-	email, setEmail := ui.UseStateString("")
-	age, setAge := ui.UseStateInt(0)
-	active, setActive := ui.UseStateBool(false)
-	usernameErr, setUsernameErr := ui.UseStateString("")
-	emailErr, setEmailErr := ui.UseStateString("")
+// AppView renders the application state
+func AppView(state FormState) any {
+	return renderFormView(state)
+}
 
-	// Save state setters to context for handler access
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.SetState("setUsername", setUsername)
-		ctx.SetState("setEmail", setEmail)
-		ctx.SetState("setAge", setAge)
-		ctx.SetState("setActive", setActive)
-		ctx.SetState("setUsernameErr", setUsernameErr)
-		ctx.SetState("setEmailErr", setEmailErr)
-	}
+// renderFormView is the actual view function
+func renderFormView(state FormState) mintui.VNode {
+	// Build form components with ForField binding
+	usernameInput := input.NewBuilder().
+		Placeholder("Type username").
+		ForField(intent.BindField("Username")).
+		Value(state.Username).
+		Width(30).
+		Build()
 
-	// Register handlers with ActionContext
-	ui.On(SubmitIntent{}, func(ctx *intent.ActionContext) {
-		// Validate on submit
-		hasError := false
-		if len(username) < 3 {
-			setUsernameErr("Username must be at least 3 characters")
-			hasError = true
-		} else {
-			setUsernameErr("")
-		}
-		if email != "" && !isValidEmail(email) {
-			setEmailErr("Invalid email format")
-			hasError = true
-		} else {
-			setEmailErr("")
-		}
-		if !hasError {
-			fmt.Printf("\n✅ Submitted: %+v\n", map[string]interface{}{
-				"username": username,
-				"email":    email,
-				"age":      age,
-				"active":   active,
-			})
-		}
-	})
+	emailInput := input.NewBuilder().
+		Placeholder("Enter email").
+		ForField(intent.BindField("Email")).
+		Value(state.Email).
+		Width(30).
+		Build()
 
-	ui.On(ResetIntent{}, func(ctx *intent.ActionContext) {
-		setUsername("")
-		setEmail("")
-		setAge(0)
-		setActive(false)
-		setUsernameErr("")
-		setEmailErr("")
-	})
+	ageInput := input.NewBuilder().
+		Placeholder("Enter age").
+		ForField(intent.BindField("Age")).
+		Value(reducer.FormatInt(state.Age)).
+		Width(10).
+		Build()
 
-	ui.On(ToggleActiveIntent{}, func(ctx *intent.ActionContext) {
-		setActive(!active)
-	})
+	activeCheckbox := checkbox.NewBuilder().
+		Label("Active").
+		ForField(intent.BindField("Active")).
+		Checked(state.Active).
+		Build()
 
-	ui.On(IncrementAgeIntent{}, func(ctx *intent.ActionContext) {
-		setAge(age + 1)
-	})
+	submitButton := button.NewBuilder("Submit").
+		OnPress(SubmitIntent{}).
+		Build()
 
-	ui.On(DecrementAgeIntent{}, func(ctx *intent.ActionContext) {
-		newAge := age - 1
-		if newAge < 0 {
-			newAge = 0
-		}
-		setAge(newAge)
-	})
+	resetButton := button.NewBuilder("Reset").
+		OnPress(ResetIntent{}).
+		Build()
 
-	// Handle typed field changes
-	ui.On(intent.TypedFieldChange[string]{}, func(ctx *intent.ActionContext) {
-		// This would be handled by a more sophisticated system
-		// For demo, we show the pattern
-	})
+	incAgeButton := button.NewBuilder(" + ").
+		OnPress(IncrementAgeIntent{}).
+		Build()
 
-	return ui.VStack(
-		ui.Text("📝 Type-Safe Intent Demo").Bold(true),
-		ui.Text(""),
+	decAgeButton := button.NewBuilder(" - ").
+		OnPress(DecrementAgeIntent{}).
+		Build()
 
-		// Username field
-		ui.HStack(
-			ui.Text("Username:").Width(12),
-			ui.NewInputBuilder().
-				Placeholder("Enter username").
-				Value(username).
-				OnChange(func(v string) {
-					setUsername(v)
-					// Type-safe field change
-					// In a full implementation, this would dispatch:
-					// dispatcher.Dispatch(Username.Change(v))
-				}).
-				Build(),
-		),
-		ui.Text(usernameErr).Color("red"),
+	// Build the form layout
+	var layout []mintui.VNode
 
-		// Email field
-		ui.HStack(
-			ui.Text("Email:").Width(12),
-			ui.NewInputBuilder().
-				Placeholder("Enter email").
-				Value(email).
-				OnChange(func(v string) {
-					setEmail(v)
-				}).
-				Build(),
-		),
-		ui.Text(emailErr).Color("red"),
-
-		// Age field with +/- buttons
-		ui.HStack(
-			ui.Text("Age:").Width(12),
-			ui.NewButtonBuilder(" - ").
-				OnPress(DecrementAgeIntent{}).
-				Build(),
-			ui.Text(fmt.Sprintf("  %d  ", age)),
-			ui.NewButtonBuilder(" + ").
-				OnPress(IncrementAgeIntent{}).
-				Build(),
-		),
-
-		// Active checkbox
-		ui.HStack(
-			ui.Text("Active:").Width(12),
-			ui.NewButtonBuilder(fmt.Sprintf("[%s]", boolToCheck(active))).
-				OnPress(ToggleActiveIntent{}).
-				Build(),
-		),
-
-		ui.Text(""),
-
-		// Action buttons
-		ui.HStack(
-			ui.NewButtonBuilder("Reset").
-				OnPress(ResetIntent{}).
-				Build(),
-			ui.NewButtonBuilder("Submit").
-				OnPress(SubmitIntent{}).
-				Build(),
-		),
-
-		ui.Text(""),
-		ui.Text("─".repeat(40)).Faint(true),
-		ui.Text("Type-Safe Keys: Username, Email, Age, Active").Faint(true),
-		ui.Text("Compile-time checking prevents typos!").Faint(true),
+	layout = append(layout,
+		// Header
+		mintui.NewTextBuilder("📝 Typed Intent Demo").
+			Bold(true).
+			FgColor("cyan").
+			Build(),
+		mintui.Text(""),
+		mintui.NewTextBuilder("Store + Reducer Architecture").
+			FgColor("gray").
+			Build(),
+		mintui.Text(""),
+		divider.NewBuilder().
+			FillWidth(true).
+			Build(),
 	)
-}
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-func isValidEmail(email string) bool {
-	return len(email) > 3 && contains(email, "@")
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
+	// Show error message if any
+		if state.ErrorMsg != "" {
+			layout = append(layout,
+				mintui.NewTextBuilder("⚠ "+state.ErrorMsg).
+					FgColor("red").
+					Build(),
+				mintui.Text(""),
+			)
 		}
-	}
-	return false
-}
 
-func boolToCheck(b bool) string {
-	if b {
-		return "✓"
-	}
-	return " "
+		// Form fields using ForField binding
+		layout = append(layout,
+			mintui.HStack(
+				mintui.Text("Username: "),
+				mintui.Text("  "),
+				usernameInput,
+			),
+
+			mintui.HStack(
+				mintui.Text("Email:    "),
+				mintui.Text("  "),
+				emailInput,
+			),
+
+			mintui.HStack(
+				mintui.Text("Age:      "),
+				mintui.Text("  "),
+				ageInput,
+				mintui.Text(" "),
+				decAgeButton,
+				mintui.Text(" "),
+				incAgeButton,
+			),
+
+			mintui.HStack(
+				mintui.Text("  "),
+				mintui.Text("  "),
+				activeCheckbox,
+			),
+
+			mintui.Text(""),
+
+			// OptionGroup - Single Select (City)
+			optiongroup.NewBuilder([]optiongroup.Option{
+				{Value: "bj", Label: "Beijing"},
+				{Value: "sh", Label: "Shanghai"},
+				{Value: "gz", Label: "Guangzhou"},
+				{Value: "sz", Label: "Shenzhen"},
+			}).
+				Key("city-group").
+				Label("City:").
+				Mode(optiongroup.ModeSingle).
+				ForField(intent.BindField("City")).
+				Selected(state.City).
+				Vertical().
+				Build(),
+
+			mintui.Text(""),
+
+			// OptionGroup - Multiple Select (Interests)
+			optiongroup.NewBuilder([]optiongroup.Option{
+				{Value: "dev", Label: "Development"},
+				{Value: "design", Label: "Design"},
+				{Value: "test", Label: "Testing"},
+				{Value: "pm", Label: "Product Management"},
+			}).
+				Key("interests-group").
+				Label("Interests:").
+				Mode(optiongroup.ModeMultiple).
+				ForField(intent.BindField("Interests")).
+				Selecteds(strings.Split(state.Interests, ",")).
+				Vertical().
+				Build(),
+
+			mintui.Text(""),
+
+			// Action buttons
+			mintui.HStack(
+				mintui.Text("  "),
+				resetButton,
+				mintui.Text(" "),
+				submitButton,
+			),
+		)
+
+		// State display
+		if !state.Submitted {
+			layout = append(layout,
+				mintui.Text(""),
+				divider.NewBuilder().
+					FillWidth(true).
+					Build(),
+				mintui.NewTextBuilder("Current State:").
+					FgColor("gray").
+					Build(),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Username: ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.Username)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Email:    ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.Email)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Age:      ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%d", state.Age)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Active:   ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%v", state.Active)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  City:     ").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.City)).
+						FgColor("white").
+						Build(),
+				),
+				mintui.HStack(
+					mintui.NewTextBuilder("  Interests:").
+						FgColor("gray").
+						Build(),
+					mintui.NewTextBuilder(fmt.Sprintf("%q", state.Interests)).
+						FgColor("white").
+						Build(),
+				),
+			)
+		} else {
+			layout = append(layout,
+				mintui.Text(""),
+				divider.NewBuilder().
+					FillWidth(true).
+					Build(),
+				mintui.NewTextBuilder("✅ Form Submitted Successfully!").
+					FgColor("green").
+					Build(),
+				divider.NewBuilder().
+					FillWidth(true).
+					Build(),
+				mintui.NewTextBuilder("Username:       "+state.Username).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Email:          "+state.Email).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Age:             "+fmt.Sprintf("%d", state.Age)).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Active:          "+fmt.Sprintf("%v", state.Active)).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("City:           "+state.City).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Interests:      "+state.Interests).
+					FgColor("white").
+					Build(),
+				mintui.NewTextBuilder("Submitted at:     "+state.SubmitTime.Format("15:04:05")).
+					FgColor("gray").
+					Build(),
+			)
+		}
+
+		layout = append(layout,
+			mintui.Text(""),
+			divider.NewBuilder().
+				FillWidth(true).
+				Build(),
+			mintui.NewTextBuilder("Type-Safe Features:").
+				FgColor("gray").
+				Build(),
+			mintui.NewTextBuilder("✓ FieldMap for automatic field updates").
+				FgColor("gray").
+				Build(),
+			mintui.NewTextBuilder("✓ Centralized logic in Reducer").
+				FgColor("gray").
+				Build(),
+			mintui.NewTextBuilder("✓ Compile-time type checking").
+				FgColor("gray").
+				Build(),
+			mintui.Text(""),
+		)
+
+		return mintui.VStack(layout...)
 }
 
 // =============================================================================
@@ -339,36 +434,79 @@ func boolToCheck(b bool) string {
 // =============================================================================
 
 func main() {
-	fmt.Println(`
-╔════════════════════════════════════════════════════════════╗
-║           Type-Safe Intent Demo                            ║
-║                                                            ║
-║  This demo shows StateKey[T] and TypedFieldChange[T]       ║
-║  providing compile-time type safety for state management.  ║
-║                                                            ║
-║  Benefits:                                                 ║
-║  • No more string key typos                                ║
-║  • IDE autocomplete support                                ║
-║  • Compile-time type checking                              ║
-║  • Easier refactoring                                      ║
-╚════════════════════════════════════════════════════════════╝
-`)
+	// ============================================================
+	// CPU Profiling Setup (用于性能分析)
+	// ============================================================
+	// 检查是否启用 CPU profiling
+	if os.Getenv("MINT_CPU_PROFILE") == "true" {
+		// 启动 pprof HTTP 服务器 (用于在线分析)
+		// 访问 http://localhost:6060/debug/pprof/ 查看
+		go func() {
+			fmt.Println("pprof server listening on :6060")
+			fmt.Println("Access http://localhost:6060/debug/pprof/")
+			if err := http.ListenAndServe("localhost:6060", nil); err != nil {
+				fmt.Printf("pprof server error: %v\n", err)
+			}
+		}()
 
-	// Show type-safe key usage
-	fmt.Println("Type-Safe State Keys:")
-	fmt.Printf("  Username: %s (string)\n", Username.String())
-	fmt.Printf("  Email:    %s (string)\n", Email.String())
-	fmt.Printf("  Age:      %s (int)\n", Age.String())
-	fmt.Printf("  Active:   %s (bool)\n", Active.String())
-	fmt.Println()
+		// 如果设置了 CPU profile 输出文件，自动采样
+		profileFile := os.Getenv("MINT_CPU_PROFILE_FILE")
+		if profileFile != "" {
+			duration := 30 // 默认采样30秒
+			if d := os.Getenv("MINT_CPU_PROFILE_DURATION"); d != "" {
+				fmt.Sscanf(d, "%d", &duration)
+			}
 
-	// Show how to create typed intents
-	fmt.Println("Creating Typed Intents:")
-	fmt.Printf("  Username.Change(\"alice\"): %v\n", Username.Change("alice"))
-	fmt.Printf("  Age.Change(25): %v\n", Age.Change(25))
-	fmt.Printf("  Active.Change(true): %v\n", Active.Change(true))
-	fmt.Println()
+			f, err := os.Create(profileFile)
+			if err != nil {
+				fmt.Printf("Could not create CPU profile: %v\n", err)
+				return
+			}
+			defer f.Close()
+
+			if err := pprof.StartCPUProfile(f); err != nil {
+				fmt.Printf("Could not start CPU profile: %v\n", err)
+				return
+			}
+			defer pprof.StopCPUProfile()
+
+			fmt.Printf("CPU profiling enabled: sampling for %d seconds to %s\n", duration, profileFile)
+
+			// 在指定时长后自动退出
+			go func() {
+				time.Sleep(time.Duration(duration) * time.Second)
+				fmt.Println("CPU profiling completed, exiting...")
+				pprof.StopCPUProfile()
+				os.Exit(0)
+			}()
+		}
+	}
+
+	// Create initial state
+	initialState := FormState{
+		Username:   "",
+		Email:      "",
+		Age:        0,
+		Active:     false,
+		City:       "bj", // Default select Beijing
+		Interests:  "",
+	}
+
+	// Create AppRuntime
+	rt := statemachine.NewAppRuntime(
+		initialState,
+		AppView,
+		AppReducer,
+	)
 
 	// Run the UI
-	ui.Run(TypedFormDemo)
+	mintui.RunApp(rt,
+		mintui.WithWidth(60),
+		mintui.WithHeight(35),
+		mintui.WithTitle("Typed Intent Demo (Store+Reducer)"),
+		mintui.WithInit(func() {
+			// Register intent handlers
+			appReducerBuilder.RegisterToGlobal(rt.GetStore())
+		}),
+	)
 }

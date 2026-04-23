@@ -89,7 +89,11 @@ ui.Column(
     ui.Row(
         Sidebar().Width(24),
         ui.Column(
-            Tabs().Height(3),
+            ui.NewTabsBuilder().
+                AddTab("editor", "Editor").
+                AddTab("preview", "Preview").
+                Height(3).
+                Build(),
             EditorArea().Flex(1),
             ConsolePanel().Height(8),
         ).Flex(1),

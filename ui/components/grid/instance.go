@@ -2,6 +2,7 @@ package grid
 
 import (
 	"fmt"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -18,7 +19,7 @@ import (
 // It persists across renders and holds all state.
 type Instance struct {
 	// === Identification ===
-	key string
+	key     string
 	fiberId int // Fiber node ID for tracing
 
 	// === Grid Definition ===
@@ -38,8 +39,8 @@ type Instance struct {
 	flex   int
 
 	// ✨ Border Props (方案 A - 边框作为容器属性) ===
-	borderStyle  string // "none", "single", "double", "rounded", "dashed"
-	borderLabel  string // Optional label displayed on top border
+	borderStyle string // "none", "single", "double", "rounded", "dashed"
+	borderLabel string // Optional label displayed on top border
 
 	// === ✨ Cell Borders Props (格子间边框) ===
 	showCellBorders   bool   // 是否显示格子边框
@@ -51,11 +52,11 @@ type Instance struct {
 	instStyle style.Style
 
 	// === Runtime State ===
-	bounds     [4]int // x, y, w, h
-	colWidths  []int  // calculated column widths
-	rowHeights []int  // calculated row heights
+	bounds      [4]int // x, y, w, h
+	colWidths   []int  // calculated column widths
+	rowHeights  []int  // calculated row heights
 	childBounds [][4]int
-	dirty      bool
+	dirty       bool
 }
 
 // Ensure Instance implements required interfaces
@@ -74,41 +75,41 @@ var (
 // NewInstance creates a new GridInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:          getStringProp(props, "key", ""),
-		columnGap:    getIntProp(props, "columnGap", 0),
-		rowGap:       getIntProp(props, "rowGap", 0),
+		key:          proputil.GetString(props, "key", ""),
+		columnGap:    proputil.GetInt(props, "columnGap", 0),
+		rowGap:       proputil.GetInt(props, "rowGap", 0),
 		padding:      getPaddingProp(props),
 		alignContent: getAlignContentProp(props),
-		width:        getIntProp(props, "width", 0),
-		height:       getIntProp(props, "height", 0),
-		flex:         getIntProp(props, "flex", 0),
-		instStyle:    getStyleProp(props),
+		width:        proputil.GetInt(props, "width", 0),
+		height:       proputil.GetInt(props, "height", 0),
+		flex:         proputil.GetInt(props, "flex", 0),
+		instStyle:    proputil.GetStyle(props, "style", style.Style{}),
 		dirty:        true,
-		borderStyle:  getStringProp(props, "borderStyle", "none"), // ✨ 边框样式
-		borderLabel:  getStringProp(props, "label", ""),           // ✨ 边框标签
+		borderStyle:  proputil.GetString(props, "borderStyle", "none"), // ✨ 边框样式
+		borderLabel:  proputil.GetString(props, "label", ""),           // ✨ 边框标签
 		// ✨ Cell Borders 初始化
-		showCellBorders:   getBoolProp(props, "showCellBorders", false),
-		cellBorderStyle:   getStringProp(props, "cellBorderStyle", "single"),
-		cellBorderRounded: getBoolProp(props, "cellBorderRounded", false),
-		cellBorderColor:   getStringProp(props, "cellBorderColor", ""),
+		showCellBorders:   proputil.GetBool(props, "showCellBorders", false),
+		cellBorderStyle:   proputil.GetString(props, "cellBorderStyle", "single"),
+		cellBorderRounded: proputil.GetBool(props, "cellBorderRounded", false),
+		cellBorderColor:   proputil.GetString(props, "cellBorderColor", ""),
 	}
 
 	// Parse columns
-	if v, ok := props["columns"].([]Dimension); ok {
+	if v, ok := props[propColumns].([]Dimension); ok {
 		inst.columns = v
 	} else {
 		inst.columns = []Dimension{Flex{Factor: 1}}
 	}
 
 	// Parse rows
-	if v, ok := props["rows"].([]Dimension); ok {
+	if v, ok := props[propRows].([]Dimension); ok {
 		inst.rows = v
 	} else {
 		inst.rows = []Dimension{Auto{}}
 	}
 
 	// Parse cells
-	if v, ok := props["cells"].([]Cell); ok {
+	if v, ok := props[propCells].([]Cell); ok {
 		inst.cells = v
 	}
 
@@ -154,45 +155,45 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldRows := inst.rows
 	oldCells := inst.cells
 
-	inst.key = getStringProp(props, "key", inst.key)
-	inst.columnGap = getIntProp(props, "columnGap", inst.columnGap)
-	inst.rowGap = getIntProp(props, "rowGap", inst.rowGap)
+	inst.key = proputil.GetString(props, "key", inst.key)
+	inst.columnGap = proputil.GetInt(props, "columnGap", inst.columnGap)
+	inst.rowGap = proputil.GetInt(props, "rowGap", inst.rowGap)
 	inst.padding = getPaddingPropWithDefault(props, inst.padding)
 	inst.alignContent = getAlignContentProp(props)
-	inst.width = getIntProp(props, "width", inst.width)
-	inst.height = getIntProp(props, "height", inst.height)
-	inst.flex = getIntProp(props, "flex", inst.flex)
-	inst.instStyle = getStyleProp(props)
+	inst.width = proputil.GetInt(props, "width", inst.width)
+	inst.height = proputil.GetInt(props, "height", inst.height)
+	inst.flex = proputil.GetInt(props, "flex", inst.flex)
+	inst.instStyle = proputil.GetStyle(props, "style", style.Style{})
 
 	// ✨ 容器边框属性
-	if v, ok := props["borderStyle"].(string); ok {
+	if v, ok := props[propBorderStyle].(string); ok {
 		inst.borderStyle = v
 	}
-	if v, ok := props["label"].(string); ok {
+	if v, ok := props[propLabel].(string); ok {
 		inst.borderLabel = v
 	}
 
 	// ✨ Cell Borders 属性
-	if v, ok := props["showCellBorders"].(bool); ok {
+	if v, ok := props[propShowCellBorders].(bool); ok {
 		inst.showCellBorders = v
 	}
-	if v, ok := props["cellBorderStyle"].(string); ok {
+	if v, ok := props[propCellBorderStyle].(string); ok {
 		inst.cellBorderStyle = v
 	}
-	if v, ok := props["cellBorderRounded"].(bool); ok {
+	if v, ok := props[propCellBorderRounded].(bool); ok {
 		inst.cellBorderRounded = v
 	}
-	if v, ok := props["cellBorderColor"].(string); ok {
+	if v, ok := props[propCellBorderColor].(string); ok {
 		inst.cellBorderColor = v
 	}
 
-	if v, ok := props["columns"].([]Dimension); ok {
+	if v, ok := props[propColumns].([]Dimension); ok {
 		inst.columns = v
 	}
-	if v, ok := props["rows"].([]Dimension); ok {
+	if v, ok := props[propRows].([]Dimension); ok {
 		inst.rows = v
 	}
-	if v, ok := props["cells"].([]Cell); ok {
+	if v, ok := props[propCells].([]Cell); ok {
 		inst.cells = v
 	}
 
@@ -212,25 +213,25 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":          inst.key,
-		"columns":      inst.columns,
-		"rows":         inst.rows,
-		"cells":        inst.cells,
-		"columnGap":    inst.columnGap,
-		"rowGap":       inst.rowGap,
-		"padding":      inst.padding,
-		"alignContent": inst.alignContent,
-		"width":        inst.width,
-		"height":       inst.height,
-		"flex":         inst.flex,
+		propKey:          inst.key,
+		propColumns:      inst.columns,
+		propRows:         inst.rows,
+		propCells:        inst.cells,
+		propColumnGap:    inst.columnGap,
+		propRowGap:       inst.rowGap,
+		propPadding:      inst.padding,
+		propAlignContent: inst.alignContent,
+		propWidth:        inst.width,
+		propHeight:       inst.height,
+		propFlex:         inst.flex,
 		// ✨ 容器边框属性
-		"borderStyle": inst.borderStyle,
-		"label":       inst.borderLabel,
+		propBorderStyle: inst.borderStyle,
+		propLabel:       inst.borderLabel,
 		// ✨ Cell Borders 属性
-		"showCellBorders":   inst.showCellBorders,
-		"cellBorderStyle":   inst.cellBorderStyle,
-		"cellBorderRounded": inst.cellBorderRounded,
-		"cellBorderColor":   inst.cellBorderColor,
+		propShowCellBorders:   inst.showCellBorders,
+		propCellBorderStyle:   inst.cellBorderStyle,
+		propCellBorderRounded: inst.cellBorderRounded,
+		propCellBorderColor:   inst.cellBorderColor,
 	}
 }
 
@@ -262,11 +263,6 @@ func (inst *Instance) GetBounds() (x, y, w, h int) {
 func (inst *Instance) SetBounds(x, y, w, h int) {
 	inst.bounds = [4]int{x, y, w, h}
 
-	// ✨ 调试打印 SetBounds 调用
-	if inst.showCellBorders {
-		fmt.Printf("[DEBUG GRID SETBOUNDS] x=%d, y=%d, w=%d, h=%d\n", x, y, w, h)
-	}
-
 	// ✨ 当 Layout Engine 设置 bounds 后，根据实际分配的 box 高度重新计算 rowHeights
 	// 这样可以确保边框绘制在正确的位置，不会超出 box 范围
 	if len(inst.columns) == 0 {
@@ -279,7 +275,7 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	// ✨ Cell Borders: 计算边框占用高度
 	cellBorderHeight := 0
 	if inst.showCellBorders {
-		cellBorderHeight = numRows + 1  // 上边框 + 中间分隔 + 下边框 = numRows + 1
+		cellBorderHeight = numRows + 1 // 上边框 + 中间分隔 + 下边框 = numRows + 1
 	}
 
 	// ✨ 计算实际可用的内容高度
@@ -307,13 +303,6 @@ func (inst *Instance) SetBounds(x, y, w, h int) {
 	copy(oldColWidths, inst.colWidths)
 	inst.colWidths = inst.calculateColumnWidths(availableW)
 
-	// ✨ 调试打印 rowHeights 和 colWidths 计算结果
-	if inst.showCellBorders {
-		fmt.Printf("[DEBUG GRID SETBOUNDS] numRows=%d, cellBorderHeight=%d, availableH=%d, oldRowHeights=%v, newRowHeights=%v\n",
-			numRows, cellBorderHeight, availableH, oldRowHeights, inst.rowHeights)
-		fmt.Printf("[DEBUG GRID SETBOUNDS] numCols=%d, cellBorderWidth=%d, availableW=%d, oldColWidths=%v, newColWidths=%v\n",
-			numCols, cellBorderWidth, availableW, oldColWidths, inst.colWidths)
-	}
 }
 
 // SetChildBounds sets bounds for a specific child.
@@ -456,24 +445,6 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 				inst.columnGap, inst.rowGap,
 			),
 		)
-	}
-
-	// ✨ DEBUG: 打印布局结果
-	if len(inst.rowHeights) > 0 {
-		contentH := 0
-		for _, h := range inst.rowHeights {
-			contentH += h
-		}
-		borderCharsH := 0
-		if inst.showCellBorders {
-			borderCharsH = len(inst.rowHeights) + 1
-		}
-		rowGaps := 0
-		if len(inst.rowHeights) > 1 {
-			rowGaps = inst.rowGap * (len(inst.rowHeights) - 1)
-		}
-		fmt.Printf("[DEBUG GRID MEASURE] numRows=%d, contentH=%d, borderCharsH=%d, rowGaps=%d, totalH=%d\n",
-			len(inst.rowHeights), contentH, borderCharsH, rowGaps, size.Height)
 	}
 
 	// === 追踪集成：记录出口 ===
@@ -691,9 +662,8 @@ func (inst *Instance) calculateRowHeights(availableHeight int, numCols, actualNu
 	// ✨ Third pass: scale Auto rows proportionally if there's remaining space
 	// This allows Auto rows to use available space beyond their measured minimum
 	// ✨ DEBUG
-		log.RenderLogger.Debug("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
-			autoCount, remainingHeight)
-	
+	log.RenderLogger.Debug("[DEBUG SETBOUNDS] Before Third pass: autoCount=%d, remainingHeight=%d\n",
+		autoCount, remainingHeight)
 
 	// ✨ FIX: Auto rows may also need to be scaled down when content > available space
 	// or scaled up when content < available space
@@ -764,35 +734,8 @@ func (inst *Instance) ClearDirty() {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
 func getPaddingProp(props rtui.Props) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -801,7 +744,7 @@ func getPaddingProp(props rtui.Props) [4]int {
 }
 
 func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -810,7 +753,7 @@ func getPaddingPropWithDefault(props rtui.Props, def [4]int) [4]int {
 }
 
 func getAlignContentProp(props rtui.Props) rtui.Align {
-	if v, ok := props["alignContent"]; ok {
+	if v, ok := props[propAlignContent]; ok {
 		if a, ok := v.(rtui.Align); ok {
 			return a
 		}
@@ -819,15 +762,6 @@ func getAlignContentProp(props rtui.Props) rtui.Align {
 }
 
 // ✨ Cell Borders 辅助函数
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
 
 // =============================================================================
 // ✨ GridStyleProvider Interface Implementation
@@ -877,17 +811,17 @@ func (inst *Instance) GetGridStyle() *layout.GridStyle {
 	// 4. 这样可以确保子节点的位置通过 gridLayout.LayoutChildren() 正确计算
 
 	return &layout.GridStyle{
-		Columns:           gridCols,
-		Rows:              gridRows,
-		Cells:             nil, // 不返回 Cells，使用自动布局
-		ColumnGap:         inst.columnGap,
-		RowGap:            inst.rowGap,
-		Padding:           layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},
-		Width:             inst.width,
-		Height:            inst.height,
-		ShowCellBorders:   inst.showCellBorders,
-		CellBorderWidth:   1,
-		CellBorderHeight:  1,
+		Columns:          gridCols,
+		Rows:             gridRows,
+		Cells:            nil, // 不返回 Cells，使用自动布局
+		ColumnGap:        inst.columnGap,
+		RowGap:           inst.rowGap,
+		Padding:          layout.Padding{Top: inst.padding[0], Right: inst.padding[1], Bottom: inst.padding[2], Left: inst.padding[3]},
+		Width:            inst.width,
+		Height:           inst.height,
+		ShowCellBorders:  inst.showCellBorders,
+		CellBorderWidth:  1,
+		CellBorderHeight: 1,
 	}
 }
 
@@ -927,4 +861,3 @@ func sumWithGaps(arr []int, gap int) int {
 	}
 	return total
 }
-

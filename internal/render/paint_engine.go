@@ -3,6 +3,7 @@ package render
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
 	cachepkg "github.com/wwsheng009/mint/internal/render/cache"
@@ -17,12 +18,18 @@ import (
 // PaintEngine renders layout trees using pre-computed layout information
 // This is the paint-only phase of the new rendering pipeline
 type PaintEngine struct {
+	mu                sync.Mutex
 	debug             bool
 	lastHadModal      bool                                // Track if modal was present in last frame (for backdrop restoration)
 	forceFullRender   bool                                // Flag to force full buffer render on next frame
 	parentBackground  map[*paint.PaintableBox]style.Color // Track parent background for inheritance
 	lastLayersPresent map[rtui.Layer]bool                 // Track which layers were present in last frame
 	lastLayerBounds   map[rtui.Layer]runtime.Box          // Track last bounds of each layer for cleanup
+
+	// Frame-to-frame tracking for smart buffer clearing
+	// These track individual PaintableBox positions to detect and clear outdated regions
+	previousFrameBoxes map[string]runtime.Box // key: box.Node.ID(), value: box bounds
+	currentFrameBoxes  map[string]runtime.Box // key: box.Node.ID(), value: box bounds (being rendered)
 
 	// Performance optimization: Paint cache
 	cache        *cachepkg.PaintCache      // Cache for rendered paintable boxes
@@ -34,11 +41,13 @@ type PaintEngine struct {
 // NewPaintEngine creates a new paint engine
 func NewPaintEngine() *PaintEngine {
 	return &PaintEngine{
-		debug:             log.PaintLogger.Enabled(),
-		lastLayersPresent: make(map[rtui.Layer]bool),
-		lastLayerBounds:   make(map[rtui.Layer]runtime.Box),
-		enableCache:       true,
-		version:           0,
+		debug:              log.PaintLogger.Enabled(),
+		lastLayersPresent:  make(map[rtui.Layer]bool),
+		lastLayerBounds:    make(map[rtui.Layer]runtime.Box),
+		previousFrameBoxes: make(map[string]runtime.Box),
+		currentFrameBoxes:  make(map[string]runtime.Box),
+		enableCache:        true,
+		version:            0,
 	}
 }
 
@@ -90,7 +99,29 @@ func (e *PaintEngine) SetDebug(debug bool) {
 // PaintLayout renders a PaintableLayout to a buffer.
 // This is the new decoupled API that operates on paint.PaintableLayout.
 func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.Buffer) error {
+	return e.paintLayout(layout, buffer, true)
+}
+
+// paintLayout renders one paintable layout.
+// clearOnEmptyRoot should only be true for top-level/full-frame calls.
+// When painting individual boxes (e.g. PaintPaintablePlanes), a zero-sized box
+// must not clear the entire target buffer.
+func (e *PaintEngine) paintLayout(layout *paint.PaintableLayout, buffer *paint.Buffer, clearOnEmptyRoot bool) error {
 	if layout == nil || layout.Root == nil {
+		return nil
+	}
+
+	// Empty/zero-sized roots can represent "no content" for top-level layout calls.
+	// But they may also intentionally rely on custom Paint() commands (for example,
+	// overlay/tooltip helpers that paint outside their measured layout box). Do not
+	// return early here; let paintBox decide whether the node actually emits content.
+	if layout.Root.Width <= 0 || layout.Root.Height <= 0 {
+		if clearOnEmptyRoot && len(layout.Root.Children) == 0 {
+			buffer.Clear()
+		}
+	}
+
+	if buffer == nil {
 		return nil
 	}
 
@@ -101,7 +132,10 @@ func (e *PaintEngine) PaintLayout(layout *paint.PaintableLayout, buffer *paint.B
 		if e.paintContext == nil {
 			e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
 		}
-		e.paintContext.UpdateBufferCopy(buffer)
+		// e.paintContext.UpdateBufferCopy(buffer)
+		// REMOVED: This buffer copy was causing 33% CPU overhead (cloneBuffer).
+		// The system already uses DirtyTracker for diff tracking (runtime/paint/dirty.go).
+		// See DIFF_REDUNDANCY_ANALYSIS.md for details.
 	}
 
 	// Clear parent background map at the start of each frame
@@ -132,6 +166,10 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 	log.PaintLogger.Debug("[Paint.paintBox] paint element: [%s]%s at (%d,%d) size %dx%d",
 		box.Node.ID(), box.Node.Tag(), box.X, box.Y, box.Width, box.Height)
 
+	if viewportSetter, ok := box.Node.(interface{ SetViewportSize(width, height int) }); ok {
+		viewportSetter.SetViewportSize(buffer.Width, buffer.Height)
+	}
+
 	// IMPORTANT: Set bounds before Paint (Fiber-first architecture)
 	// This allows Instance to access layout-computed dimensions
 	if boundsSetter, ok := box.Node.(interface{ SetBounds(x, y, w, h int) }); ok {
@@ -140,14 +178,14 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 
 	// Check cache first (for leaf nodes without custom paint commands)
 	// Skip caching for nodes with dynamic content (like text inputs, animations)
-	boxID := box.Node.ID()
-	if e.enableCache && e.paintContext != nil && boxID != "" {
+	cacheKey := e.boxCacheKey(box)
+	if e.enableCache && e.paintContext != nil && cacheKey != "" {
 		// Only try caching for nodes that are likely cacheable (simple layout nodes)
 		// Skip nodes with custom paint commands, children, or dynamic content
 		hasCustomPaint := box.Node.Paint(box.X, box.Y)
 		if len(box.Children) == 0 && len(hasCustomPaint) == 0 {
 			// Try to paint from cache
-			if e.paintContext.TryPaintFromCache(buffer, boxID, box.X, box.Y) {
+			if e.paintContext.TryPaintFromCache(buffer, cacheKey, box.X, box.Y) {
 				return nil // Successfully painted from cache
 			}
 		}
@@ -177,9 +215,9 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 		// For leaf nodes (no children), we're done
 		if len(box.Children) == 0 {
 			// Update cache for leaf nodes with custom paint
-			if e.enableCache && e.paintContext != nil && boxID != "" {
+			if e.enableCache && e.paintContext != nil && cacheKey != "" {
 				rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-				e.paintContext.UpdateCache(boxID, rect, buffer)
+				e.paintContext.UpdateCache(cacheKey, rect, buffer)
 			}
 			return nil
 		}
@@ -217,38 +255,38 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 
 // paintTextBox paints a text node (PaintableBox version)
 func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer) {
-	boxID := box.Node.ID()
+	cacheKey := e.boxCacheKey(box)
 	text := box.RenderedText
 	if text == "" {
 		text = box.Node.TextContent()
 	}
 	if text != "" {
-		// Use box.Width as the max width (relative), not absolute maxX
-		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.Width)
+		// SetStringAligned expects an absolute maxX; clip text to box bounds.
+		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for text box (if cacheable)
-		if e.enableCache && e.paintContext != nil && boxID != "" {
+		if e.enableCache && e.paintContext != nil && cacheKey != "" {
 			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-			e.paintContext.UpdateCache(boxID, rect, buffer)
+			e.paintContext.UpdateCache(cacheKey, rect, buffer)
 		}
 	}
 }
 
 // paintElementBox paints an element node (PaintableBox version)
 func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buffer) {
-	boxID := box.Node.ID()
+	cacheKey := e.boxCacheKey(box)
 	content := box.RenderedText
 	if content == "" {
 		content = box.Node.TextContent()
 	}
 	if content != "" {
-		// Use box.Width as the max width (relative), not absolute maxX
-		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.Width)
+		// SetStringAligned expects an absolute maxX; clip text to box bounds.
+		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for element with content (if cacheable)
-		if e.enableCache && e.paintContext != nil && boxID != "" {
+		if e.enableCache && e.paintContext != nil && cacheKey != "" {
 			rect := layout.Rect{X: box.X, Y: box.Y, Width: box.Width, Height: box.Height}
-			e.paintContext.UpdateCache(boxID, rect, buffer)
+			e.paintContext.UpdateCache(cacheKey, rect, buffer)
 		}
 		return
 	}
@@ -333,7 +371,7 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 
 	for _, childBox := range box.Children {
 		if err := e.paintBox(childBox, buffer); err != nil && e.debug {
-			log.PaintLogger.Debug("[paintBorderedBox] error: %v", err)
+			log.PaintLogger.IfEnabled().Debug("[paintBorderedBox] error: %v", err)
 		}
 	}
 }
@@ -414,6 +452,77 @@ func (e *PaintEngine) paintModalBackdropBox(root *paint.PaintableBox, buffer *pa
 	dimRegion(rightX, modalY, width, modalY+modalHeight)
 }
 
+func (e *PaintEngine) findBackdropModalBox(root *paint.PaintableBox) *paint.PaintableBox {
+	if root == nil {
+		return nil
+	}
+
+	var best *paint.PaintableBox
+	var walk func(box *paint.PaintableBox)
+	walk = func(box *paint.PaintableBox) {
+		if box == nil {
+			return
+		}
+		if e.isBackdropTargetBox(box) {
+			if best == nil || box.ZIndex > best.ZIndex || (box.ZIndex == best.ZIndex && box.Width*box.Height > best.Width*best.Height) {
+				best = box
+			}
+		}
+		for _, child := range box.Children {
+			walk(child)
+		}
+	}
+
+	walk(root)
+	return best
+}
+
+func (e *PaintEngine) findBackdropModalBoxInLayer(boxes []*paint.PaintableBox) *paint.PaintableBox {
+	var best *paint.PaintableBox
+	for _, box := range boxes {
+		if !e.isBackdropTargetBox(box) {
+			continue
+		}
+		if best == nil || box.ZIndex > best.ZIndex || (box.ZIndex == best.ZIndex && box.Width*box.Height > best.Width*best.Height) {
+			best = box
+		}
+	}
+	return best
+}
+
+func (e *PaintEngine) isBackdropTargetBox(box *paint.PaintableBox) bool {
+	if box == nil || box.Node == nil {
+		return false
+	}
+	if box.Width <= 0 || box.Height <= 0 {
+		return false
+	}
+	return !e.isPortalRootBox(box)
+}
+
+func (e *PaintEngine) isPortalRootBox(box *paint.PaintableBox) bool {
+	if box == nil || box.Node == nil {
+		return false
+	}
+
+	switch node := box.Node.(type) {
+	case *FiberPaintableNode:
+		return hasPortalRootID(node.fiber.Props)
+	case *VNodePaintableNode:
+		return hasPortalRootID(node.vnode.Props())
+	default:
+		return false
+	}
+}
+
+func hasPortalRootID(props rtui.Props) bool {
+	if props == nil {
+		return false
+	}
+	portalRootID, ok := props["portalRootId"].(string)
+	return ok && portalRootID != ""
+}
+
 // Fill fills a rectangular region of the buffer with a specific character and style
 func (e *PaintEngine) Fill(buffer *paint.Buffer, bounds runtime.Box, ch rune, s style.Style) {
 	if bounds.Width <= 0 || bounds.Height <= 0 {
@@ -455,7 +564,11 @@ func (e *PaintEngine) PaintPaintableLayouts(
 	layouts paint.PaintableLayouts,
 	buffer *paint.Buffer,
 ) error {
-	_, hasModal := layouts[paint.RenderLayerModal]
+	var modalBackdropBox *paint.PaintableBox
+	if modalLayout, ok := layouts[paint.RenderLayerModal]; ok {
+		modalBackdropBox = e.findBackdropModalBox(modalLayout.Root)
+	}
+	hasModal := modalBackdropBox != nil
 	hadModal := e.lastHadModal
 
 	if hasModal != hadModal {
@@ -475,19 +588,25 @@ func (e *PaintEngine) PaintPaintableLayouts(
 		hasLayer := false
 		var currentBounds runtime.Box = runtime.Box{}
 		if layout, ok := layouts[l]; ok && layout.Root != nil {
-			hasLayer = true
-			currentBounds = runtime.Box{
-				X:      layout.Root.X,
-				Y:      layout.Root.Y,
-				Width:  layout.Root.Width,
-				Height: layout.Root.Height,
+			target := layout.Root
+			if l == paint.RenderLayerModal {
+				target = modalBackdropBox
+			}
+			if target != nil {
+				hasLayer = true
+				currentBounds = runtime.Box{
+					X:      target.X,
+					Y:      target.Y,
+					Width:  target.Width,
+					Height: target.Height,
+				}
 			}
 		}
 		hadLayer := e.lastLayersPresent[rtui.Layer(l)]
 		prevBounds := e.lastLayerBounds[rtui.Layer(l)]
 
 		if hadLayer && !hasLayer {
-			log.PaintLogger.Debug("[PaintPaintableLayouts] Layer %s disappeared, clearing region", l.String())
+			log.PaintLogger.IfEnabled().Debug("[PaintPaintableLayouts] Layer %s disappeared, clearing region", l.String())
 			e.clearRegion(prevBounds, buffer)
 			e.forceFullRender = true
 		}
@@ -511,15 +630,15 @@ func (e *PaintEngine) PaintPaintableLayouts(
 		}
 
 		if e.debug {
-			log.PaintLogger.Debug("[PaintPaintableLayouts] Rendering layer: %s", l.String())
+			log.PaintLogger.IfEnabled().Debug("[PaintPaintableLayouts] Rendering layer: %s", l.String())
 		}
 
 		if err := e.PaintLayout(layout, buffer); err != nil {
 			return fmt.Errorf("error painting layer %s: %w", l.String(), err)
 		}
 
-		if l == paint.RenderLayerModal {
-			e.paintModalBackdropBox(layout.Root, buffer)
+		if l == paint.RenderLayerModal && modalBackdropBox != nil {
+			e.paintModalBackdropBox(modalBackdropBox, buffer)
 		}
 	}
 
@@ -532,34 +651,131 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	planes *paint.PaintablePlanes,
 	buffer *paint.Buffer,
 ) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	if planes == nil {
 		return nil
 	}
 
-	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
+	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
 
+	modalBackdropBox := e.findBackdropModalBoxInLayer(planes.GetLayer(paint.RenderLayerModal))
+	hasModal := modalBackdropBox != nil
+	hadModal := e.lastHadModal
+	if hasModal != hadModal {
+		e.forceFullRender = true
+	}
+	e.lastHadModal = hasModal
+
+	// Phase 1: Collect all boxes in current frame for tracking
+	e.currentFrameBoxes = make(map[string]runtime.Box)
+	for _, layer := range planes.GetRenderOrder() {
+		boxes := planes.GetLayer(layer)
+		for _, box := range boxes {
+			e.collectFrameBoxes(box)
+		}
+	}
+
+	// Phase 2: Clear outdated painted regions (smart buffer clearing)
+	e.clearOutdatedRegions(buffer)
+
+	// Phase 3: Paint all boxes in current frame
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
 		if len(boxes) == 0 {
 			continue
 		}
 
-		log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
+		log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
 
 		for _, box := range boxes {
 			layout := paint.NewPaintableLayout(box)
-			if err := e.PaintLayout(layout, buffer); err != nil {
+			// Per-box render: never allow a zero-sized child to clear the full buffer.
+			if err := e.paintLayout(layout, buffer, false); err != nil {
 				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
 			}
 		}
 
-		if layer == paint.RenderLayerModal && len(boxes) > 0 {
-			e.paintModalBackdropBox(boxes[0], buffer)
+		if layer == paint.RenderLayerModal && modalBackdropBox != nil {
+			e.paintModalBackdropBox(modalBackdropBox, buffer)
 		}
 	}
 
-	log.PaintLogger.Debug("[PaintEngine.PaintPaintablePlanes] END")
+	// Phase 4: Update tracking maps for next frame
+	e.previousFrameBoxes = e.currentFrameBoxes
+	e.currentFrameBoxes = make(map[string]runtime.Box) // Reset for next frame
+
+	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil
+}
+
+// clearOutdatedRegions smartly clears regions that need refreshing
+// It compares previous frame boxes with current frame boxes and clears:
+// - Boxes that were in previous frame but are gone now
+// - Boxes that have moved to different positions
+func (e *PaintEngine) clearOutdatedRegions(buffer *paint.Buffer) {
+	// Check each box from previous frame
+	for id, prevBounds := range e.previousFrameBoxes {
+		currentBounds, exists := e.currentFrameBoxes[id]
+
+		if !exists {
+			// Case 1: Box removed - clear its previous region
+			log.PaintLogger.IfEnabled().Debug("[clearOutdatedRegions] Box %s removed, clearing %v", id, prevBounds)
+			e.clearRegion(prevBounds, buffer)
+		} else if prevBounds != currentBounds {
+			// Case 2: Box moved - clear both old and new positions
+			log.PaintLogger.IfEnabled().Debug("[clearOutdatedRegions] Box %s moved from %v to %v",
+				id, prevBounds, currentBounds)
+			e.clearRegion(prevBounds, buffer) // Clear old position
+		}
+	}
+}
+
+func (e *PaintEngine) collectFrameBoxes(box *paint.PaintableBox) {
+	if box == nil {
+		return
+	}
+	key := e.boxTrackingKey(box)
+	if key != "" {
+		e.currentFrameBoxes[key] = runtime.Box{
+			X:      box.X,
+			Y:      box.Y,
+			Width:  box.Width,
+			Height: box.Height,
+		}
+	}
+	for _, child := range box.Children {
+		e.collectFrameBoxes(child)
+	}
+}
+
+func (e *PaintEngine) boxTrackingKey(box *paint.PaintableBox) string {
+	if box == nil || box.Node == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s@%d,%d,%d,%d", box.Node.ID(), box.X, box.Y, box.Width, box.Height)
+}
+
+func (e *PaintEngine) boxCacheKey(box *paint.PaintableBox) string {
+	if box == nil || box.Node == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s@%d,%d,%d,%d", box.Node.ID(), box.X, box.Y, box.Width, box.Height)
+}
+
+// PrintBoxTrackingLogs prints current and previous frame box tracking for debugging
+func (e *PaintEngine) PrintBoxTrackingLogs() {
+	log.PaintLogger.IfEnabled().Debug("=== Frame Box Tracking ===")
+	log.PaintLogger.IfEnabled().Debug("Previous frame boxes:")
+	for id, bounds := range e.previousFrameBoxes {
+		log.PaintLogger.IfEnabled().Debug("  %s: %v", id, bounds)
+	}
+	log.PaintLogger.IfEnabled().Debug("Current frame boxes:")
+	for id, bounds := range e.currentFrameBoxes {
+		log.PaintLogger.IfEnabled().Debug("  %s: %v", id, bounds)
+	}
+	log.PaintLogger.IfEnabled().Debug("=========================")
 }
 
 // =============================================================================

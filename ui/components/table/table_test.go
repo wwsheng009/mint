@@ -1,9 +1,14 @@
 package table
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -145,7 +150,7 @@ func TestInstance_Measure(t *testing.T) {
 	})
 
 	size := inst.Measure(layout.Constraints{})
-	
+
 	// Expected: 2 chars (ID) + 3 spaces (" | ") + 4 chars (Name) = 9 width
 	// Height: header(1) + separator(1) + 2 rows = 4
 	if size.Width == 0 {
@@ -169,6 +174,49 @@ func TestInstance_MeasureWithGap(t *testing.T) {
 	size := inst.Measure(layout.Constraints{})
 	if size.Height != 5 { // 1 header + 1 separator + 2 gap + 1 row
 		t.Errorf("Expected height 5 with gap=2, got %d", size.Height)
+	}
+}
+
+func TestInstance_CalculateColumnWidths_RespectsPercentAndBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", WidthPercent: 50, MinWidth: 6},
+			{Title: "Name", WidthPercent: 25, MinWidth: 4, MaxWidth: 5},
+			{Title: "Role", Width: 4},
+		},
+		"rows": [][]string{
+			{"1", "Alice", "Admin"},
+			{"2", "Bob", "User"},
+		},
+	})
+
+	widths, contentWidth := inst.calculateColumnWidths(inst.filteredSortedRows(), 25)
+	if !equalInts(widths, []int{9, 4, 4}) {
+		t.Fatalf("widths = %#v, want [9 4 4]", widths)
+	}
+	if contentWidth != 23 {
+		t.Fatalf("contentWidth = %d, want 23", contentWidth)
+	}
+}
+
+func TestInstance_CalculateColumnWidths_ExpandsAutoColumnsIntoRemainingSpace(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name"},
+			{Title: "Role"},
+		},
+		"rows": [][]string{
+			{"1", "Al", "QA"},
+		},
+	})
+
+	widths, contentWidth := inst.calculateColumnWidths(inst.filteredSortedRows(), 24)
+	if !equalInts(widths, []int{4, 7, 7}) {
+		t.Fatalf("widths = %#v, want [4 7 7]", widths)
+	}
+	if contentWidth != 24 {
+		t.Fatalf("contentWidth = %d, want 24", contentWidth)
 	}
 }
 
@@ -211,6 +259,66 @@ func TestInstance_PaintEmpty(t *testing.T) {
 	cmds := inst.Paint(0, 0)
 	if cmds != nil {
 		t.Error("Paint() with no columns should return nil")
+	}
+}
+
+func TestInstance_Paint_UsesWidthStrategyWithinBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", WidthPercent: 50},
+			{Title: "Name", WidthPercent: 50},
+		},
+		"rows":          [][]string{{"10", "Alice"}, {"20", "Bob"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 25, 4)
+
+	cmds := inst.Paint(0, 0)
+	header := textAtY(cmds, 0)
+	row := textAtY(cmds, 2)
+
+	if got := paint.StringWidth(header); got != 25 {
+		t.Fatalf("header width = %d, want 25", got)
+	}
+	if got := paint.StringWidth(row); got != 25 {
+		t.Fatalf("row width = %d, want 25", got)
+	}
+	if !strings.Contains(row, "Alice") {
+		t.Fatalf("row = %q, want Alice within constrained width strategy", row)
+	}
+}
+
+func TestInstance_Paint_FixedColumnsRemainVisibleAcrossHorizontalScroll(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4, FixedLeft: true},
+			{Title: "Name", Width: 6},
+			{Title: "Role", Width: 6},
+			{Title: "Region", Width: 6},
+			{Title: "Status", Width: 6, FixedRight: true},
+		},
+		"rows":          [][]string{{"1", "Alice", "Admin", "Tokyo", "Ready"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 24, 4)
+
+	initial := textAtY(inst.Paint(0, 0), 2)
+	if !strings.Contains(initial, "1") || !strings.Contains(initial, "Ready") {
+		t.Fatalf("initial row = %q, want fixed edge cells visible", initial)
+	}
+	if !strings.Contains(initial, "Alice") {
+		t.Fatalf("initial row = %q, want left-side center content before scroll", initial)
+	}
+
+	inst.horizontalOffset = 8
+	scrolled := textAtY(inst.Paint(0, 0), 2)
+	if !strings.Contains(scrolled, "1") || !strings.Contains(scrolled, "Ready") {
+		t.Fatalf("scrolled row = %q, want fixed edge cells still visible", scrolled)
+	}
+	if strings.Contains(scrolled, "Alice") {
+		t.Fatalf("scrolled row = %q, want center viewport to move off Alice", scrolled)
 	}
 }
 
@@ -304,4 +412,823 @@ func TestColumnsEqual_DifferentLength(t *testing.T) {
 	if columnsEqual(cols1, cols2) {
 		t.Error("Expected unequal columns with different length")
 	}
+}
+
+func TestColumnsEqual_WidthStrategyFields(t *testing.T) {
+	cols1 := []TableColumn{{Title: "A", WidthPercent: 50, MinWidth: 4, MaxWidth: 10}}
+	cols2 := []TableColumn{{Title: "A", WidthPercent: 50, MinWidth: 4, MaxWidth: 10}}
+	cols3 := []TableColumn{{Title: "A", WidthPercent: 60, MinWidth: 4, MaxWidth: 10}}
+
+	if !columnsEqual(cols1, cols2) {
+		t.Fatal("expected columns with same width strategy to be equal")
+	}
+	if columnsEqual(cols1, cols3) {
+		t.Fatal("expected columns with different width strategy to differ")
+	}
+}
+
+func TestColumnsEqual_FixedColumnFlags(t *testing.T) {
+	cols1 := []TableColumn{{Title: "ID", FixedLeft: true}, {Title: "Status", FixedRight: true}}
+	cols2 := []TableColumn{{Title: "ID", FixedLeft: true}, {Title: "Status", FixedRight: true}}
+	cols3 := []TableColumn{{Title: "ID", FixedLeft: false}, {Title: "Status", FixedRight: true}}
+
+	if !columnsEqual(cols1, cols2) {
+		t.Fatal("expected fixed column flags to match")
+	}
+	if columnsEqual(cols1, cols3) {
+		t.Fatal("expected differing fixed flags to be unequal")
+	}
+}
+
+func TestInstance_PaintAppliesSearchFilterAndFooter(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4, Sortable: true},
+		{Title: "Name", Width: 10, Sortable: true},
+		{Title: "Role", Width: 8},
+	}
+	rows := [][]string{
+		{"2", "Bob", "Admin"},
+		{"1", "Alice", "User"},
+		{"3", "Alex", "Admin"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":        cols,
+		"rows":           rows,
+		"searchQuery":    "al",
+		"filters":        map[int]string{2: "admin"},
+		"sortColumn":     0,
+		"sortDescending": false,
+		"showFooter":     true,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 0); !strings.Contains(got, "ID ↑") {
+		t.Fatalf("header = %q, want sort marker", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "3") || !strings.Contains(got, "Alex") {
+		t.Fatalf("first row = %q, want filtered/sorted Alex row", got)
+	}
+	if got := textAtY(cmds, 4); !strings.Contains(got, "Rows 1/3") || !strings.Contains(got, "Search \"al\"") || !strings.Contains(got, "Filters 1") {
+		t.Fatalf("footer = %q, want search/filter summary", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickSortableHeaderTogglesSort(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4},
+		{Title: "Name", Width: 8, Sortable: true},
+	}
+	rows := [][]string{
+		{"2", "Bob"},
+		{"1", "Alice"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":    cols,
+		"rows":       rows,
+		"showBorder": true,
+	})
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 10
+	mouseMsg.LocalY = 1
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected header click to be handled")
+	}
+	if inst.sortColumn != 1 || inst.sortDescending {
+		t.Fatalf("sort state = (%d,%v), want column 1 ascending", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "Alice") {
+		t.Fatalf("first sorted row = %q, want Alice", got)
+	}
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected second header click to be handled")
+	}
+	if inst.sortColumn != 1 || !inst.sortDescending {
+		t.Fatalf("sort state = (%d,%v), want column 1 descending", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "Bob") {
+		t.Fatalf("first sorted row after toggle = %q, want Bob", got)
+	}
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected third header click to be handled")
+	}
+	if inst.sortColumn != -1 || inst.sortDescending {
+		t.Fatalf("sort state after third click = (%d,%v), want (-1,false)", inst.sortColumn, inst.sortDescending)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "2") || !strings.Contains(got, "Bob") {
+		t.Fatalf("first row after clearing sort = %q, want original Bob row", got)
+	}
+}
+
+func TestInstance_HandleAction_PageNavigation(t *testing.T) {
+	cols := []TableColumn{
+		{Title: "ID", Width: 4},
+		{Title: "Name", Width: 8},
+	}
+	rows := [][]string{
+		{"1", "Alice"},
+		{"2", "Bob"},
+		{"3", "Carol"},
+		{"4", "Dave"},
+	}
+
+	inst := NewInstance(rtui.Props{
+		"columns":  cols,
+		"rows":     rows,
+		"pageSize": 2,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	if inst.currentPage != 1 {
+		t.Fatalf("currentPage = %d, want 1", inst.currentPage)
+	}
+	if inst.selectedIndex != 2 {
+		t.Fatalf("selectedIndex = %d, want 2", inst.selectedIndex)
+	}
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first row on page 2 = %q, want Carol", got)
+	}
+}
+
+func TestBuilder_FluentEnhancements(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "ID", Sortable: true}}).
+		ComponentID("orders.table").
+		SearchQuery("alice").
+		Filter(0, "1").
+		PageSize(5).
+		CurrentPage(1).
+		SortBy(0, true).
+		CheckedIndices(1, 4).
+		MultiSelect().
+		ShowBorder(true).
+		ShowFooter(true).
+		ShowScrollbar(true).
+		BuildVNode()
+
+	if vnode.searchQuery != "alice" {
+		t.Fatalf("searchQuery = %q, want alice", vnode.searchQuery)
+	}
+	if vnode.pageSize != 5 {
+		t.Fatalf("pageSize = %d, want 5", vnode.pageSize)
+	}
+	if vnode.currentPage != 1 || !vnode.currentPageControlled {
+		t.Fatalf("currentPage state = (%d,%v), want (1,true)", vnode.currentPage, vnode.currentPageControlled)
+	}
+	if vnode.sortColumn != 0 || !vnode.sortDescending || !vnode.sortControlled {
+		t.Fatalf("sort state = (%d,%v,%v), want (0,true,true)", vnode.sortColumn, vnode.sortDescending, vnode.sortControlled)
+	}
+	if !vnode.showBorder || !vnode.showFooter {
+		t.Fatal("expected border and footer to be enabled")
+	}
+	if !vnode.showScrollbar {
+		t.Fatal("expected scrollbar to be enabled")
+	}
+	if vnode.componentID != "orders.table" {
+		t.Fatalf("componentID = %q, want orders.table", vnode.componentID)
+	}
+	if vnode.selectionMode != SelectionMultiple {
+		t.Fatalf("selectionMode = %v, want multi", vnode.selectionMode)
+	}
+	if !equalInts(vnode.checkedIndices, []int{1, 4}) {
+		t.Fatalf("checkedIndices = %#v, want [1 4]", vnode.checkedIndices)
+	}
+}
+
+func TestBuilder_ExpandableRows(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "ID"}, {Title: "Name"}}).
+		Rows([][]string{{"1", "Alice"}, {"2", "Bob"}}).
+		ExpandedRow(1, "Bob details").
+		ExpandedIndices(1).
+		ExpandForField(intent.BindField("expanded_rows")).
+		BuildVNode()
+
+	if got := vnode.expandedContent[1]; got != "Bob details" {
+		t.Fatalf("expandedContent[1] = %q, want %q", got, "Bob details")
+	}
+	if !equalInts(vnode.expandedIndices, []int{1}) {
+		t.Fatalf("expandedIndices = %#v, want [1]", vnode.expandedIndices)
+	}
+	if vnode.expandIntentField == nil || vnode.expandIntentField.GetField() != "expanded_rows" {
+		t.Fatalf("expandIntentField = %#v, want expanded_rows binding", vnode.expandIntentField)
+	}
+}
+
+func TestBuilder_TreeParents(t *testing.T) {
+	vnode := NewBuilder().
+		Columns([]TableColumn{{Title: "Name"}}).
+		Rows([][]string{{"Root"}, {"Child"}}).
+		TreeParent(1, 0).
+		BuildVNode()
+
+	if parent, ok := vnode.treeParents[1]; !ok || parent != 0 {
+		t.Fatalf("treeParents[1] = %d, exists=%t, want 0,true", parent, ok)
+	}
+}
+
+func TestInstance_HandleAction_SelectEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":      []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":         [][]string{{"10", "Alice"}, {"20", "Bob"}},
+		"changeIntent": intent.BindField("selected_row"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	fieldChange, ok := emitted[0].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want FieldChangeIntent", emitted[0])
+	}
+	if fieldChange.Field != "selected_row" || fieldChange.Value != "0" {
+		t.Fatalf("field change = %#v, want selected_row=0", fieldChange)
+	}
+}
+
+func TestInstance_EmitStateChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID": "orders.table",
+		"columns":     []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":        [][]string{{"10", "Alice"}, {"20", "Bob"}},
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.ComponentID != "orders.table" || change.SelectedSourceIndex != 0 || change.PageCount != 1 || change.FilteredRows != 2 || change.TotalRows != 2 {
+		t.Fatalf("state change = %#v, want componentID orders.table, source index 0, pageCount 1, filteredRows 2, totalRows 2", change)
+	}
+}
+
+func TestInstance_HandleAction_PageNavigationControlledEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.CurrentPage != 1 || change.PageCount != 2 || change.VisibleRows != 2 {
+		t.Fatalf("state change = %#v, want page=1 pageCount=2 visibleRows=2", change)
+	}
+}
+
+func TestInstance_HandleAction_SelectAcrossControlledPageEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+		"selectedIndex":         1,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.CurrentPage != 1 || change.SelectedIndex != 2 || change.SelectedSourceIndex != 2 {
+		t.Fatalf("state change = %#v, want currentPage=1 selectedIndex=2 selectedSourceIndex=2", change)
+	}
+}
+
+func TestInstance_HandleAction_ControlledSortEmitsStateChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":    "orders.table",
+		"columns":        []TableColumn{{Title: "ID", Width: 4, Sortable: true}, {Title: "Name", Width: 8, Sortable: true}},
+		"rows":           [][]string{{"2", "Bob"}, {"1", "Alice"}},
+		"sortColumn":     -1,
+		"sortDescending": false,
+		"sortControlled": true,
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 1
+	mouseMsg.LocalY = 0
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected header click to be handled")
+	}
+	if len(emitted) != 1 {
+		t.Fatalf("emitted len = %d, want 1", len(emitted))
+	}
+	change, ok := emitted[0].(StateChangeIntent)
+	if !ok {
+		t.Fatalf("emitted intent = %T, want StateChangeIntent", emitted[0])
+	}
+	if change.SortColumn != 0 || change.SortDescending {
+		t.Fatalf("state change = %#v, want sort column 0 ascending", change)
+	}
+
+	inst.SetProps(rtui.Props{
+		"componentID":    "orders.table",
+		"columns":        []TableColumn{{Title: "ID", Width: 4, Sortable: true}, {Title: "Name", Width: 8, Sortable: true}},
+		"rows":           [][]string{{"2", "Bob"}, {"1", "Alice"}},
+		"sortColumn":     -1,
+		"sortDescending": false,
+		"sortControlled": true,
+	})
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "1") || !strings.Contains(got, "Alice") {
+		t.Fatalf("first row after stale controlled props = %q, want pending sorted Alice row", got)
+	}
+}
+
+func TestInstance_HandleAction_ControlledPagePendingSurvivesStaleProps(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	inst.SetProps(rtui.Props{
+		"componentID":           "orders.table",
+		"columns":               []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":                  [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":              2,
+		"currentPage":           0,
+		"currentPageControlled": true,
+	})
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first row after stale page props = %q, want pending page 2 Carol row", got)
+	}
+}
+
+func TestInstance_PaintHonorsColumnAlignment(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Qty", Width: 5, Align: rtui.AlignEnd},
+			{Title: "Name", Width: 8, Align: rtui.AlignCenter},
+		},
+		"rows": [][]string{{"12", "Bolt"}},
+	})
+
+	row := textAtY(inst.Paint(0, 0), 2)
+	if !strings.HasPrefix(row, "   12") {
+		t.Fatalf("row = %q, want right-aligned quantity", row)
+	}
+	if !strings.Contains(row, "  Bolt  ") {
+		t.Fatalf("row = %q, want centered name cell", row)
+	}
+}
+
+func TestInstance_PaintShowsScrollbarWhenPaginated(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":       []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":          [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":      2,
+		"showScrollbar": true,
+	})
+
+	cmds := inst.Paint(0, 0)
+	hasThumb := false
+	hasRail := false
+	for _, cmd := range cmds {
+		if cmd.Text == "█" {
+			hasThumb = true
+		}
+		if cmd.Text == "│" {
+			hasRail = true
+		}
+	}
+	if !hasThumb || !hasRail {
+		t.Fatalf("scrollbar cmds missing, thumb=%t rail=%t", hasThumb, hasRail)
+	}
+}
+
+func TestInstance_PaintShowsCheckboxMarkers(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}},
+		"selectionMode":  SelectionMultiple,
+		"checkedIndices": []int{1},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 0); !strings.Contains(got, "[-]") {
+		t.Fatalf("header = %q, want tri-state header marker", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 2); !strings.Contains(got, "[ ]") {
+		t.Fatalf("row 0 = %q, want unchecked marker", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, "[x]") {
+		t.Fatalf("row 1 = %q, want checked marker", got)
+	}
+}
+
+func TestInstance_PaintShowsFilterRowWhenColumnFiltersActive(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Service", Width: 12},
+			{Title: "Region", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "gateway", "us-east"},
+			{"2", "billing", "eu-west"},
+		},
+		"filters": map[int]string{
+			1: "gate",
+			2: "us",
+		},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 1); !strings.Contains(got, "~gate") || !strings.Contains(got, "~us") {
+		t.Fatalf("filter row = %q, want active filter values", got)
+	}
+}
+
+func TestInstance_PaintShowsExpandedRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent": map[int]string{
+			1: "Bob detail line",
+		},
+		"expandedIndices": []int{1},
+	})
+
+	if got := textAtY(inst.Paint(0, 0), 3); !strings.Contains(got, ">") && !strings.Contains(got, "v") {
+		t.Fatalf("row line = %q, want expand marker column", got)
+	}
+	if got := textAtY(inst.Paint(0, 0), 4); !strings.Contains(got, "Bob detail line") {
+		t.Fatalf("expanded line = %q, want detail content", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickExpandCellTogglesExpandedRowAndEmitsFieldChange(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent":   map[int]string{0: "Alice detail"},
+		"expandIntentField": intent.BindField("expanded_rows"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 0
+	mouseMsg.LocalY = 2
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected expand cell click to be handled")
+	}
+	if !equalInts(inst.expandedIndices, []int{0}) {
+		t.Fatalf("expandedIndices = %#v, want [0]", inst.expandedIndices)
+	}
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		if fieldChange.Field == "expanded_rows" && fieldChange.Value == "0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("emitted intents = %#v, want expanded_rows=0 field change", emitted)
+	}
+}
+
+func TestInstance_HandleAction_ScrollRightMovesHorizontalViewportForFixedColumns(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4, FixedLeft: true},
+			{Title: "Name", Width: 6},
+			{Title: "Role", Width: 6},
+			{Title: "Region", Width: 6},
+			{Title: "Status", Width: 6, FixedRight: true},
+		},
+		"rows":          [][]string{{"1", "Alice", "Admin", "Tokyo", "Ready"}},
+		"showFooter":    false,
+		"showScrollbar": false,
+	})
+	inst.SetBounds(0, 0, 24, 4)
+
+	before := textAtY(inst.Paint(0, 0), 2)
+	if !inst.HandleAction(action.NewAction(action.ActionScrollRight)) {
+		t.Fatal("expected horizontal scroll right to be handled")
+	}
+	if inst.horizontalOffset <= 0 {
+		t.Fatalf("horizontalOffset = %d, want > 0", inst.horizontalOffset)
+	}
+	after := textAtY(inst.Paint(0, 0), 2)
+	if before == after {
+		t.Fatalf("row before/after scroll should differ, got %q", after)
+	}
+	if !strings.Contains(after, "1") || !strings.Contains(after, "Ready") {
+		t.Fatalf("row after scroll = %q, want fixed columns preserved", after)
+	}
+}
+
+func TestInstance_HandleAction_EnterTogglesExpandedSelectedRow(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+		},
+		"expandedContent": map[int]string{1: "Bob detail"},
+		"selectedIndex":   1,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("expected enter to be handled")
+	}
+	if !equalInts(inst.expandedIndices, []int{1}) {
+		t.Fatalf("expandedIndices = %#v, want [1]", inst.expandedIndices)
+	}
+}
+
+func TestInstance_PaintExpandedRowsRespectsPagination(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "ID", Width: 4},
+			{Title: "Name", Width: 8},
+		},
+		"rows": [][]string{
+			{"1", "Alice"},
+			{"2", "Bob"},
+			{"3", "Carol"},
+			{"4", "Dave"},
+		},
+		"pageSize":        2,
+		"currentPage":     1,
+		"expandedContent": map[int]string{2: "Carol detail", 0: "Alice detail"},
+		"expandedIndices": []int{0, 2},
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 2); !strings.Contains(got, "3") || !strings.Contains(got, "Carol") {
+		t.Fatalf("first paged row = %q, want Carol row", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "Carol detail") {
+		t.Fatalf("expanded line = %q, want Carol detail on current page", got)
+	}
+	if all := strings.Join(allTexts(cmds), "\n"); strings.Contains(all, "Alice detail") {
+		t.Fatalf("paint output should not contain off-page expanded content, got %q", all)
+	}
+}
+
+func TestInstance_PaintTreeRowsUsesExpandedState(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Name", Width: 12},
+		},
+		"rows": [][]string{
+			{"Root"},
+			{"Child A"},
+			{"Child B"},
+		},
+		"treeParents":     map[int]int{1: 0, 2: 0},
+		"expandedIndices": []int{0},
+	})
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 2); !strings.Contains(got, "v") || !strings.Contains(got, "Root") {
+		t.Fatalf("root row = %q, want expanded marker and root text", got)
+	}
+	if got := textAtY(cmds, 3); !strings.Contains(got, "  Child A") {
+		t.Fatalf("child row = %q, want indented child text", got)
+	}
+	if got := textAtY(cmds, 4); !strings.Contains(got, "  Child B") {
+		t.Fatalf("child row = %q, want second indented child text", got)
+	}
+}
+
+func TestInstance_HandleAction_ClickTreeExpandTogglesChildren(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns": []TableColumn{
+			{Title: "Name", Width: 12},
+		},
+		"rows": [][]string{
+			{"Root"},
+			{"Child"},
+		},
+		"treeParents": map[int]int{1: 0},
+	})
+
+	before := strings.Join(allTexts(inst.Paint(0, 0)), "\n")
+	if strings.Contains(before, "Child") {
+		t.Fatalf("collapsed tree should hide child rows, got %q", before)
+	}
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 0
+	mouseMsg.LocalY = 2
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected tree expand click to be handled")
+	}
+	after := strings.Join(allTexts(inst.Paint(0, 0)), "\n")
+	if !strings.Contains(after, "Child") {
+		t.Fatalf("expanded tree should show child rows, got %q", after)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectEmitsSelectionFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":         []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":            [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode":   SelectionMultiple,
+		"selectionIntent": intent.BindField("checked_rows"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("expected select to be handled")
+	}
+	if len(emitted) == 0 {
+		t.Fatal("expected emitted selection intent")
+	}
+	last, ok := emitted[len(emitted)-1].(intent.FieldChangeIntent)
+	if !ok {
+		t.Fatalf("last emitted intent = %T, want FieldChangeIntent", emitted[len(emitted)-1])
+	}
+	if last.Field != "checked_rows" || last.Value != "0" {
+		t.Fatalf("field change = %#v, want checked_rows=0", last)
+	}
+}
+
+func TestInstance_HandleAction_SingleSelectReplacesCheckedIndices(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode":  SelectionSingle,
+		"checkedIndices": []int{2},
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("expected navigate down to be handled")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionSelect)) {
+		t.Fatal("expected select to be handled")
+	}
+	if !equalInts(inst.checkedIndices, []int{0}) {
+		t.Fatalf("checkedIndices = %#v, want [0]", inst.checkedIndices)
+	}
+}
+
+func TestInstance_HandleAction_ClickSelectionHeaderTogglesAllFilteredRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":       []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":          [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}},
+		"selectionMode": SelectionMultiple,
+	})
+
+	mouseMsg := runtimemsg.NewMouseMsg(0, 0, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouseMsg.LocalX = 1
+	mouseMsg.LocalY = 0
+	act := action.NewAction(action.ActionClick).WithPayload(mouseMsg)
+
+	if !inst.HandleAction(act) {
+		t.Fatal("expected selection header click to be handled")
+	}
+	if !equalInts(inst.checkedIndices, []int{0, 1, 2}) {
+		t.Fatalf("checkedIndices after select all = %#v, want [0 1 2]", inst.checkedIndices)
+	}
+	if !inst.HandleAction(act) {
+		t.Fatal("expected second selection header click to be handled")
+	}
+	if len(inst.checkedIndices) != 0 {
+		t.Fatalf("checkedIndices after clear all = %#v, want []", inst.checkedIndices)
+	}
+}
+
+func TestInstance_HandleAction_ClearClearsCheckedRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":        []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":           [][]string{{"1", "Alice"}, {"2", "Bob"}},
+		"selectionMode":  SelectionMultiple,
+		"checkedIndices": []int{0, 1},
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionClear)) {
+		t.Fatal("expected clear action to be handled")
+	}
+	if len(inst.checkedIndices) != 0 {
+		t.Fatalf("checkedIndices = %#v, want []", inst.checkedIndices)
+	}
+}
+
+func TestInstance_HandleAction_PageNavigationEmitsPageFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"columns":         []TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}},
+		"rows":            [][]string{{"1", "Alice"}, {"2", "Bob"}, {"3", "Carol"}, {"4", "Dave"}},
+		"pageSize":        2,
+		"pageIntentField": intent.BindField("currentPage"),
+	})
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigatePageDown)) {
+		t.Fatal("expected page down to be handled")
+	}
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		if fieldChange.Field == "currentPage" && fieldChange.Value == "1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("emitted intents = %#v, want currentPage=1 field change", emitted)
+	}
+}
+
+func textAtY(cmds []paint.DrawCmd, y int) string {
+	for _, cmd := range cmds {
+		if cmd.Y == y {
+			return cmd.Text
+		}
+	}
+	return ""
+}
+
+func allTexts(cmds []paint.DrawCmd) []string {
+	texts := make([]string, len(cmds))
+	for i, cmd := range cmds {
+		texts[i] = cmd.Text
+	}
+	return texts
 }

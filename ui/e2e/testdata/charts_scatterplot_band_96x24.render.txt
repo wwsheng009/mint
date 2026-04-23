@@ -1,0 +1,13 @@
+Charts ScatterPlot Band Fixture
+ScatterPlot Bands
+● API
+◆ Worker
+░ x: Focus
+░ y: Risk
+  ░░░
+░░▒▒▒░●░◆░░
+░░▒▒◆░░░░░░
+  ●░░
+  ░░░
+───────────
+x:0..10 y:0..10

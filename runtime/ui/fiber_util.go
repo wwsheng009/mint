@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wwsheng009/mint/internal/log"
+	fcontext "github.com/wwsheng009/mint/runtime/context"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 )
@@ -90,12 +91,13 @@ func CreateFiber(vnode VNode) *Fiber {
 		errorBoundaryVNode = n // Store reference for state sync
 	case *MemoVNode:
 		memoCompare = n.GetCompare()
+		componentFunc = func() VNode {
+			return n.Render()
+		}
 	}
 
 	// Debug logging to understand VNode types
-	if log.HitMapLogger.Enabled() {
-		log.HitMapLogger.Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
-	}
+	log.HitMapLogger.IfEnabled().Debug("[CREATEFIBER] Type=%s Key=%s Tag=%s", vnodeType.String(), vnode.Key(), tag)
 
 	// ✨ DiffKey: Copy from VNode.Key() without any modification
 	diffKey := vnode.Key()
@@ -162,20 +164,44 @@ func CreateFiber(vnode VNode) *Fiber {
 		// VNode defines its own instance type
 		instance = factory.CreateInstance()
 
-		// Set IntentEmitter if instance supports it
+		// IntentEmitter routing strategy:
+		// - Global Intent (IsGlobal() = true or not implemented): Send to global Runtime
+		// - Local Intent (IsGlobal() = false): Bubble locally through Parent()
+		//
+		// This design enables:
+		// 1. Backward compatibility: All existing intents default to global
+		// 2. Optional Intent Bubble: Components can use local intents for communication
+		// 3. Clear separation: State management vs component internal logic
+		//
+		// See: docs/ui/mint2/INTENT_ARCHITECTURE_ANALYSIS.md
 		if setter, ok := instance.(interface{ SetIntentEmitter(func(i intent.Intent)) }); ok {
-			setter.SetIntentEmitter(func(intent intent.Intent) {
-				// Emit to global intent runtime
-				if runtime := GetGlobalIntentRuntime(); runtime != nil {
-					result := runtime.Emit(intent)
-					if result.Error != nil {
-						// Log intent emission errors
-						if log.UILogger.Enabled() {
-							log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
-								intent.IntentType(), result.Error)
-						} else {
-							fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
-								intent.IntentType(), result.Error)
+			setter.SetIntentEmitter(func(i intent.Intent) {
+				// Check if this is a local intent (implements GlobalIntent with IsGlobal() = false)
+				isLocal := false
+				if global, ok := i.(intent.GlobalIntent); ok {
+					isLocal = !global.IsGlobal()
+				}
+
+				if isLocal {
+					// Local Intent: Bubble locally through Parent() chain
+					// This enables component internal communication and event delegation
+					if component, ok := instance.(intent.TreeComponent); ok {
+						intent.Emit(component, i)
+					}
+				} else {
+					// Global Intent: Send to global Intent Runtime
+					// This goes through Reducer/FieldMap handlers for state management
+					if runtime := GetGlobalIntentRuntime(); runtime != nil {
+						result := runtime.Emit(i)
+						if result.Error != nil {
+							// Log intent emission errors
+							if log.UILogger.Enabled() {
+								log.UILogger.Debug("[IntentEmitter] Failed to emit intent %s: %v",
+									i.IntentType(), result.Error)
+							} else {
+								fmt.Printf("[IntentEmitter] Failed to emit intent %s: %v\n",
+									i.IntentType(), result.Error)
+							}
 						}
 					}
 				}
@@ -278,7 +304,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		MemoizedState:              memoizedState,
 		DiffKey:                    diffKey,
 		Key:                        diffKey,
-		ID:                         businessID,  // ✨ Business identifier for positioning/reference
+		ID:                         businessID, // ✨ Business identifier for positioning/reference
 		NodeID:                     nodeId,
 		Layer:                      vnode.GetLayer(),
 		Style:                      vnode.Style(),
@@ -294,7 +320,7 @@ func CreateFiber(vnode VNode) *Fiber {
 		ErrorBoundary:              errorBoundaryVNode, // Store reference for state sync
 		MemoCompare:                memoCompare,
 		// FocusableVNode:             focusableVNode,
-		ActionTargetID:             fmt.Sprintf("%d",nodeId),
+		ActionTargetID: fmt.Sprintf("%d", nodeId),
 		// Fiber-first Architecture
 		Instance: instance,
 		// Layout Properties (extracted from VNode)
@@ -306,8 +332,8 @@ func CreateFiber(vnode VNode) *Fiber {
 		LayoutMargin:     layoutMargin,
 		LayoutFlex:       layoutFlex,
 		// ✨ Border Properties (方案 A)
-		BorderStyle:      borderStyle,
-		BorderLabel:      borderLabel,
+		BorderStyle: borderStyle,
+		BorderLabel: borderLabel,
 	}
 }
 
@@ -317,6 +343,9 @@ func CreateFiberFromVNode(vnode VNode) *Fiber {
 	if root == nil {
 		return nil
 	}
+
+	// Initialize root Context (Phase 2)
+	root.Context = fcontext.NewContext(nil)
 
 	// Build fiber tree for children
 	buildFiberTree(root, vnode)
@@ -336,6 +365,21 @@ func buildFiberTree(parentFiber *Fiber, parentVNode VNode) {
 
 		// Link to parent
 		childFiber.Return = parentFiber
+
+		// Inherit Context from parent (Phase 2)
+		childFiber.Context = fcontext.NewContext(parentFiber.Context)
+
+		// Process Provider components: inject Context values (Phase 2)
+		if childFiber.Tag == "provider" && childFiber.Context != nil {
+			props := childFiber.Props
+			if props != nil {
+				if key, ok := props["contextKey"].(fcontext.ContextKey); ok {
+					if value, ok := props["contextValue"]; ok {
+						childFiber.Context.Provide(key, value)
+					}
+				}
+			}
+		}
 
 		// Link siblings
 		if i == 0 {
@@ -454,21 +498,22 @@ func CloneFiber(fiber *Fiber) *Fiber {
 	clone := &Fiber{
 		Type:          fiber.Type,
 		Tag:           fiber.Tag,
-		DiffKey:       fiber.DiffKey, // ✨ Preserve DiffKey for diffing
-		Key:           fiber.Key,     // Backward compatibility
-		IsRoot:        fiber.IsRoot,  // ✨ Preserve IsRoot marker
-		NodeID:        fiber.NodeID,  // ✨ Preserve NodeID for stable identity
-		Layer:         fiber.Layer,   // ✨ Preserve Layer
-		Path:          fiber.Path,    // ✨ Preserve Path for key generation
-		PathSegment:   fiber.PathSegment, // ✨ Preserve PathSegment
+		DiffKey:       fiber.DiffKey,      // ✨ Preserve DiffKey for diffing
+		Key:           fiber.Key,          // Backward compatibility
+		ID:            fiber.ID,           // Preserve business identifier for anchors/positioning
+		IsRoot:        fiber.IsRoot,       // ✨ Preserve IsRoot marker
+		NodeID:        fiber.NodeID,       // ✨ Preserve NodeID for stable identity
+		Layer:         fiber.Layer,        // ✨ Preserve Layer
+		Path:          fiber.Path,         // ✨ Preserve Path for key generation
+		PathSegment:   fiber.PathSegment,  // ✨ Preserve PathSegment
 		SiblingIndex:  fiber.SiblingIndex, // ✨ Preserve SiblingIndex
-		Style:         fiber.Style,   // ✨ Preserve Style (Fiber-first)
+		Style:         fiber.Style,        // ✨ Preserve Style (Fiber-first)
 		Props:         fiber.Props,
 		MemoizedProps: fiber.MemoizedProps,
 		MemoizedState: fiber.MemoizedState,
 		Return:        fiber.Return,
-		Child:         nil, // ✨ BUG FIX: Clear Child pointer - will be re-established by reconcileChildren
-		Sibling:       nil, // ✨ BUG FIX: Clear Sibling pointer - will be set by reconcileChildren
+		Child:         fiber.Child,   // Shallow copy of tree structure
+		Sibling:       fiber.Sibling, // Shallow copy of sibling link
 		Alternate:     fiber.Alternate,
 		// Don't share UpdateQueue - cloned fiber gets its own empty queue
 		UpdateQueue:  nil,
@@ -484,16 +529,16 @@ func CloneFiber(fiber *Fiber) *Fiber {
 		LayoutPadding:    fiber.LayoutPadding,
 		LayoutFlex:       fiber.LayoutFlex,
 		// ✨ Border Style (Phase 1.3)
-		BorderStyle:      fiber.BorderStyle,
-		BorderLabel:      fiber.BorderLabel,
+		BorderStyle: fiber.BorderStyle,
+		BorderLabel: fiber.BorderLabel,
 		// ✨ Modal Centering (Phase 1.4)
-		Centered:         fiber.Centered,
+		Centered: fiber.Centered,
 		// ✨ Position Fixed (Phase 2.1)
-		Position:         fiber.Position,
+		Position: fiber.Position,
 		// ✨ Anchor (Phase 2.1)
-		Anchor:           fiber.Anchor,
+		Anchor: fiber.Anchor,
 		// ✨ Portal Root (Phase 3.1) - Copy reference to target fiber
-		PortalRoot:       fiber.PortalRoot,
+		PortalRoot: fiber.PortalRoot,
 		// Special VNode types support
 		ComponentFunc:              fiber.ComponentFunc,
 		ComponentFuncWithProps:     fiber.ComponentFuncWithProps,

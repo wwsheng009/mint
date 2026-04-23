@@ -18,6 +18,10 @@ type Buffer struct {
 	// Cells stores the grid content.
 	// Access via GetCell/SetCell.
 	Cells [][]Cell
+
+	// LineHash stores hash values for each line for O(1) line comparison.
+	// Used by the line-diff renderer for efficient change detection.
+	LineHash []uint64
 }
 
 // NewBuffer creates a new buffer with the specified dimensions.
@@ -82,6 +86,12 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 		return
 	}
 
+	// 宽字符需要足够空间：位置 x 和 x+1 都必须在 buffer 范围内
+	if width == 2 && x+1 >= b.Width {
+		// 没有足够空间写入宽字符，不写入
+		return
+	}
+
 	// 清除当前位置及其关联的宽字符单元格
 	b.clearCellAt(x, y)
 
@@ -94,7 +104,7 @@ func (b *Buffer) setCluster(x, y int, cluster string, width int, s style.Style) 
 	}
 
 	// 对于宽字符，标记下一个单元格为延续
-	if width == 2 && x+1 < b.Width {
+	if width == 2 {
 		b.Cells[y][x+1] = Cell{
 			IsContinuation: true,
 		}
@@ -133,6 +143,17 @@ func (b *Buffer) writeString(x, y int, text string, s style.Style, maxWidth int)
 		width := getClusterWidth(cluster) // 使用正确的宽度计算（边框字符为宽度1）
 		if width <= 0 {
 			continue
+		}
+
+		// maxWidth 为绝对终止列（exclusive）。
+		// 例如 x=10, maxWidth=17 时，只允许写入 [10,16]。
+		if maxWidth > 0 {
+			if col >= maxWidth {
+				break
+			}
+			if col+width > maxWidth {
+				break
+			}
 		}
 
 		// 边界检查
@@ -221,13 +242,16 @@ func (b *Buffer) SetContentDirect(x, y int, char rune, s style.Style, zIndex int
 //
 // 变化检测规则：
 // - continuation → continuation: ❌ 不刷新（由主单元格处理）
+// - continuation → non-continuation: ✅ 需要刷新（prevCell 需要被擦除）
 // - head → continuation: ✅ 需要刷新（宽字符被覆盖）
 // - continuation → head: ✅ 需要刷新（宽字符位置现在有内容）
 // - 正常单元格: 比较 Cluster、Style 和 Selected
 func IsCellChanged(cell, prevCell Cell) bool {
-	// 如果当前单元格是延续单元格，跳过（由主单元格处理）
+	// 如果当前单元格是延续单元格
 	if cell.IsContinuation {
-		return false
+		// 如果 prevCell 也是 continuation，不刷新（由主单元格处理）
+		// 如果 prevCell 不是 continuation，需要刷新（prevCell 的内容需要被擦除）
+		return !prevCell.IsContinuation
 	}
 
 	// 如果前一个单元格是 continuation，当前是 head → 需要刷新
@@ -241,7 +265,7 @@ func IsCellChanged(cell, prevCell Cell) bool {
 	if prevCell.Width == 2 && cell.Width == 0 {
 		return true
 	}
-
+	
 	// 正常比较 Cluster、Style 和 Selected（文本选择高亮）
 	return cell.Cluster != prevCell.Cluster ||
 		cell.Style != prevCell.Style ||
@@ -600,4 +624,101 @@ func (b *Buffer) Reset(width, height int) {
 
 	b.Width = width
 	b.Height = height
+
+	// Reset line hash
+	b.LineHash = nil
+}
+
+// =============================================================================
+// Line Hash Methods (Renderer 2.0)
+// =============================================================================
+
+// HashLine computes a hash for a single line using FNV-1a algorithm.
+// This enables O(1) line comparison for efficient diff.
+func HashLine(row []Cell) uint64 {
+	// FNV-1a offset basis
+	var h uint64 = 1469598103934665603
+
+	for _, c := range row {
+		// Hash cluster content
+		for _, r := range c.Cluster {
+			h ^= uint64(r)
+			h *= 1099511628211
+		}
+
+		// Hash style (for style changes detection)
+		h ^= uint64(c.Style.Hash())
+		h *= 1099511628211
+
+		// Hash width
+		h ^= uint64(c.Width)
+		h *= 1099511628211
+
+		// Hash continuation flag
+		if c.IsContinuation {
+			h ^= 1
+			h *= 1099511628211
+		}
+	}
+
+	return h
+}
+
+// Rehash recomputes all line hashes for the buffer.
+// Should be called after buffer content changes before diff.
+func (b *Buffer) Rehash() {
+	if b.LineHash == nil || len(b.LineHash) != b.Height {
+		b.LineHash = make([]uint64, b.Height)
+	}
+
+	for y := 0; y < b.Height; y++ {
+		if y < len(b.Cells) {
+			b.LineHash[y] = HashLine(b.Cells[y])
+		}
+	}
+}
+
+// EqualLine checks if a specific line equals between two buffers.
+// Falls back to cell-by-cell comparison if hashes don't match.
+func (b *Buffer) EqualLine(other *Buffer, y int) bool {
+	// Bounds check
+	if y >= b.Height || y >= other.Height {
+		return false
+	}
+	if y >= len(b.Cells) || y >= len(other.Cells) {
+		return false
+	}
+
+	// Fast path: compare hashes
+	if b.LineHash != nil && other.LineHash != nil {
+		if y < len(b.LineHash) && y < len(other.LineHash) {
+			if b.LineHash[y] != other.LineHash[y] {
+				return false
+			}
+			// Hashes match, lines are equal
+			return true
+		}
+	}
+
+	// Slow path: cell-by-cell comparison
+	row1 := b.Cells[y]
+	row2 := other.Cells[y]
+	width := minInt(len(row1), len(row2))
+
+	for x := 0; x < width; x++ {
+		if !IsCellEqual(row1[x], row2[x]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsCellEqual compares two cells for equality.
+// Used for cell-by-cell comparison when hash is not available.
+func IsCellEqual(a, b Cell) bool {
+	return a.Cluster == b.Cluster &&
+		a.Style == b.Style &&
+		a.Width == b.Width &&
+		a.IsContinuation == b.IsContinuation
 }

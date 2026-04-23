@@ -1,6 +1,7 @@
 package text
 
 import (
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"strings"
 
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -50,13 +51,13 @@ var (
 // NewInstance creates a new TextInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:       getStringProp(props, "key", ""),
-		content:   getStringProp(props, "content", ""),
-		textStyle: getStyleProp(props),
+		key:       proputil.GetString(props, "key", ""),
+		content:   proputil.GetString(props, "content", ""),
+		textStyle: proputil.GetStyle(props, "style", style.Style{}),
 		padding:   getPaddingProp(props),
 		textAlign: getTextAlignProp(props, rtui.AlignStart),
-		maxWidth:  getIntProp(props, "maxWidth", 0),
-		wrap:      getBoolProp(props, "wrap", false),
+		maxWidth:  proputil.GetInt(props, "maxWidth", 0),
+		wrap:      proputil.GetBool(props, "wrap", false),
 		dirty:     true,
 	}
 
@@ -103,12 +104,12 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldMaxWidth := inst.maxWidth
 	oldWrap := inst.wrap
 
-	inst.content = getStringProp(props, "content", inst.content)
-	inst.textStyle = getStyleProp(props)
+	inst.content = proputil.GetString(props, "content", inst.content)
+	inst.textStyle = proputil.GetStyle(props, "style", style.Style{})
 	inst.padding = getPaddingProp(props)
 	inst.textAlign = getTextAlignProp(props, inst.textAlign)
-	inst.maxWidth = getIntProp(props, "maxWidth", inst.maxWidth)
-	inst.wrap = getBoolProp(props, "wrap", inst.wrap)
+	inst.maxWidth = proputil.GetInt(props, "maxWidth", inst.maxWidth)
+	inst.wrap = proputil.GetBool(props, "wrap", inst.wrap)
 
 	// Check if props changed
 	changed := oldContent != inst.content || oldMaxWidth != inst.maxWidth || oldWrap != inst.wrap
@@ -123,13 +124,13 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":       inst.key,
-		"content":   inst.content,
-		"style":     inst.textStyle,
-		"padding":   inst.padding,
-		"textAlign": inst.textAlign,
-		"maxWidth":  inst.maxWidth,
-		"wrap":      inst.wrap,
+		propKey:       inst.key,
+		propContent:   inst.content,
+		propStyle:     inst.textStyle,
+		propPadding:   inst.padding,
+		propTextAlign: inst.textAlign,
+		propMaxWidth:  inst.maxWidth,
+		propWrap:      inst.wrap,
 	}
 }
 
@@ -454,44 +455,8 @@ func (inst *Instance) SetStyle(s style.Style) {
 // Prop Extraction Helpers
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return def
-}
-
-func getIntProp(props rtui.Props, key string, def int) int {
-	if v, ok := props[key]; ok {
-		if i, ok := v.(int); ok {
-			return i
-		}
-	}
-	return def
-}
-
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return def
-}
-
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
 func getPaddingProp(props rtui.Props) [4]int {
-	if v, ok := props["padding"]; ok {
+	if v, ok := props[propPadding]; ok {
 		if p, ok := v.([4]int); ok {
 			return p
 		}
@@ -500,7 +465,7 @@ func getPaddingProp(props rtui.Props) [4]int {
 }
 
 func getTextAlignProp(props rtui.Props, def rtui.Align) rtui.Align {
-	if v, ok := props["textAlign"]; ok {
+	if v, ok := props[propTextAlign]; ok {
 		if a, ok := v.(rtui.Align); ok {
 			return a
 		}

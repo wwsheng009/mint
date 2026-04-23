@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/ui"
 	"github.com/wwsheng009/mint/runtime/platform"
+	"github.com/wwsheng009/mint/ui"
 )
 
 // TestActionSystemBasicNavigation tests basic navigation actions
@@ -24,18 +24,7 @@ func TestActionSystemBasicNavigation(t *testing.T) {
 	// Enable debug mode to see Action processing
 	t.Setenv("ACTION_DEBUG", "true")
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	// Wait for initial render
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	initialState := testApp.GetRenderString()
 	t.Logf("Initial state:\n%s\n", initialState)
@@ -61,17 +50,7 @@ func TestActionSystemBasicNavigation(t *testing.T) {
 
 // TestActionSystemEnter tests ActionEnter (button click via keyboard)
 func TestActionSystemEnter(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Check initial count
 	rendered := testApp.GetRenderString()
@@ -80,13 +59,8 @@ func TestActionSystemEnter(t *testing.T) {
 	}
 
 	// Tab to Add Count button and press Enter
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter) // This should trigger ActionEnter
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	focusButton(t, testApp, focusedAddCountButton)
+	pressEnter(t, testApp) // This should trigger ActionEnter
 
 	rendered = testApp.GetRenderString()
 	t.Logf("After Enter key:\n%s", rendered)
@@ -101,26 +75,10 @@ func TestActionSystemEnter(t *testing.T) {
 
 // TestActionSystemEscape tests ActionCancel (close modal with ESC)
 func TestActionSystemEscape(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-
-	// Open modal by finding and clicking Open Modal button
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	// Open modal via state so this test focuses on ActionCancel behavior.
+	openModalViaStore(t, testApp)
 
 	// Verify modal is open
 	rendered := testApp.GetRenderString()
@@ -144,17 +102,7 @@ func TestActionSystemEscape(t *testing.T) {
 
 // TestActionSystemTextInput tests ActionInputText
 func TestActionSystemTextInput(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Navigate to input field
 	for i := 0; i < 10; i++ {
@@ -164,7 +112,7 @@ func TestActionSystemTextInput(t *testing.T) {
 	testApp.ForceRender()
 
 	// Type text - this generates ActionInputText actions
-	err = testApp.InjectString("hello")
+	err := testApp.InjectString("hello")
 	if err != nil {
 		t.Fatalf("InjectString failed: %v", err)
 	}
@@ -184,17 +132,7 @@ func TestActionSystemTextInput(t *testing.T) {
 
 // TestActionSystemArrowKeys tests navigation arrow actions
 func TestActionSystemArrowKeys(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	initialIdx := testApp.GetFocusedIndex()
 	t.Logf("Initial focused index: %d", initialIdx)
@@ -220,27 +158,15 @@ func TestActionSystemArrowKeys(t *testing.T) {
 
 // TestActionSystemMultipleClicks tests multiple rapid ActionClick events
 func TestActionSystemMultipleClicks(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-
-	// Navigate to Add Count button
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
+	focusButton(t, testApp, focusedAddCountButton)
 
 	// Click multiple times rapidly (tests throttling middleware)
 	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyEnter)
+		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+			t.Fatalf("InjectSpecialKey(KeyEnter) failed: %v", err)
+		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	testApp.ForceRender()
@@ -256,26 +182,10 @@ func TestActionSystemMultipleClicks(t *testing.T) {
 
 // TestActionSystemModalFocusTrap tests focus trap with modal open
 func TestActionSystemModalFocusTrap(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-
-	// Open modal
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	// Open modal via state so this test focuses on trap behavior.
+	openModalViaStore(t, testApp)
 
 	// Verify modal is open
 	rendered := testApp.GetRenderString()
@@ -308,23 +218,13 @@ func TestActionSystemMiddlewareChain(t *testing.T) {
 	// Enable debug mode to verify middleware is active
 	t.Setenv("ACTION_DEBUG", "true")
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Inject some actions to trigger middleware
 	testApp.InjectSpecialKey(platform.KeyTab)
 	time.Sleep(30 * time.Millisecond)
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(30 * time.Millisecond)
+	focusButton(t, testApp, focusedAddCountButton)
+	pressEnter(t, testApp)
 	testApp.InjectSpecialKey(platform.KeyEscape)
 	time.Sleep(30 * time.Millisecond)
 
@@ -335,23 +235,10 @@ func TestActionSystemMiddlewareChain(t *testing.T) {
 
 // TestActionSystemQuit tests ActionQuit
 func TestActionSystemQuit(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Navigate to Quit button
-	for i := 0; i < 15; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
+	focusButton(t, testApp, focusedQuitButton)
 
 	// Note: We can't actually test Quit in a test context as it would close the app
 	// But we can verify the button is focusable
@@ -361,29 +248,14 @@ func TestActionSystemQuit(t *testing.T) {
 
 // TestActionSystemStateUpdate tests that state updates are triggered by actions
 func TestActionSystemStateUpdate(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Get initial render
 	initial := testApp.GetRenderString()
 
 	// Trigger state update by clicking Add Count
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	focusButton(t, testApp, focusedAddCountButton)
+	pressEnter(t, testApp)
 
 	after := testApp.GetRenderString()
 
@@ -397,17 +269,7 @@ func TestActionSystemStateUpdate(t *testing.T) {
 
 // TestActionSystemIntegration is a comprehensive integration test
 func TestActionSystemIntegration(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	t.Log("=== Action System Integration Test ===")
 
@@ -421,13 +283,7 @@ func TestActionSystemIntegration(t *testing.T) {
 
 	// Test 2: Open modal via ActionEnter
 	t.Log("Test 2: Open modal")
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	openModalFromFocusedButton(t, testApp)
 
 	if err := testApp.AssertRender("*** Are you sure? ***"); err != nil {
 		t.Logf("  ✗ Modal not visible: %v", err)
@@ -482,19 +338,12 @@ func TestActionSystemTypes(t *testing.T) {
 
 	for _, tt := range actions {
 		t.Run(tt.name, func(t *testing.T) {
-			testApp, err := ui.RunTest(App,
-				ui.WithWidth(80),
-				ui.WithHeight(24),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer testApp.Close()
-
-			time.Sleep(50 * time.Millisecond)
-			testApp.ForceRender()
+			testApp := newDemoTestApp(t)
 
 			// Inject the action
+			if tt.key == platform.KeyEnter {
+				focusButton(t, testApp, focusedAddCountButton)
+			}
 			testApp.InjectSpecialKey(tt.key)
 			time.Sleep(50 * time.Millisecond)
 			testApp.ForceRender()
@@ -547,4 +396,3 @@ func BenchmarkActionWithRender(b *testing.B) {
 		testApp.ForceRender()
 	}
 }
-

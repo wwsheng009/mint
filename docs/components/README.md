@@ -6,7 +6,7 @@ This directory contains documentation for Mint TUI components.
 
 ### Layout Components
 - **ScrollView** - Scrollable container with automatic scrollbars
-  - [Scroll View Component](../layout/SCROLL_VIEW_COMPONENT.md) - ScrollView documentation
+  - [Scroll View Component](SCROLL_VIEW_COMPONENT.md) - ScrollView documentation
 
 - **Virtual Scroll** - Virtual scrolling for large lists (performance optimization)
   - [Virtual List Component](VIRTUAL_LIST_COMPONENT.md) - Virtual scrolling component
@@ -14,9 +14,16 @@ This directory contains documentation for Mint TUI components.
 - **Tabs** - Tab bar component for switching between panels
   - [Tabs Component](TABS_COMPONENT.md) - Tabs documentation
 
+### Form Components
+- **DatePicker** - Date input with popup calendar selection
+  - [DatePicker Component](DATEPICKER_COMPONENT.md) - DatePicker documentation
+
+- **TimePicker** - Time input with popup segment selection
+  - [TimePicker Component](TIMEPICKER_COMPONENT.md) - TimePicker documentation
+
 ### Navigation Components
 - **TreeView** - Hierarchical tree display with navigation
-  - [TreeView Navigation Working](../examples/inspector/TREEVIEW_NAVIGATION_WORKING.md) - Navigation verification
+  - [TreeView Navigation Working](TREEVIEW_NAVIGATION_WORKING.md) - Navigation verification
   - [TreeView Navigation](TREEVIEW_NAVIGATION.md) - Navigation implementation
 
 ## Component Features
@@ -47,5 +54,5 @@ Components can handle keyboard and mouse events:
 ## See Also
 
 - [Layout Documentation](../layout/) - Layout system documentation
-- [Component Summary](COMPONENTS_SUMMARY.md) - Overview of all components
+- [Component Summary](/docsArchive/components/COMPONENTS_SUMMARY.md) - Overview of all components (archived)
 - [Architecture Documentation](../architecture/) - System architecture

@@ -44,7 +44,7 @@ type Reconciler struct {
 	timeBudget time.Duration // Time slice budget per frame
 
 	// === Integration ===
-	scheduler            Scheduler                       // Scheduler for frame requests
+	scheduler           Scheduler                      // Scheduler for frame requests
 	instanceMgr         *state.InstanceManager         // Component instance manager
 	interactionStateMgr *state.InteractionStateManager // Interaction state (hover/focus/etc)
 	keyValidator        *state.KeyValidator            // Key validation
@@ -59,7 +59,7 @@ type Reconciler struct {
 	renderedRoot   rtui.VNode // The rendered VNode tree (for focus management, etc.)
 
 	// === Layout Integration ===
-	vnodeConverter *VNodeConverter     // VNode → runtime.LayoutNode converter
+	vnodeConverter *VNodeConverter // VNode → runtime.LayoutNode converter
 	// layoutRoot     *runtime.LayoutNode // Root of the layout tree
 	// layoutBoxes    []runtime.LayoutBox // Layout boxes for hit testing
 
@@ -88,7 +88,7 @@ func NewReconciler(scheduler Scheduler, rootComponent rtui.ComponentFunc, config
 	}
 
 	return &Reconciler{
-		scheduler:            scheduler,
+		scheduler:           scheduler,
 		rootComponent:       rootComponent,
 		instanceMgr:         state.NewInstanceManager(),
 		interactionStateMgr: state.NewInteractionStateManager(),
@@ -111,11 +111,11 @@ func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, re
 	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
 	// This is correct as VNode implementations are in ui package
 	if !r.enableFiber {
-		log.FiberLogger.Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
+		log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
 		return // Fiber not enabled, use legacy rendering
 	}
 
-	log.FiberLogger.Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
+	log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
 	r.buffer = buffer
 	r.paintCtx = ctx
 
@@ -189,9 +189,8 @@ func (r *Reconciler) prepareFreshStack(renderFunc func() rtui.VNode) {
 // Phase 3 will add time slicing
 func (r *Reconciler) workLoopSync() {
 	if r.workInProgress == nil {
-		if log.HitMapLogger.Enabled() {
-			log.FiberLogger.Debug("[workLoopSync] ⚠️  workInProgress is nil!")
-		}
+		log.FiberLogger.IfEnabled().Debug("[workLoopSync] ⚠️  workInProgress is nil!")
+
 		return
 	}
 
@@ -203,9 +202,7 @@ func (r *Reconciler) workLoopSync() {
 	// ✨ Set path generator for automatic key generation
 	pathGenerator = r.pathGenerator
 
-	if os.Getenv("TUI_DEBUG_HITMAP") == "true" {
-		log.FiberLogger.Debug("[workLoopSync] Starting work loop...")
-	}
+	log.FiberLogger.IfEnabled().Debug("[workLoopSync] Starting work loop...")
 
 	// Process all work units using correct Fiber traversal
 	// The traversal follows: BeginWork down the tree, then CompleteWork back up
@@ -406,16 +403,54 @@ func (r *Reconciler) CommitRoot() {
 
 	// Cleanup unused component instances
 	// activeKeys are collected during the render phase
+	r.cleanupUnusedInstances()
 }
 
 // RenderFunc is a function to render a Fiber to the buffer
 type RenderFunc func(fiber *Fiber, x, y int, buffer *paint.Buffer)
 
+func (r *Reconciler) cleanupUnusedInstances() {
+	if r.instanceMgr == nil || r.root == nil {
+		return
+	}
+	activeKeys := r.collectActiveInstanceKeys(r.root)
+	if len(activeKeys) == 0 {
+		return
+	}
+	r.instanceMgr.Cleanup(activeKeys)
+}
+
+func (r *Reconciler) collectActiveInstanceKeys(root *Fiber) []string {
+	keys := make([]string, 0, 256)
+	seen := make(map[uint64]struct{}, 256)
+
+	var walk func(*Fiber)
+	walk = func(f *Fiber) {
+		if f == nil {
+			return
+		}
+		if f.Instance != nil {
+			if _, ok := seen[f.NodeID]; !ok {
+				seen[f.NodeID] = struct{}{}
+				keys = append(keys, fmt.Sprintf("%d", f.NodeID))
+			}
+		}
+		if f.Child != nil {
+			walk(f.Child)
+		}
+		if f.Sibling != nil {
+			walk(f.Sibling)
+		}
+	}
+
+	walk(root)
+	return keys
+}
+
 // SetRenderCallback sets the render callback
 func (r *Reconciler) SetRenderCallback(cb RenderFunc) {
 	r.renderCallback = cb
 }
-
 
 // =============================================================================
 // Scheduling
@@ -472,7 +507,7 @@ func (r *Reconciler) GetFiberRoot() *Fiber {
 // updateRenderedRoot extracts and stores the rendered content from the Fiber tree
 // In Fiber-first architecture, we don't need to build a VNode tree
 func (r *Reconciler) updateRenderedRoot() {
-	log.FocusLogger.Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
+	log.FocusLogger.IfEnabled().Debug("updateRenderedRoot called, r.root=%v", r.root != nil)
 	// In Fiber-first, we don't maintain a VNode tree
 	// The Fiber tree itself is the source of truth
 	r.renderedRoot = nil
@@ -506,7 +541,7 @@ func (r *Reconciler) commitDeletions(fiber *Fiber) {
 	// Collect all fibers marked for deletion
 	deletedFibers := r.collectDeletedFibers(fiber)
 
-	log.FiberLogger.Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
+	log.FiberLogger.IfEnabled().Debug("commitDeletions found %d fibers to delete", len(deletedFibers))
 
 	// Process each deleted fiber
 	for _, deleted := range deletedFibers {
@@ -533,7 +568,7 @@ func (r *Reconciler) collectDeletedFibers(fiber *Fiber) []*Fiber {
 		result = append(result, childDeletions...)
 	}
 
-	log.FiberLogger.Debug("collectDeletedFibers found %d fibers to delete", len(result))
+	log.FiberLogger.IfEnabled().Debug("collectDeletedFibers found %d fibers to delete", len(result))
 
 	return result
 }
@@ -642,14 +677,14 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	r.focusMgr.CollectFromFiber(fiber)
 	focusable := r.focusMgr.GetFocusable()
 
-	log.FocusLogger.Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
+	log.FocusLogger.IfEnabled().Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 
 	// Set focus by index on Fiber nodes (Fiber-first)
 	for i, f := range focusable {
 		focused := (i == focusedIndex)
 		if focused {
 			focusID := fmt.Sprintf("node-%d", f.NodeID)
-			log.FocusLogger.Debug("applyFocus setting focus=true on index %d (%s)", i, focusID)
+			log.FocusLogger.IfEnabled().Debug("applyFocus setting focus=true on index %d (%s)", i, focusID)
 		}
 
 		// IMPORTANT: Use Instance.(FocusableInstance).SetFocus() instead of FocusableVNode.SetFocus()
@@ -693,9 +728,11 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 		return
 	}
 
-	// Check for Modal layer presence before updating
-	hasModal := r.hasLayerFibers(fiber, rtui.LayerModal)
-	hasOverlay := r.hasLayerFibers(fiber, rtui.LayerOverlay)
+	// Check for active layer content before updating. Default portal hosts are
+	// always present in the tree, so they must not count as active modal/overlay
+	// content on their own.
+	hasModal := r.hasLayerContent(fiber, rtui.LayerModal, rtui.LayerBase)
+	hasOverlay := r.hasLayerContent(fiber, rtui.LayerOverlay, rtui.LayerBase)
 
 	// Determine the highest active layer
 	activeLayer := rtui.LayerBase
@@ -705,11 +742,12 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 		activeLayer = rtui.LayerOverlay
 	}
 
-	// Update active layer (this will auto-focus first item in layer if needed)
-	r.focusMgr.SetActiveLayer(activeLayer)
-
 	// Collect all focusable Fibers from the Fiber tree (Fiber-first)
 	r.focusMgr.CollectFromFiber(fiber)
+
+	// Update active layer after collecting focusable fibers.
+	// Otherwise switching to overlay/modal would try to focus against the previous frame's list.
+	r.focusMgr.SetActiveLayer(activeLayer)
 
 	// If we have an active layer (Modal/Overlay), focus is already set by SetActiveLayer
 	// Otherwise, preserve focus index
@@ -729,33 +767,47 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 	}
 }
 
-// hasLayerFibers checks if there are any fibers in the specified layer
-func (r *Reconciler) hasLayerFibers(fiber *rtui.Fiber, layer rtui.Layer) bool {
+// hasLayerContent checks if there is any real content in the specified layer.
+// Portal host placeholders are ignored so default empty overlay/modal roots do
+// not activate focus trapping by themselves. Layer inheritance is propagated to
+// descendants so base-layer children inside a modal subtree still count as
+// modal content.
+func (r *Reconciler) hasLayerContent(fiber *rtui.Fiber, layer rtui.Layer, inheritedLayer rtui.Layer) bool {
 	if fiber == nil {
 		return false
 	}
 
-	// Check current fiber
-	if fiber.Layer == layer {
-		// Fiber-first: use Instance.(FocusableInstance) to check if focusable
-		if fiber.Instance != nil {
-			if _, ok := fiber.Instance.(interface{ IsDisabled() bool }); ok {
-				return true
-			}
-		}
+	effectiveLayer := inheritedLayer
+	if fiber.Layer != rtui.LayerBase && fiber.Layer.IsValid() {
+		effectiveLayer = fiber.Layer
+	}
+
+	// Ignore structural portal hosts; they are injected by default even when no
+	// portal content is present.
+	if effectiveLayer == layer && !isPortalRootFiber(fiber) {
+		return true
 	}
 
 	// Check children
-	if r.hasLayerFibers(fiber.Child, layer) {
+	if r.hasLayerContent(fiber.Child, layer, effectiveLayer) {
 		return true
 	}
 
 	// Check siblings
-	if r.hasLayerFibers(fiber.Sibling, layer) {
+	if r.hasLayerContent(fiber.Sibling, layer, inheritedLayer) {
 		return true
 	}
 
 	return false
+}
+
+func isPortalRootFiber(fiber *rtui.Fiber) bool {
+	if fiber == nil || fiber.Props == nil {
+		return false
+	}
+
+	rootID, ok := fiber.Props["portalRootId"].(string)
+	return ok && rootID != ""
 }
 
 // =============================================================================

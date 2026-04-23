@@ -3,8 +3,8 @@ package framework
 import (
 	"testing"
 
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // TestApp_InputTracker 测试 InputTracker 集成
@@ -90,6 +90,22 @@ func TestApp_MsgToSnapshot_IgnoreResize(t *testing.T) {
 	}
 }
 
+func TestApp_ResizeSameSizeDoesNotMarkDirty(t *testing.T) {
+	app := NewApp()
+
+	app.Resize(80, 24)
+	app.dirty = false
+
+	app.Resize(80, 24)
+
+	if app.dirty {
+		t.Fatal("expected same-size resize to leave app clean")
+	}
+	if app.terminalWidth != 80 || app.terminalHeight != 24 {
+		t.Fatalf("terminal size = %dx%d, want 80x24", app.terminalWidth, app.terminalHeight)
+	}
+}
+
 // TestApp_InteractionContext_Registration 测试 InteractionContext 组件注册
 func TestApp_InteractionContext_Registration(t *testing.T) {
 	app := NewApp()
@@ -154,4 +170,3 @@ type mockPressedResetHandler struct {
 func (m *mockPressedResetHandler) ResetPressed() {
 	m.resetCalled = true
 }
-

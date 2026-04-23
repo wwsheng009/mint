@@ -2,10 +2,13 @@ package textarea
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -49,6 +52,16 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.Cols() != 30 {
 		t.Errorf("Cols = %d, want 30", vnode.Cols())
+	}
+}
+
+func TestVNode_Builder_InsertCursor(t *testing.T) {
+	ta := NewBuilder().InsertCursor().Build().(*VNode)
+	if ta.cursorConfig.Shape != cursor.ShapeBar {
+		t.Fatalf("cursor shape = %v, want %v", ta.cursorConfig.Shape, cursor.ShapeBar)
+	}
+	if ta.cursorConfig.Glyph != "|" {
+		t.Fatalf("cursor glyph = %q, want %q", ta.cursorConfig.Glyph, "|")
 	}
 }
 
@@ -122,6 +135,20 @@ func TestInstance_InsertText(t *testing.T) {
 	}
 }
 
+func TestInstance_InsertText_AtCursor(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "hello\nworld",
+	})
+	inst.SetCursorPos(5) // before '\n'
+
+	if !inst.InsertText(",") {
+		t.Fatal("InsertText should succeed")
+	}
+	if inst.GetValue() != "hello,\nworld" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "hello,\nworld")
+	}
+}
+
 func TestInstance_InsertText_MaxLen(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value":  "abc",
@@ -154,6 +181,121 @@ func TestInstance_SetValue(t *testing.T) {
 	inst.SetValue("new value")
 	if inst.IsDirty() {
 		t.Error("Should not be dirty when setting same value")
+	}
+}
+
+func TestInstance_HandleAction_CursorAndEnter(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorLeft)) {
+		t.Fatal("ActionCursorLeft should be handled")
+	}
+	if inst.CursorPos() != 2 {
+		t.Fatalf("CursorPos = %d, want 2", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("ActionEnter should be handled")
+	}
+	if inst.GetValue() != "ab\nc" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "ab\nc")
+	}
+}
+
+func TestInstance_HandleAction_CursorUpDown(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcd\nef\nxyz",
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown should be handled")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("CursorPos after first down = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("second ActionCursorDown should be handled")
+	}
+	if inst.CursorPos() != 11 {
+		t.Fatalf("CursorPos after second down = %d, want 11", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp should be handled")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("CursorPos after up = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("second ActionCursorUp should be handled")
+	}
+	if inst.CursorPos() != 3 {
+		t.Fatalf("CursorPos after second up = %d, want 3", inst.CursorPos())
+	}
+
+	inst.SetCursorPos(0)
+	if inst.HandleAction(action.NewAction(action.ActionCursorUp)) {
+		t.Fatal("ActionCursorUp at first line should not move")
+	}
+
+	inst.SetCursorPos(11)
+	if inst.HandleAction(action.NewAction(action.ActionCursorDown)) {
+		t.Fatal("ActionCursorDown at last line should not move")
+	}
+}
+
+func TestInstance_MoveCursorVertical_ResetGoalAfterHorizontalMove(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcd\nef\nxyz",
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("MoveCursorDown should move to next line")
+	}
+	if inst.CursorPos() != 7 {
+		t.Fatalf("cursor after down = %d, want 7", inst.CursorPos())
+	}
+
+	if !inst.MoveCursor(-1) {
+		t.Fatal("MoveCursor(-1) should move")
+	}
+	if inst.CursorPos() != 6 {
+		t.Fatalf("cursor after left = %d, want 6", inst.CursorPos())
+	}
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("second MoveCursorDown should move")
+	}
+	if inst.CursorPos() != 9 {
+		t.Fatalf("cursor after second down = %d, want 9", inst.CursorPos())
+	}
+}
+
+func TestInstance_MoveCursorVertical_WrappedLines(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghij",
+		"cols":  4,
+	})
+	inst.SetCursorPos(5)
+
+	if !inst.MoveCursorDown() {
+		t.Fatal("MoveCursorDown should move across wrapped visual lines")
+	}
+	if inst.CursorPos() != 10 {
+		t.Fatalf("cursor after down = %d, want 10", inst.CursorPos())
+	}
+
+	if !inst.MoveCursorUp() {
+		t.Fatal("MoveCursorUp should move across wrapped visual lines")
+	}
+	if inst.CursorPos() != 5 {
+		t.Fatalf("cursor after up = %d, want 5", inst.CursorPos())
 	}
 }
 
@@ -216,5 +358,192 @@ func TestInstance_Paint(t *testing.T) {
 	// Check bottom border
 	if cmds[4].Text[0:1] != "+" {
 		t.Errorf("Bottom border should start with '+', got %q", cmds[4].Text[0:1])
+	}
+}
+
+func TestInstance_Paint_WrapsLongLines(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghij",
+		"rows":  2,
+		"cols":  4,
+	})
+
+	cmds := inst.Paint(0, 0)
+	// contentWidth = cols + 2 = 6, so wrap into 2 lines:
+	// top + 2 wrapped lines + bottom = 4
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4", len(cmds))
+	}
+	if cmds[1].Text != "|abcdef|" {
+		t.Fatalf("line1 = %q, want %q", cmds[1].Text, "|abcdef|")
+	}
+	if cmds[2].Text != "|ghij  |" {
+		t.Fatalf("line2 = %q, want %q", cmds[2].Text, "|ghij  |")
+	}
+}
+
+func TestInstance_Paint_HeightIsLimitedByRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefghijklmnopqrstuvwxyz",
+		"rows":  2,
+		"cols":  4,
+	})
+
+	cmds := inst.Paint(0, 0)
+	// fixed rows=2 + 2 scrollbar cells => 6 commands
+	if len(cmds) != 6 {
+		t.Fatalf("Paint returned %d commands, want 6", len(cmds))
+	}
+	// Cursor defaults at end, viewport follows caret and shows last wrapped lines.
+	if cmds[1].Text != "|stuvwx|" {
+		t.Fatalf("visible line1 = %q, want %q", cmds[1].Text, "|stuvwx|")
+	}
+	if cmds[2].Text != "|yz    |" {
+		t.Fatalf("visible line2 = %q, want %q", cmds[2].Text, "|yz    |")
+	}
+}
+
+func TestInstance_Paint_HidesScrollbarWhenDisabled(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":         "abcdefghijklmnopqrstuvwxyz",
+		"rows":          2,
+		"cols":          4,
+		"showScrollbar": false,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4 without scrollbar", len(cmds))
+	}
+}
+
+func TestInstance_Paint_FocusedCursorOnWrappedLine(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abcdefg",
+		"rows":  2,
+		"cols":  4,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(6) // before 'g', should be at next visual line start
+
+	cmds := inst.Paint(0, 0)
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 1 || cursorCmd.Y != 2 {
+		t.Fatalf("Cursor command at (%d,%d), want (1,2)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "g" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "g")
+	}
+}
+
+func TestInstance_Paint_FocusedShowsCursor(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2",
+		"rows":  3,
+		"cols":  10,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(2)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 6 {
+		t.Fatalf("Paint returned %d commands, want 6 with focused cursor", len(cmds))
+	}
+
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 3 || cursorCmd.Y != 1 {
+		t.Fatalf("Cursor command at (%d,%d), want (3,1)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "n" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "n")
+	}
+	if !cursorCmd.Style.IsReverse() {
+		t.Fatal("Cursor command style should be reverse")
+	}
+}
+
+func TestInstance_TickableCursorBlink(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1",
+		"rows":  3,
+		"cols":  10,
+		"cursorConfig": cursor.Config{
+			Blink:         true,
+			BlinkInterval: 5 * time.Millisecond,
+		},
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("Focused textarea caret should want tick updates")
+	}
+
+	time.Sleep(6 * time.Millisecond)
+	if !inst.Tick(time.Now()) {
+		t.Fatal("Tick should toggle caret blink phase")
+	}
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5 when caret hidden", len(cmds))
+	}
+}
+
+func TestInstance_DefaultCursorBlinksWhenFocused(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1",
+		"rows":  3,
+		"cols":  10,
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("default focused textarea cursor should blink")
+	}
+}
+
+func TestInstance_HandleAction_ScrollWithMouseWheelDoesNotSnapBack(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":  2,
+		"cols":  4,
+	})
+	startOffset := inst.scrollOffset
+	if startOffset <= 0 {
+		t.Fatalf("initial offset = %d, want > 0", startOffset)
+	}
+
+	mouseMsg := runtimemsg.NewMouseMsgWithDelta(0, 0, 1, runtimemsg.MouseActionWheel)
+	act := action.NewActionWithPayload(action.ActionScroll, mouseMsg)
+	if !inst.HandleAction(act) {
+		t.Fatal("ActionScroll with mouse wheel payload should be handled")
+	}
+	if inst.scrollOffset != startOffset-1 {
+		t.Fatalf("offset after wheel up = %d, want %d", inst.scrollOffset, startOffset-1)
+	}
+
+	_ = inst.Paint(0, 0)
+	if inst.scrollOffset != startOffset-1 {
+		t.Fatalf("offset after paint = %d, want %d", inst.scrollOffset, startOffset-1)
+	}
+}
+
+func TestInstance_SetProps_WithoutScrollOffsetPreservesInternalScroll(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":  2,
+		"cols":  4,
+	})
+	inst.scrollOffset = 2
+
+	inst.SetProps(rtui.Props{
+		"value":         "line1\nline2\nline3\nline4\nline5\nline6",
+		"rows":          2,
+		"cols":          4,
+		"showScrollbar": true,
+	})
+
+	if inst.scrollOffset != 2 {
+		t.Fatalf("offset after SetProps = %d, want 2", inst.scrollOffset)
 	}
 }

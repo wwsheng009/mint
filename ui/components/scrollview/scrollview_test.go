@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	newtext "github.com/wwsheng009/mint/ui/components/text"
 )
@@ -64,6 +66,9 @@ func TestVNode_FluentAPI(t *testing.T) {
 	if vnode.ScrollOffset() != 5 {
 		t.Errorf("Expected scrollOffset 5, got %d", vnode.ScrollOffset())
 	}
+	if vnode.ScrollOffsetControlled() {
+		t.Error("SetScrollOffset should keep scrollOffset uncontrolled")
+	}
 	if !vnode.ShowBorder() {
 		t.Error("ShowBorder should be true")
 	}
@@ -95,6 +100,19 @@ func TestVNode_CreateInstance(t *testing.T) {
 	}
 	if svInst.height != 10 {
 		t.Errorf("Expected height 10, got %d", svInst.height)
+	}
+	if svInst.scrollOffsetControlled {
+		t.Error("CreateInstance() should preserve uncontrolled scrollOffset by default")
+	}
+}
+
+func TestVNode_SetScrollOffsetControlled(t *testing.T) {
+	vnode := New().SetScrollOffsetControlled(4)
+	if vnode.ScrollOffset() != 4 {
+		t.Fatalf("scrollOffset = %d, want 4", vnode.ScrollOffset())
+	}
+	if !vnode.ScrollOffsetControlled() {
+		t.Fatal("SetScrollOffsetControlled should mark vnode as controlled")
 	}
 }
 
@@ -304,6 +322,25 @@ func TestInstance_PageUpDown(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_ScrollWithMousePayload(t *testing.T) {
+	textNode := newtext.New(buildLines(20))
+	inst := NewInstance(rtui.Props{
+		"child":  textNode,
+		"width":  30,
+		"height": 5,
+	})
+	inst.extractContent()
+
+	mouseMsg := runtimemsg.NewMouseMsgWithDelta(0, 0, -1, runtimemsg.MouseActionWheel)
+	act := action.NewActionWithPayload(action.ActionScroll, mouseMsg)
+	if !inst.HandleAction(act) {
+		t.Fatal("ActionScroll with MouseMsg payload should be handled")
+	}
+	if inst.scrollOffset != 1 {
+		t.Fatalf("offset = %d, want 1", inst.scrollOffset)
+	}
+}
+
 func TestInstance_Paint_NoBorder(t *testing.T) {
 	textNode := newtext.New("Line 1\nLine 2\nLine 3")
 
@@ -408,6 +445,68 @@ func TestInstance_SetProps(t *testing.T) {
 	if inst.showIndicator {
 		t.Error("showIndicator should be false")
 	}
+	if inst.scrollOffsetControlled {
+		t.Error("scrollOffset should be uncontrolled by default")
+	}
+}
+
+func TestInstance_SetProps_UncontrolledScrollOffsetPersistsAcrossRerender(t *testing.T) {
+	textNode := newtext.New(buildLines(8))
+	props := rtui.Props{
+		"child":        textNode,
+		"width":        20,
+		"height":       3,
+		"scrollOffset": 1,
+	}
+
+	inst := NewInstance(props)
+	inst.extractContent()
+
+	inst.ScrollBy(2)
+	if inst.scrollOffset != 3 {
+		t.Fatalf("offset after ScrollBy = %d, want 3", inst.scrollOffset)
+	}
+
+	inst.SetProps(props)
+	if inst.scrollOffset != 3 {
+		t.Fatalf("uncontrolled offset after rerender = %d, want 3", inst.scrollOffset)
+	}
+}
+
+func TestInstance_SetProps_ControlledScrollOffsetResyncsFromProps(t *testing.T) {
+	textNode := newtext.New(buildLines(8))
+	props := rtui.Props{
+		"child":                  textNode,
+		"width":                  20,
+		"height":                 3,
+		"scrollOffset":           1,
+		"scrollOffsetControlled": true,
+	}
+
+	inst := NewInstance(props)
+	inst.extractContent()
+
+	inst.ScrollBy(2)
+	if inst.scrollOffset != 3 {
+		t.Fatalf("offset after ScrollBy = %d, want 3", inst.scrollOffset)
+	}
+
+	inst.SetProps(props)
+	if inst.scrollOffset != 1 {
+		t.Fatalf("controlled offset after rerender = %d, want 1", inst.scrollOffset)
+	}
+
+	nextProps := rtui.Props{
+		"child":                  textNode,
+		"width":                  20,
+		"height":                 3,
+		"scrollOffset":           4,
+		"scrollOffsetControlled": true,
+	}
+	inst.SetProps(nextProps)
+	if inst.scrollOffset != 4 {
+		t.Fatalf("controlled offset after prop update = %d, want 4", inst.scrollOffset)
+	}
 }
 
 // =============================================================================
@@ -441,8 +540,28 @@ func TestBuilder_FluentAPI(t *testing.T) {
 	if sv.ScrollOffset() != 3 {
 		t.Errorf("Expected scrollOffset 3, got %d", sv.ScrollOffset())
 	}
+	if sv.ScrollOffsetControlled() {
+		t.Error("Builder ScrollOffset should leave scrollOffset uncontrolled")
+	}
 	if sv.Key() != "test-scroll" {
 		t.Errorf("Expected key 'test-scroll', got '%s'", sv.Key())
+	}
+}
+
+func TestBuilder_ScrollOffsetControlled(t *testing.T) {
+	vnode := NewBuilder().
+		ScrollOffsetControlled(6).
+		Build()
+
+	sv, ok := vnode.(*VNode)
+	if !ok {
+		t.Fatal("Build() did not return *VNode")
+	}
+	if sv.ScrollOffset() != 6 {
+		t.Fatalf("scrollOffset = %d, want 6", sv.ScrollOffset())
+	}
+	if !sv.ScrollOffsetControlled() {
+		t.Fatal("ScrollOffsetControlled() should mark vnode as controlled")
 	}
 }
 
@@ -584,11 +703,11 @@ func TestInstance_ScrollOffsetClamp(t *testing.T) {
 	textNode := newtext.New(buildLines(5))
 
 	inst := NewInstance(rtui.Props{
-		"child":         textNode,
-		"width":         30,
-		"height":        3,
-		"showBorder":    false,
-		"scrollOffset":  100, // Too high
+		"child":        textNode,
+		"width":        30,
+		"height":       3,
+		"showBorder":   false,
+		"scrollOffset": 100, // Too high
 	})
 
 	inst.extractContent()

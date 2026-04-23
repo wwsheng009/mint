@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework"
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/paint"
@@ -201,10 +202,12 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Create the framework app
 	fwApp := framework.NewApp()
+	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)
-	fwApp.InitTheme("dark")
+	fwApp.InitTheme(fwtheme.DefaultThemeName)
+	installGraphicsBootstrap(fwApp, testGraphicsWriter())
 
 	// Set global appInstance
 	appInstance = fwApp
@@ -214,6 +217,11 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 
+	// Keep test setup aligned with ui.Run/ui.RunApp plugin registration.
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
+	}
+
 	// Call initialization function if provided (e.g., for registering Intent Handlers)
 	if options.InitFunc != nil {
 		options.InitFunc()
@@ -221,10 +229,15 @@ func RunTest(app ComponentFunc, opts ...Option) (*TestableApp, error) {
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app to enable frame scheduling
 	declarativeNode.SetApp(fwApp)
+
+	// Keep test runtime focus routing aligned with ui.Run/ui.RunApp.
+	if fm := declarativeNode.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
@@ -274,10 +287,12 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Create the framework app
 	fwApp := framework.NewApp()
+	fwApp.SetConfigSize(options.Width, options.Height)
 	fwApp.Resize(options.Width, options.Height)
 
 	// Initialize theme (optional, don't fail on error)
-	fwApp.InitTheme("dark")
+	fwApp.InitTheme(fwtheme.DefaultThemeName)
+	installGraphicsBootstrap(fwApp, testGraphicsWriter())
 
 	// Set global appInstance
 	appInstance = fwApp
@@ -287,6 +302,11 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 	intent.SetupBuiltinHandlers(intentRuntime) // Register built-in intent handlers
 	rtui.SetGlobalIntentRuntime(intentRuntime)
 
+	// Keep test setup aligned with ui.Run/ui.RunApp plugin registration.
+	if options.PluginSetupFunc != nil {
+		options.PluginSetupFunc(fwApp)
+	}
+
 	// Call initialization function if provided (e.g., for registering Intent Handlers)
 	if options.InitFunc != nil {
 		options.InitFunc()
@@ -294,10 +314,15 @@ func RunTestWithSandbox(app ComponentFunc, opts ...Option) (*TestableApp, error)
 
 	// Create the declarative root component with Fiber reconciler enabled
 	// Fiber is now the default and required for persistent component instances and event handlers
-	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	declarativeNode := render.NewDeclarativeNodeFromFuncWithFiber(wrapWithDefaultPortalRoots(app))
 
 	// Set app to enable frame scheduling
 	declarativeNode.SetApp(fwApp)
+
+	// Keep test runtime focus routing aligned with ui.Run/ui.RunApp.
+	if fm := declarativeNode.GetFocusManager(); fm != nil {
+		fwApp.SetFocusManagerFromDeclarativeNode(fm)
+	}
 
 	// Pass Intent Runtime to declarative node for component context
 	render.SetDeclarativeNodeIntentRuntime(declarativeNode, intentRuntime)
@@ -397,7 +422,13 @@ func (ta *TestableApp) GetBuffer() *paint.Buffer {
 	hasContent := false
 	if front != nil && front.Height > 0 && len(front.Cells) > 0 {
 		for y := 0; y < front.Height; y++ {
+			if y >= len(front.Cells) {
+				break
+			}
 			for x := 0; x < front.Width; x++ {
+				if x >= len(front.Cells[y]) {
+					break
+				}
 				if front.Cells[y][x].Cluster != "" && front.Cells[y][x].Cluster != " " {
 					hasContent = true
 					break
@@ -417,29 +448,7 @@ func (ta *TestableApp) GetBuffer() *paint.Buffer {
 
 // GetRenderString 获取渲染输出字符串
 func (ta *TestableApp) GetRenderString() string {
-	buf := ta.GetBuffer()
-	if buf == nil {
-		return ""
-	}
-
-	var sb strings.Builder
-	for y := 0; y < buf.Height; y++ {
-		for x := 0; x < buf.Width; x++ {
-			cell := buf.Cells[y][x]
-			if cell.IsContinuation {
-				continue
-			}
-			if cell.Cluster == "" {
-				sb.WriteRune(' ')
-			} else {
-				sb.WriteString(cell.Cluster)
-			}
-		}
-		if y < buf.Height-1 {
-			sb.WriteRune('\n')
-		}
-	}
-	return sb.String()
+	return ta.fwApp.GetRenderer().GetRenderSnapshot()
 }
 
 // AssertRender 断言渲染输出包含指定文本
@@ -510,6 +519,7 @@ func (ta *TestableApp) GetFocusedType() int {
 	}
 	return ta.root.GetFocusedType()
 }
+
 // GetFocusManager 获取焦点管理器
 func (ta *TestableApp) GetFocusManager() interface{} {
 	if ta.root == nil {

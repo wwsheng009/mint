@@ -13,6 +13,8 @@
 //   Run the program
 //   Press F12 or Ctrl+D to toggle inspector overlay
 //   Both app and inspector remain visible and interactive
+//
+// Architecture: Store + Reducer + Custom Intent (Single Source of Truth)
 
 package main
 
@@ -26,25 +28,135 @@ import (
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/runtime/style"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
-// InspectorActionIntent defines custom intent for inspector demo actions
-type InspectorActionIntent struct {
-	Action string
+// =============================================================================
+// AppState (Single Source of Truth)
+// =============================================================================
+
+// AppState represents the demo state.
+type AppState struct {
+	CurrentPhase  string
+	EventCount    int
+	RenderCount   int
+	BufferUpdates int
+	ShowInspector bool
 }
 
-func (i InspectorActionIntent) IntentType() string { return "InspectorAction" }
-func (i InspectorActionIntent) StayPressed() bool  { return true }
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
 
-// Global inspector instance
+// SetPhaseIntent sets the current pipeline phase.
+type SetPhaseIntent struct {
+	Phase string
+}
+
+func (SetPhaseIntent) IntentType() string { return "SetPhase" }
+func (SetPhaseIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithRenderCountIntent sets phase and increments render count.
+type SetPhaseWithRenderCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithRenderCountIntent) IntentType() string { return "SetPhaseWithRenderCount" }
+func (SetPhaseWithRenderCountIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithBufferCountIntent sets phase and increments buffer count.
+type SetPhaseWithBufferCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithBufferCountIntent) IntentType() string { return "SetPhaseWithBufferCount" }
+func (SetPhaseWithBufferCountIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithEventCountIntent sets phase and increments event count.
+type SetPhaseWithEventCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithEventCountIntent) IntentType() string { return "SetPhaseWithEventCount" }
+func (SetPhaseWithEventCountIntent) StayPressed() bool  { return true }
+
+// ToggleInspectorIntent toggles the inspector visibility.
+type ToggleInspectorIntent struct{}
+
+func (ToggleInspectorIntent) IntentType() string { return "ToggleInspector" }
+func (ToggleInspectorIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// Reducer (Pure Function)
+// =============================================================================
+
+// appReducer handles all state transitions.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle SetPhaseIntent
+	appReducer.On(SetPhaseIntent{}, func(s AppState, i intent.Intent) AppState {
+		spi := i.(SetPhaseIntent)
+		s.CurrentPhase = spi.Phase
+		return s
+	})
+
+	// Handle SetPhaseWithEventCountIntent
+	appReducer.On(SetPhaseWithEventCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithEventCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.EventCount++
+		return s
+	})
+
+	// Handle SetPhaseWithRenderCountIntent
+	appReducer.On(SetPhaseWithRenderCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithRenderCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.RenderCount++
+		return s
+	})
+
+	// Handle SetPhaseWithBufferCountIntent
+	appReducer.On(SetPhaseWithBufferCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithBufferCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.BufferUpdates++
+		return s
+	})
+
+	// Handle ToggleInspectorIntent
+	appReducer.On(ToggleInspectorIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.ShowInspector = !s.ShowInspector
+		// Toggle global inspector visibility
+		globalInspector.ToggleVisibility()
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the demo state.
+var appStore = store.NewStore(AppState{
+	CurrentPhase:  "idle",
+	EventCount:    0,
+	RenderCount:   0,
+	BufferUpdates: 0,
+	ShowInspector: false,
+})
+
+// =============================================================================
+// Global instances
+// =============================================================================
+
 var globalInspector *inspector.StandaloneInspector
-
-// Global framework app instance
 var FwApp *framework.App
-
-// Global declarative root (to access reconciler)
 var declarativeRoot *render.DeclarativeNode
 
 func main() {
@@ -60,6 +172,11 @@ func main() {
 	// Auto-show inspector from environment
 	if os.Getenv("TUI_INSPECTOR") == "true" {
 		globalInspector.ToggleVisibility()
+		// Update store state
+		appStore.Update(func(s AppState) AppState {
+			s.ShowInspector = true
+			return s
+		})
 		fmt.Println("UI Inspector auto-enabled - Press F12 or Ctrl+D to toggle")
 	} else {
 		fmt.Println("UI Inspector ready - Press [I] button or F12/Ctrl+D to toggle")
@@ -72,7 +189,6 @@ func main() {
 	FwApp = framework.NewApp()
 
 	// Create declarative root WITH FIBER RECONCILER
-	// This enables VNodeComponentInstance for persistent event handlers
 	declarativeRoot = render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemoWithInspectorOverlay)
 	declarativeRoot.SetApp(FwApp)
 
@@ -87,17 +203,18 @@ func main() {
 
 	// Initialize theme
 	if err := FwApp.InitTheme("nord"); err != nil {
-		log.UILogger.Debug("Failed to initialize theme: %v", err)
+		log.UILogger.IfEnabled().Debug("Failed to initialize theme: %v", err)
 	}
+
+	// Register reducer handlers to store
+	appReducer.RegisterToGlobal(appStore)
 
 	// Run the app
 	fmt.Println("Starting Mint TUI Demo - Press F12 or Ctrl+D to toggle Inspector")
 
 	// Debug info
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[DEMO2] Inspector enabled: %v", globalInspector.IsEnabled())
-		log.UILogger.Debug("[DEMO2] Inspector visible: %v", globalInspector.IsVisible())
-	}
+	log.UILogger.IfEnabled().Debug("[DEMO2] Inspector enabled: %v", globalInspector.IsEnabled())
+	log.UILogger.IfEnabled().Debug("[DEMO2] Inspector visible: %v", globalInspector.IsVisible())
 
 	if err := FwApp.Run(); err != nil {
 		panic(err)
@@ -106,77 +223,28 @@ func main() {
 
 // RuntimeDemoWithInspectorOverlay demonstrates framework-level inspector overlay
 func RuntimeDemoWithInspectorOverlay() ui.VNode {
-	currentPhase, setCurrentPhase := ui.UseStateString("idle")
-	eventCount, setEventCount, _ := ui.UseStateInt(0)
-	renderCount, setRenderCount, _ := ui.UseStateInt(0)
-	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
-
-	// Debug: check inspector visibility before hook
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] globalInspector.IsVisible() = %v", globalInspector.IsVisible())
-	}
-
-	showInspector, setShowInspector := ui.UseStateBool(globalInspector.IsVisible())
-
-	// Debug: log state
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] showInspector (from hook) = %v", showInspector)
-	}
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
 	// Track performance
 	globalInspector.StartFrame()
 	defer globalInspector.EndFrame()
 
 	// Build main application content
-	// NOTE: The reconciler will add Fiber keys to these VNodes during reconciliation
-	// NOTE: Inspector is already attached in main() to declarativeRoot
-	// declarativeRoot will be updated by reconciliation with Fiber keys
-	appContent := buildDemoContent(
-		currentPhase, eventCount, renderCount, bufferUpdates,
-		setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates,
-		setShowInspector,
-	)
+	appContent := buildDemoContent(state)
 
-	// IMPORTANT: Check inspector visibility on every render
-	// This fixes the state synchronization issue between imperative Inspector API
-	// and React-like declarative hooks
-	inspectorVisible := globalInspector.IsVisible()
-
-	// Debug: log visibility check
-	if os.Getenv("TUI_DEBUG_INSPECTOR") == "true" {
-		log.UILogger.Debug("[DEMO] Inspector visible: %v (showInspector state: %v)",
-			inspectorVisible, showInspector)
-	}
-
-	// NOTE: Inspector overlay is now automatically injected by the hook system
-	// The framework's PipelineRenderer will automatically wrap the app content with
-	// Inspector overlay when Inspector is visible. Application code no longer needs
-	// to manually handle Fragment wrapping or SetLayer() calls.
-	//
-	// If inspector is enabled, the hook system will:
-	// 1. Call inspector.RenderContent()
-	// 2. Set LayerInspector on the overlay
-	// 3. Wrap in Fragment with app content
-	// 4. Render using multi-layer pipeline
-
-	// Just return app content - Inspector is handled by hooks
+	// Just return app content - Inspector is handled by framework hooks
 	return appContent
 }
 
 // buildDemoContent builds the original demo2 content
-func buildDemoContent(
-	currentPhase string,
-	eventCount, renderCount, bufferUpdates int,
-	setCurrentPhase func(string),
-	setEventCount, setRenderCount, setBufferUpdates func(interface{}),
-	setShowInspector func(bool),
-) ui.VNode {
+func buildDemoContent(state AppState) ui.VNode {
 	return ui.VStack(
 		HeaderPanel(),
-		PipelineVisualization(currentPhase),
-		StatisticsPanel(eventCount, renderCount, bufferUpdates),
-		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates, setShowInspector),
-		ExplanationPanel(currentPhase),
+		PipelineVisualization(state.CurrentPhase),
+		StatisticsPanel(state.EventCount, state.RenderCount, state.BufferUpdates),
+		ControlPanel(),
+		ExplanationPanel(state.CurrentPhase),
 	)
 }
 
@@ -304,161 +372,57 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 }
 
 // ControlPanel provides buttons to trigger each phase
-func ControlPanel(
-	setCurrentPhase func(string),
-	setEventCount, setRenderCount, setBufferUpdates func(interface{}),
-	setShowInspector func(bool),
-) ui.VNode {
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCurrentPhase"] = setCurrentPhase
-		ctx.GlobalState["setEventCount"] = setEventCount
-		ctx.GlobalState["setRenderCount"] = setRenderCount
-		ctx.GlobalState["setBufferUpdates"] = setBufferUpdates
-	}
-
-	// Register handlers for each button action
-	ui.On(InspectorActionIntent{Action: "event"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Event")
-			}
-		}
-		if fn, ok := actx.GetState("setEventCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "setstate"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("setState")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "scheduler"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Scheduler")
-			}
-		}
-		if fn, ok := actx.GetState("setRenderCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "render"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Render")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "reconcile"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Reconcile")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "layout"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Layout")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "paint"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Paint")
-			}
-		}
-		if fn, ok := actx.GetState("setBufferUpdates"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "idle"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("idle")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func(actx *intent.ActionContext) {
-		// Debug output
-		if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[DEMO2] [I] button clicked, Inspector enabled=%v, visible=%v",
-				globalInspector.IsEnabled(), globalInspector.IsVisible())
-		}
-
-		// Toggle inspector visibility
-		globalInspector.ToggleVisibility()
-
-		// Debug output after toggle
-		if os.Getenv("TUI_DEBUG") == "true" || os.Getenv("TUI_DEBUG_UI") == "true" {
-			log.UILogger.Debug("[DEMO2] After toggle, Inspector visible=%v",
-				globalInspector.IsVisible())
-		}
-		// Trigger re-render to show/hide overlay
-		setShowInspector(globalInspector.IsVisible())
-	})
-
+func ControlPanel() ui.VNode {
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
 			Key("btn-event").
 			Variant(ui.ButtonVariantDanger).
-			OnPress(InspectorActionIntent{Action: "event"}).
+			OnPress(SetPhaseWithEventCountIntent{Phase: "Event"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
 			Key("btn-setstate").
 			Variant(ui.ButtonVariantSecondary).
-			OnPress(InspectorActionIntent{Action: "setstate"}).
+			OnPress(SetPhaseIntent{Phase: "setState"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
 			Key("btn-scheduler").
 			Variant(ui.ButtonVariantSuccess).
-			OnPress(InspectorActionIntent{Action: "scheduler"}).
+			OnPress(SetPhaseWithRenderCountIntent{Phase: "Scheduler"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
 			Key("btn-render").
 			Variant(ui.ButtonVariantPrimary).
-			OnPress(InspectorActionIntent{Action: "render"}).
+			OnPress(SetPhaseIntent{Phase: "Render"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
 			Key("btn-reconcile").
-			OnPress(InspectorActionIntent{Action: "reconcile"}).
+			OnPress(SetPhaseIntent{Phase: "Reconcile"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
 			Key("btn-layout").
-			OnPress(InspectorActionIntent{Action: "layout"}).
+			OnPress(SetPhaseIntent{Phase: "Layout"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
 			Key("btn-paint").
-			OnPress(InspectorActionIntent{Action: "paint"}).
+			OnPress(SetPhaseWithBufferCountIntent{Phase: "Paint"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
 			Key("btn-idle").
-			OnPress(InspectorActionIntent{Action: "idle"}).
+			OnPress(SetPhaseIntent{Phase: "idle"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		// Toggle Inspector button - works with framework-level overlay
 		ui.NewButtonBuilder("[I] Inspector").
 			Key("btn-inspector").
 			Variant(ui.ButtonVariantSecondary).
-			OnPress(InspectorActionIntent{Action: "toggle-inspector"}).
+			OnPress(ToggleInspectorIntent{}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}

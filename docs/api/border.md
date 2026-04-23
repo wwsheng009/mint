@@ -566,11 +566,11 @@ stack.NewVStack().
 
 ## 参考资源
 
-- [Stack 组件文档](../components/stack.md)
-- [Grid 组件文档](../components/grid.md)
-- [Wrap 组件文档](../components/wrap.md)
-- [Absolute 组件文档](../components/absolute.md)
-- [Style 颜色参考](../style/colors.md)
+- [Flex 布局（HStack/VStack）](../layout/core_concepts/flex_layout.md)
+- [Grid 组件文档](../components/grid/ARCHITECTURE.md)
+- [Wrap 组件文档](../layout/core_concepts/wrap_component.md)
+- [Absolute 组件代码](../../ui/components/absolute/)
+- [Style 颜色参考](../theme/ant_design_quick_reference.md)
 - [示例：border_demo](../../examples/fiber_firsts/border_demo/)
 
 ---

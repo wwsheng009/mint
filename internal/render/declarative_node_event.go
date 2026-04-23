@@ -13,7 +13,7 @@ import (
 
 // HandleEvent processes events by distributing them to child components
 func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
-	log.RenderLogger.Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
+	log.RenderLogger.IfEnabled().Debug("DeclarativeNode.HandleEvent: event type=%d", ev.Type())
 
 	n.mu.RLock()
 	root := n.root
@@ -44,7 +44,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	if focusMgr != nil {
 		handled, shouldRender := focusMgr.HandleEvent(ev)
 		if handled {
-			log.RenderLogger.Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v", shouldRender)
+			log.RenderLogger.IfEnabled().Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v", shouldRender)
 
 			// Request a re-render when focus changes
 			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
@@ -76,7 +76,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			// Handle mouse press and click events
 			if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
 				if n.handleMouseFocus(mouseEv) {
-					log.RenderLogger.Debug("DeclarativeNode.HandleEvent: mouse click switched focus")
+					log.RenderLogger.IfEnabled().Debug("DeclarativeNode.HandleEvent: mouse click switched focus")
 
 					// Focus was switched, trigger re-render
 					if useFiber && reconciler != nil {
@@ -108,11 +108,11 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 // distributeEventToVNode recursively distributes an event to VNode tree
 func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworkevent.Event) bool {
 	if vnode == nil {
-		log.RenderLogger.Debug("distributeEventToVNode: vnode is nil")
+		log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: vnode is nil")
 		return false
 	}
 
-	log.RenderLogger.Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
+	log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: called with vnode type=%d, actual type=%T", vnode.Type(), vnode)
 
 	// Phase 3: Event-centric distribution
 	// If this is a MouseEvent with TargetID, only distribute to the target component
@@ -131,9 +131,9 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 			if component, ok := vnode.(frameworkevent.Component); ok {
 				// Debug: check if this is a button and print its label and pointer
 				if button, ok := vnode.(interface{ Label() string }); ok {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target button key=%d, label='%s', pointer=%p, calling HandleEvent", targetID, button.Label(), vnode)
+					log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: Found target button key=%d, label='%s', pointer=%p, calling HandleEvent", targetID, button.Label(), vnode)
 				} else {
-					log.RenderLogger.Debug("distributeEventToVNode: Found target component with key=%d (not a button), calling HandleEvent", targetID)
+					log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: Found target component with key=%d (not a button), calling HandleEvent", targetID)
 				}
 				if component.HandleEvent(ev) {
 					return true
@@ -156,7 +156,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Legacy behavior: broadcast to all components (for KeyEvent or MouseEvent without TargetID)
 	// Check if this VNode implements the Component interface
 	if component, ok := vnode.(frameworkevent.Component); ok {
-		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
+		log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: VNode type=%d implements frameworkevent.Component, calling HandleEvent", vnode.Type())
 
 		if component.HandleEvent(ev) {
 			// Event was handled by this component - stop propagation
@@ -168,7 +168,7 @@ func (n *DeclarativeNode) distributeEventToVNode(vnode rtui.VNode, ev frameworke
 	// Try to distribute to children
 	children := vnode.Children()
 	if len(children) > 0 {
-		log.RenderLogger.Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
+		log.RenderLogger.IfEnabled().Debug("distributeEventToVNode: VNode type=%d has %d children, distributing...", vnode.Type(), len(children))
 
 		for _, child := range children {
 			if n.distributeEventToVNode(child, ev) {
@@ -239,12 +239,12 @@ func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
 
 		// Check if mouse click is within bounds
 		if x >= bx && x < bx+bw && y >= by && y < by+bh {
-			log.RenderLogger.Debug("node Was Clicked: HIT!")
+			log.RenderLogger.IfEnabled().Debug("node Was Clicked: HIT!")
 
 			return true
 		}
 
-		log.RenderLogger.Debug("node Was Clicked: MISS!")
+		log.RenderLogger.IfEnabled().Debug("node Was Clicked: MISS!")
 
 		return false
 	}

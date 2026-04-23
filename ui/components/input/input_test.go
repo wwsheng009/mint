@@ -2,10 +2,12 @@ package input
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
 )
 
 // =============================================================================
@@ -64,6 +66,43 @@ func TestVNode_Builder(t *testing.T) {
 	}
 }
 
+func TestVNode_Builder_AffixesAndSearch(t *testing.T) {
+	input := NewBuilder().
+		Placeholder("Search users").
+		Prefix("@").
+		Suffix(".com").
+		AddonBefore("https://").
+		AddonAfter("/profile").
+		Search().
+		BuildTyped()
+
+	if input.Prefix() != "@" {
+		t.Fatalf("Prefix = %q, want %q", input.Prefix(), "@")
+	}
+	if input.Suffix() != ".com" {
+		t.Fatalf("Suffix = %q, want %q", input.Suffix(), ".com")
+	}
+	if input.AddonBefore() != "https://" {
+		t.Fatalf("AddonBefore = %q, want %q", input.AddonBefore(), "https://")
+	}
+	if input.AddonAfter() != "/profile" {
+		t.Fatalf("AddonAfter = %q, want %q", input.AddonAfter(), "/profile")
+	}
+	if !input.SearchVariant() {
+		t.Fatal("SearchVariant should be true")
+	}
+}
+
+func TestVNode_Builder_InsertCursor(t *testing.T) {
+	input := NewBuilder().InsertCursor().Build().(*VNode)
+	if input.cursorConfig.Shape != cursor.ShapeBar {
+		t.Fatalf("cursor shape = %v, want %v", input.cursorConfig.Shape, cursor.ShapeBar)
+	}
+	if input.cursorConfig.Glyph != "|" {
+		t.Fatalf("cursor glyph = %q, want %q", input.cursorConfig.Glyph, "|")
+	}
+}
+
 func TestVNode_Password(t *testing.T) {
 	input := New().SetPassword()
 	if input.InputType() != TypePassword {
@@ -108,23 +147,29 @@ func TestInstance_New(t *testing.T) {
 
 func TestInstance_Measure(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		width     int
-		wantMin   int
+		name    string
+		value   string
+		width   int
+		props   rtui.Props
+		wantMin int
 	}{
-		{"Empty value", "", 0, 12}, // 10 min content + 2 bracket padding
-		{"Short value", "hi", 0, 12},
-		{"Long value", "hello world", 0, 13}, // 11 content + 2 padding
-		{"With explicit width", "hi", 20, 22}, // 20 width + 2 padding
+		{"Empty value", "", 0, nil, 12}, // 10 min content + 2 bracket padding
+		{"Short value", "hi", 0, nil, 12},
+		{"Long value", "hello world", 0, nil, 13},  // 11 content + 2 padding
+		{"With explicit width", "hi", 20, nil, 22}, // 20 width + 2 padding
+		{"With addons", "go", 12, rtui.Props{"addonBefore": "https://", "addonAfter": ".dev"}, 28},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inst := NewInstance(rtui.Props{
+			props := rtui.Props{
 				"value": tt.value,
 				"width": tt.width,
-			})
+			}
+			for k, v := range tt.props {
+				props[k] = v
+			}
+			inst := NewInstance(props)
 
 			size := inst.Measure(layout.UnboundedConstraints())
 
@@ -196,6 +241,49 @@ func TestInstance_InsertText_MaxLen(t *testing.T) {
 	}
 }
 
+func TestInstance_InsertText_WidthLimit(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+		"width": 5,
+	})
+	inst.SetCursorPos(3)
+
+	if !inst.InsertText("def") {
+		t.Fatal("InsertText should allow partial insert within width")
+	}
+	if inst.GetValue() != "abcde" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "abcde")
+	}
+	if inst.CursorPos() != 5 {
+		t.Fatalf("CursorPos = %d, want 5", inst.CursorPos())
+	}
+
+	if inst.InsertText("f") {
+		t.Fatal("InsertText should fail when content width is full")
+	}
+	if inst.GetValue() != "abcde" {
+		t.Fatalf("Value should stay %q, got %q", "abcde", inst.GetValue())
+	}
+}
+
+func TestInstance_InsertText_WidthLimit_FromBounds(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+	})
+	inst.SetBounds(0, 0, 6, 3) // content width = 4 (total width - 2 border)
+	inst.SetCursorPos(3)
+
+	if !inst.InsertText("zz") {
+		t.Fatal("InsertText should allow one rune with remaining width 1")
+	}
+	if inst.GetValue() != "abcz" {
+		t.Fatalf("Value = %q, want %q", inst.GetValue(), "abcz")
+	}
+	if inst.CursorPos() != 4 {
+		t.Fatalf("CursorPos = %d, want 4", inst.CursorPos())
+	}
+}
+
 func TestInstance_DeleteText(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value": "hello",
@@ -249,7 +337,7 @@ func TestInstance_Disabled(t *testing.T) {
 
 func TestInstance_ReadOnly(t *testing.T) {
 	inst := NewInstance(rtui.Props{
-		"value":   "test",
+		"value":    "test",
 		"readOnly": true,
 	})
 
@@ -294,6 +382,33 @@ func TestInstance_HandleAction(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_CursorActions(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "hello",
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorLeft)) {
+		t.Fatal("ActionCursorLeft should be handled")
+	}
+	if inst.CursorPos() != 4 {
+		t.Fatalf("CursorPos = %d, want 4", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorHome)) {
+		t.Fatal("ActionCursorHome should be handled")
+	}
+	if inst.CursorPos() != 0 {
+		t.Fatalf("CursorPos = %d, want 0", inst.CursorPos())
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionCursorEnd)) {
+		t.Fatal("ActionCursorEnd should be handled")
+	}
+	if inst.CursorPos() != 5 {
+		t.Fatalf("CursorPos = %d, want 5", inst.CursorPos())
+	}
+}
+
 func TestInstance_Focus(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		"value": "test",
@@ -316,11 +431,11 @@ func TestInstance_Focus(t *testing.T) {
 
 func TestInstance_Paint(t *testing.T) {
 	tests := []struct {
-		name     string
-		value    string
+		name        string
+		value       string
 		placeholder string
-		inputType Type
-		want     string
+		inputType   Type
+		want        string
 	}{
 		{"Empty with placeholder", "", "Enter text", TypeText, "Enter text"},
 		{"With value", "hello", "Enter text", TypeText, "hello     "},
@@ -346,6 +461,60 @@ func TestInstance_Paint(t *testing.T) {
 				t.Errorf("Text = %q, want %q", cmds[4].Text, tt.want)
 			}
 		})
+	}
+}
+
+func TestInstance_Paint_WithPrefixSuffix(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":  "alice",
+		"prefix": "@",
+		"suffix": ".com",
+		"width":  14,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5", len(cmds))
+	}
+
+	if cmds[4].Text != "@alice    .com" {
+		t.Fatalf("Text = %q, want %q", cmds[4].Text, "@alice    .com")
+	}
+}
+
+func TestInstance_Paint_WithAddons(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":       "mint",
+		"width":       10,
+		"addonBefore": "https://",
+		"addonAfter":  ".dev",
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 7 {
+		t.Fatalf("Paint returned %d commands, want 7", len(cmds))
+	}
+	if cmds[0].Text != "https://" {
+		t.Fatalf("addon before = %q, want %q", cmds[0].Text, "https://")
+	}
+	if cmds[len(cmds)-1].Text != ".dev" {
+		t.Fatalf("addon after = %q, want %q", cmds[len(cmds)-1].Text, ".dev")
+	}
+}
+
+func TestInstance_Paint_SearchVariant(t *testing.T) {
+	inst := NewBuilder().
+		Search().
+		Placeholder("Find packages").
+		Width(16).
+		BuildInstance()
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5", len(cmds))
+	}
+	if cmds[4].Text != "/ Find packages " {
+		t.Fatalf("Text = %q, want %q", cmds[4].Text, "/ Find packages ")
 	}
 }
 
@@ -391,5 +560,67 @@ func TestInstance_Paint_WithWidth(t *testing.T) {
 	expected := "hi        "
 	if cmds[4].Text != expected {
 		t.Errorf("Text = %q, want %q", cmds[4].Text, expected)
+	}
+}
+
+func TestInstance_Paint_FocusedShowsCursor(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":  "abc",
+		"prefix": "@",
+		"width":  10,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(1)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 6 {
+		t.Fatalf("Paint returned %d commands, want 6 with focused cursor", len(cmds))
+	}
+
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 3 || cursorCmd.Y != 1 {
+		t.Fatalf("Cursor command at (%d,%d), want (3,1)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "b" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "b")
+	}
+	if !cursorCmd.Style.IsReverse() {
+		t.Fatal("Cursor command style should be reverse")
+	}
+}
+
+func TestInstance_TickableCursorBlink(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+		"cursorConfig": cursor.Config{
+			Blink:         true,
+			BlinkInterval: 5 * time.Millisecond,
+		},
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("Focused input caret should want tick updates")
+	}
+
+	time.Sleep(6 * time.Millisecond)
+	if !inst.Tick(time.Now()) {
+		t.Fatal("Tick should toggle caret blink phase")
+	}
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 5 {
+		t.Fatalf("Paint returned %d commands, want 5 when caret hidden", len(cmds))
+	}
+}
+
+func TestInstance_DefaultCursorBlinksWhenFocused(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value": "abc",
+	})
+	inst.SetFocus(true)
+
+	if !inst.WantsTick() {
+		t.Fatal("default focused input cursor should blink")
 	}
 }

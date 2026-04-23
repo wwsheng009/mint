@@ -3,14 +3,17 @@ package checkbox
 import (
 	"unicode/utf8"
 
-	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/form"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
 )
 
 // =============================================================================
@@ -24,15 +27,17 @@ type Instance struct {
 	key string
 
 	// === Props (from VNode, may change each render) ===
-	label        string
+	label         string
 	checkboxStyle style.Style
 	toggleIntent  intent.Intent
+	formID        string // Form ID for Form integration (Phase 6)
 
 	// === Runtime State (managed by instance) ===
-	state   control.InteractionState
-	checked bool
-	bounds  [4]int // x, y, w, h
-	dirty   bool
+	state         control.InteractionState
+	checked       bool
+	indeterminate bool
+	bounds        [4]int // x, y, w, h
+	dirty         bool
 
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
@@ -53,6 +58,11 @@ var (
 	} = (*Instance)(nil)
 )
 
+// GroupInstance is the CheckboxGroup runtime entity.
+type GroupInstance struct {
+	*optiongroup.Instance
+}
+
 // =============================================================================
 // Constructor
 // =============================================================================
@@ -60,17 +70,19 @@ var (
 // NewInstance creates a new CheckboxInstance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:           getStringProp(props, "key", ""),
-		label:         getStringProp(props, "label", ""),
-		checkboxStyle: getStyleProp(props),
-		toggleIntent:  getIntentProp(props),
-		checked:       getBoolProp(props, "checked", false),
+		key:           proputil.GetString(props, "key", ""),
+		label:         proputil.GetString(props, "label", ""),
+		checkboxStyle: proputil.GetStyle(props, "style", style.Style{}),
+		toggleIntent:  proputil.GetIntent(props, "toggleIntent", nil),
+		formID:        proputil.GetString(props, "formID", ""),
+		checked:       proputil.GetBool(props, "checked", false),
+		indeterminate: proputil.GetBool(props, propIndeterminate, false),
 		dirty:         true,
 	}
 
 	// Initialize state
 	inst.state = control.InteractionState{
-		Disabled: getBoolProp(props, "disabled", false),
+		Disabled: proputil.GetBool(props, "disabled", false),
 	}
 
 	// Initialize behaviors
@@ -104,6 +116,12 @@ func (inst *Instance) SetKey(key string) {
 	inst.key = key
 }
 
+// Parent implements TreeComponent interface (intent bubble).
+// Returns nil as Checkbox is a leaf component without parent tracking.
+func (inst *Instance) Parent() interface{} {
+	return nil
+}
+
 // Init implements ComponentInstance.
 func (inst *Instance) Init(props rtui.Props) {
 	inst.SetProps(props)
@@ -129,14 +147,17 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldLabel := inst.label
 	oldDisabled := inst.state.Disabled
 	oldChecked := inst.checked
+	oldIndeterminate := inst.indeterminate
 	oldIntent := inst.toggleIntent
 
-	inst.label = getStringProp(props, "label", inst.label)
-	inst.checkboxStyle = getStyleProp(props)
-	inst.toggleIntent = getIntentProp(props)
-	inst.checked = getBoolProp(props, "checked", inst.checked)
+	inst.label = proputil.GetString(props, "label", inst.label)
+	inst.checkboxStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.toggleIntent = proputil.GetIntent(props, "toggleIntent", nil)
+	inst.formID = proputil.GetString(props, "formID", inst.formID)
+	inst.checked = proputil.GetBool(props, "checked", inst.checked)
+	inst.indeterminate = proputil.GetBool(props, propIndeterminate, inst.indeterminate)
 
-	newDisabled := getBoolProp(props, "disabled", inst.state.Disabled)
+	newDisabled := proputil.GetBool(props, "disabled", inst.state.Disabled)
 	if newDisabled != inst.state.Disabled {
 		inst.state.Disabled = newDisabled
 	}
@@ -145,6 +166,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	changed := oldLabel != inst.label ||
 		oldDisabled != inst.state.Disabled ||
 		oldChecked != inst.checked ||
+		oldIndeterminate != inst.indeterminate ||
 		oldIntent != inst.toggleIntent
 
 	if changed {
@@ -156,10 +178,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 // GetProps implements ComponentInstance.
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		"key":      inst.key,
-		"label":    inst.label,
-		"disabled": inst.state.Disabled,
-		"checked":  inst.checked,
+		propKey:           inst.key,
+		propLabel:         inst.label,
+		propDisabled:      inst.state.Disabled,
+		propChecked:       inst.checked,
+		propIndeterminate: inst.indeterminate,
 	}
 }
 
@@ -186,9 +209,12 @@ func (inst *Instance) GetContext() *rtui.ComponentContext {
 func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	// Build checkbox indicator: [X] or [ ]
 	var indicator string
-	if inst.checked {
+	switch {
+	case inst.indeterminate:
+		indicator = "[-]"
+	case inst.checked:
 		indicator = "[X]"
-	} else {
+	default:
 		indicator = "[ ]"
 	}
 
@@ -224,7 +250,7 @@ func (inst *Instance) resolveStyle() style.Style {
 	}
 
 	// Checked state: make it bold
-	if inst.checked && !inst.state.Disabled {
+	if (inst.checked || inst.indeterminate) && !inst.state.Disabled {
 		s = s.Bold(true)
 	}
 
@@ -248,7 +274,11 @@ func (inst *Instance) resolveStyle() style.Style {
 func (inst *Instance) SetFocus(focused bool) {
 	if inst.state.Focused != focused {
 		oldState := inst.state
+		wasFocused := inst.state.Focused
 		inst.state.Focused = focused
+		if wasFocused && !focused {
+			inst.emitFieldBlur()
+		}
 		inst.dirty = true
 		inst.behaviors.OnStateChange(inst, oldState, inst.state)
 	}
@@ -288,29 +318,17 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 // Toggle toggles the checked state and returns the new value.
 func (inst *Instance) Toggle() bool {
-	inst.checked = !inst.checked
+	if inst.indeterminate {
+		inst.indeterminate = false
+		inst.checked = true
+	} else {
+		inst.checked = !inst.checked
+	}
 	inst.dirty = true
 
-	// ✨ MVP: Emit FieldChangeIntent with runtime value
+	// ✨ MVP/Phase 6: Emit FieldChangeIntent or FormFieldChangeIntent with runtime value
 	// State becomes the single source of truth
-	// Convert boolean to string for FieldChangeIntent
-	value := "false"
-	if inst.checked {
-		value = "true"
-	}
-
-	if inst.intentEmitter != nil {
-		if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
-			changeIntent := intent.FieldChangeIntent{
-				Field: fieldIntent.GetField(),
-				Value: value,
-			}
-			inst.intentEmitter(changeIntent)
-		} else if inst.toggleIntent != nil {
-			// Fallback: emit the original intent for backward compatibility
-			inst.intentEmitter(inst.toggleIntent)
-		}
-	}
+	inst.emitFieldValueChanged()
 
 	return inst.checked
 }
@@ -323,9 +341,22 @@ func (inst *Instance) SetChecked(checked bool) {
 	}
 }
 
+// SetIndeterminate sets the indeterminate state.
+func (inst *Instance) SetIndeterminate(indeterminate bool) {
+	if inst.indeterminate != indeterminate {
+		inst.indeterminate = indeterminate
+		inst.dirty = true
+	}
+}
+
 // IsChecked returns the checked state.
 func (inst *Instance) IsChecked() bool {
 	return inst.checked
+}
+
+// IsIndeterminate returns the indeterminate state.
+func (inst *Instance) IsIndeterminate() bool {
+	return inst.indeterminate
 }
 
 // Label returns the label text.
@@ -379,13 +410,15 @@ func (inst *Instance) SetStyle(s style.Style) {
 // GetProp returns a prop value.
 func (inst *Instance) GetProp(key string) (interface{}, bool) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		return inst.state.Disabled, true
-	case "checked":
+	case propChecked:
 		return inst.checked, true
-	case "label":
+	case propIndeterminate:
+		return inst.indeterminate, true
+	case propLabel:
 		return inst.label, true
-	case "toggleIntent":
+	case propToggleIntent:
 		return inst.toggleIntent, true
 	default:
 		return nil, false
@@ -395,14 +428,19 @@ func (inst *Instance) GetProp(key string) (interface{}, bool) {
 // SetProp sets a prop value.
 func (inst *Instance) SetProp(key string, value interface{}) {
 	switch key {
-	case "disabled":
+	case propDisabled:
 		if v, ok := value.(bool); ok {
 			inst.state.Disabled = v
 			inst.dirty = true
 		}
-	case "checked":
+	case propChecked:
 		if v, ok := value.(bool); ok {
 			inst.checked = v
+			inst.dirty = true
+		}
+	case propIndeterminate:
+		if v, ok := value.(bool); ok {
+			inst.indeterminate = v
 			inst.dirty = true
 		}
 	}
@@ -457,41 +495,72 @@ func (inst *Instance) GetNaturalSize() (width, height int) {
 }
 
 // =============================================================================
-// Prop Extraction Helpers
+// Form Integration Methods (Phase 6)
 // =============================================================================
 
-func getStringProp(props rtui.Props, key, def string) string {
-	if v, ok := props[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
+// emitFieldValueChanged emits FieldChangeIntent or FormFieldChangeIntent
+// depending on whether formID is set.
+func (inst *Instance) emitFieldValueChanged() {
+	if inst.intentEmitter == nil {
+		return
 	}
-	return def
+
+	// Convert boolean to string for FieldChangeIntent
+	value := "false"
+	if inst.checked {
+		value = "true"
+	}
+
+	// Phase 6: If formID is set, use FormFieldChangeIntent
+	if inst.formID != "" {
+		if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+			formIntent := form.FieldChange(
+				inst.formID,
+				fieldIntent.GetField(),
+				value,
+				true, // isDirty
+			)
+			intent.Emit(inst, formIntent)
+		}
+		return
+	}
+
+	// Original MVP behavior: emit FieldChangeIntent
+	if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+		changeIntent := intent.FieldChangeIntent{
+			Field: fieldIntent.GetField(),
+			Value: value,
+		}
+		inst.intentEmitter(changeIntent)
+	} else if inst.toggleIntent != nil {
+		// Fallback: emit the original intent for backward compatibility
+		inst.intentEmitter(inst.toggleIntent)
+	}
 }
 
-func getBoolProp(props rtui.Props, key string, def bool) bool {
-	if v, ok := props[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
+// emitFieldBlur emits FormFieldBlurIntent to trigger validation (Phase 6)
+// Only called when formID is set.
+func (inst *Instance) emitFieldBlur() {
+	if inst.intentEmitter == nil || inst.formID == "" {
+		return
 	}
-	return def
+
+	// Convert boolean to string for FieldBlurIntent
+	value := "false"
+	if inst.checked {
+		value = "true"
+	}
+
+	if fieldIntent, ok := inst.toggleIntent.(intent.FieldIntent); ok {
+		blurIntent := form.FieldBlur(
+			inst.formID,
+			fieldIntent.GetField(),
+			value,
+		)
+		intent.Emit(inst, blurIntent)
+	}
 }
 
-func getStyleProp(props rtui.Props) style.Style {
-	if v, ok := props["style"]; ok {
-		if s, ok := v.(style.Style); ok {
-			return s
-		}
-	}
-	return style.Style{}
-}
-
-func getIntentProp(props rtui.Props) intent.Intent {
-	if v, ok := props["toggleIntent"]; ok {
-		if i, ok := v.(intent.Intent); ok {
-			return i
-		}
-	}
-	return nil
-}
+// =============================================================================
+// Prop Extraction Helpers
+// =============================================================================

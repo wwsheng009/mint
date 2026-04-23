@@ -1,10 +1,37 @@
 package textarea
 
 import (
+	"time"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/cursor"
+)
+
+// =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChangeIntent = "changeIntent"
+	propCols = "cols"
+	propCursorConfig = "cursorConfig"
+	propDisabled = "disabled"
+	propFormID = "formID"
+	propKey = "key"
+	propMaxLen = "maxLen"
+	propPlaceholder = "placeholder"
+	propRows = "rows"
+	propScrollOffset = "scrollOffset"
+	propScrollOffsetControlled = "scrollOffsetControlled"
+	propScrollbarStyle = "scrollbarStyle"
+	propShowScrollbar = "showScrollbar"
+	propStyle = "style"
+	propSubmitIntent = "submitIntent"
+	propValue = "value"
 )
 
 // =============================================================================
@@ -23,17 +50,23 @@ type VNode struct {
 	style       style.Style
 
 	// === Layout Props ===
-	rows int
-	cols int
+	rows                   int
+	cols                   int
+	scrollOffset           int
+	scrollOffsetControlled bool
+	showScrollbar          bool
+	scrollbarStyle         style.Style
 
 	// === Intent Props (no closures!) ===
 	changeIntent intent.Intent
 	submitIntent intent.Intent
 
 	// === State Props (declarative) ===
-	value    string
-	maxLen   int
-	disabled bool
+	value        string
+	maxLen       int
+	disabled     bool
+	formID       string // Form ID for Form integration (Phase 6)
+	cursorConfig cursor.Config
 
 	// === Box Model ===
 	rtui.BoxModelMixin
@@ -49,9 +82,11 @@ var (
 // New creates a new Textarea VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode: rtui.NewElement("textarea"),
-		rows:         3,
-		cols:         40,
+		ElementVNode:  rtui.NewElement("textarea"),
+		rows:          3,
+		cols:          40,
+		showScrollbar: true,
+		cursorConfig:  cursor.DefaultConfig(),
 	}
 }
 
@@ -59,61 +94,89 @@ func New() *VNode {
 // rtui.VNode Interface Implementation
 // =============================================================================
 
-func (t *VNode) Key() string                    { return t.key }
-func (t *VNode) SetKey(key string) rtui.VNode   { t.key = key; return t }
-func (t *VNode) Tag() string                    { return "textarea" }
-func (t *VNode) Style() style.Style             { return t.style }
-func (t *VNode) SetStyle(s style.Style) rtui.VNode { t.style = s; return t }
-func (t *VNode) Children() []rtui.VNode         { return nil }
+func (t *VNode) Key() string                                  { return t.key }
+func (t *VNode) SetKey(key string) rtui.VNode                 { t.key = key; return t }
+func (t *VNode) Tag() string                                  { return "textarea" }
+func (t *VNode) Style() style.Style                           { return t.style }
+func (t *VNode) SetStyle(s style.Style) rtui.VNode            { t.style = s; return t }
+func (t *VNode) Children() []rtui.VNode                       { return nil }
 func (t *VNode) SetChildren(children []rtui.VNode) rtui.VNode { return t }
-func (t *VNode) GetLayer() rtui.Layer           { return rtui.LayerBase }
-func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode { return t }
+func (t *VNode) GetLayer() rtui.Layer                         { return rtui.LayerBase }
+func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return t }
 
 func (t *VNode) Props() rtui.Props {
-	return rtui.Props{
-		"key":          t.key,
-		"placeholder":  t.placeholder,
-		"style":        t.style,
-		"rows":         t.rows,
-		"cols":         t.cols,
-		"changeIntent": t.changeIntent,
-		"submitIntent": t.submitIntent,
-		"value":        t.value,
-		"maxLen":       t.maxLen,
-		"disabled":     t.disabled,
+	props := rtui.Props{
+		propKey:                    t.key,
+		propPlaceholder:            t.placeholder,
+		propStyle:                  t.style,
+		propRows:                   t.rows,
+		propCols:                   t.cols,
+		propScrollOffsetControlled: t.scrollOffsetControlled,
+		propShowScrollbar:          t.showScrollbar,
+		propScrollbarStyle:         t.scrollbarStyle,
+		propChangeIntent:           t.changeIntent,
+		propSubmitIntent:           t.submitIntent,
+		propValue:                  t.value,
+		propMaxLen:                 t.maxLen,
+		propDisabled:               t.disabled,
+		propFormID:                 t.formID,
+		propCursorConfig:           t.cursorConfig,
 	}
+	if t.scrollOffsetControlled {
+		props[propScrollOffset] = t.scrollOffset
+	}
+	return props
 }
 
 func (t *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		t.key = v
 	}
-	if v, ok := p["placeholder"].(string); ok {
+	if v, ok := p[propPlaceholder].(string); ok {
 		t.placeholder = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		t.style = v
 	}
-	if v, ok := p["rows"].(int); ok {
+	if v, ok := p[propRows].(int); ok {
 		t.rows = v
 	}
-	if v, ok := p["cols"].(int); ok {
+	if v, ok := p[propCols].(int); ok {
 		t.cols = v
 	}
-	if v, ok := p["changeIntent"].(intent.Intent); ok {
+	if v, ok := p[propScrollOffset].(int); ok {
+		t.scrollOffset = v
+		t.scrollOffsetControlled = true
+	}
+	if v, ok := p[propScrollOffsetControlled].(bool); ok {
+		t.scrollOffsetControlled = v
+	}
+	if v, ok := p[propShowScrollbar].(bool); ok {
+		t.showScrollbar = v
+	}
+	if v, ok := p[propScrollbarStyle].(style.Style); ok {
+		t.scrollbarStyle = v
+	}
+	if v, ok := p[propChangeIntent].(intent.Intent); ok {
 		t.changeIntent = v
 	}
-	if v, ok := p["submitIntent"].(intent.Intent); ok {
+	if v, ok := p[propSubmitIntent].(intent.Intent); ok {
 		t.submitIntent = v
 	}
-	if v, ok := p["value"].(string); ok {
+	if v, ok := p[propValue].(string); ok {
 		t.value = v
 	}
-	if v, ok := p["maxLen"].(int); ok {
+	if v, ok := p[propMaxLen].(int); ok {
 		t.maxLen = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propDisabled].(bool); ok {
 		t.disabled = v
+	}
+	if v, ok := p[propFormID].(string); ok {
+		t.formID = v
+	}
+	if v, ok := p[propCursorConfig].(cursor.Config); ok {
+		t.cursorConfig = cursor.NormalizeConfig(v)
 	}
 	return t
 }
@@ -134,23 +197,84 @@ func (t *VNode) SetPlaceholder(text string) *VNode { t.placeholder = text; retur
 func (t *VNode) SetValue(value string) *VNode      { t.value = value; return t }
 func (t *VNode) SetRows(rows int) *VNode           { t.rows = rows; return t }
 func (t *VNode) SetCols(cols int) *VNode           { t.cols = cols; return t }
-func (t *VNode) SetMaxLen(len int) *VNode          { t.maxLen = len; return t }
-func (t *VNode) SetDisabled(disabled bool) *VNode  { t.disabled = disabled; return t }
+func (t *VNode) SetScrollOffset(offset int) *VNode {
+	t.scrollOffset = offset
+	t.scrollOffsetControlled = true
+	return t
+}
+func (t *VNode) SetShowScrollbar(show bool) *VNode      { t.showScrollbar = show; return t }
+func (t *VNode) SetScrollbarStyle(s style.Style) *VNode { t.scrollbarStyle = s; return t }
+func (t *VNode) SetMaxLen(len int) *VNode               { t.maxLen = len; return t }
+func (t *VNode) SetDisabled(disabled bool) *VNode       { t.disabled = disabled; return t }
 func (t *VNode) SetChangeIntent(i intent.Intent) *VNode { t.changeIntent = i; return t }
 func (t *VNode) SetSubmitIntent(i intent.Intent) *VNode { t.submitIntent = i; return t }
+func (t *VNode) SetCursorConfig(cfg cursor.Config) *VNode {
+	t.cursorConfig = cursor.NormalizeConfig(cfg)
+	return t
+}
+
+// SetCursorShape sets the embedded caret shape.
+func (t *VNode) SetCursorShape(shape cursor.Shape) *VNode {
+	t.cursorConfig.Shape = shape
+	return t
+}
+
+// SetInsertCursor configures a thin insertion caret.
+func (t *VNode) SetInsertCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeBar
+	t.cursorConfig.Glyph = "|"
+	return t
+}
+
+// SetBlockCursor configures a block caret.
+func (t *VNode) SetBlockCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeBlock
+	t.cursorConfig.Glyph = ""
+	return t
+}
+
+// SetUnderlineCursor configures an underline caret.
+func (t *VNode) SetUnderlineCursor() *VNode {
+	t.cursorConfig.Shape = cursor.ShapeUnderline
+	t.cursorConfig.Glyph = ""
+	return t
+}
+
+// SetCursorBlink enables or disables caret blink.
+func (t *VNode) SetCursorBlink(enabled bool) *VNode {
+	t.cursorConfig.Blink = enabled
+	if t.cursorConfig.BlinkInterval <= 0 {
+		t.cursorConfig.BlinkInterval = cursor.NormalBlinkInterval
+	}
+	return t
+}
+
+// SetCursorBlinkInterval sets caret blink interval.
+func (t *VNode) SetCursorBlinkInterval(interval time.Duration) *VNode {
+	t.cursorConfig.BlinkInterval = interval
+	return t
+}
 
 // =============================================================================
 // Props Accessors
 // =============================================================================
 
-func (t *VNode) Placeholder() string   { return t.placeholder }
-func (t *VNode) Value() string         { return t.value }
-func (t *VNode) Rows() int             { return t.rows }
-func (t *VNode) Cols() int             { return t.cols }
-func (t *VNode) MaxLen() int           { return t.maxLen }
-func (t *VNode) Disabled() bool        { return t.disabled }
+func (t *VNode) Placeholder() string         { return t.placeholder }
+func (t *VNode) Value() string               { return t.value }
+func (t *VNode) Rows() int                   { return t.rows }
+func (t *VNode) Cols() int                   { return t.cols }
+func (t *VNode) ScrollOffset() int           { return t.scrollOffset }
+func (t *VNode) ShowScrollbar() bool         { return t.showScrollbar }
+func (t *VNode) MaxLen() int                 { return t.maxLen }
+func (t *VNode) Disabled() bool              { return t.disabled }
 func (t *VNode) ChangeIntent() intent.Intent { return t.changeIntent }
 func (t *VNode) SubmitIntent() intent.Intent { return t.submitIntent }
+
+// SetFormID sets the form ID for Form integration (Phase 6).
+func (t *VNode) SetFormID(formID string) *VNode {
+	t.formID = formID
+	return t
+}
 
 // =============================================================================
 // layout.BoxModelProvider Implementation

@@ -85,7 +85,7 @@ func Pulse(id string, minScale, maxScale float64, duration time.Duration) *Anima
 	return NewAnimation(id, AnimationScale, duration).
 		WithFromTo(minScale, maxScale).
 		WithEasingName("ease-in-out-sine").
-		WithRepeat(-1). // Infinite
+		WithRepeat(-1).     // Infinite
 		WithAlternate(true) // Ping-pong
 }
 
@@ -145,15 +145,48 @@ func Wait(id string, duration time.Duration) *Animation {
 
 // Sequence creates a sequence of animations that play one after another.
 func Sequence(id string, animations ...*Animation) *Animation {
-	// This is a placeholder - full sequence support would require
-	// a more complex animation chain system
+	steps := make([]*Animation, 0, len(animations))
 	totalDuration := time.Duration(0)
 	for _, anim := range animations {
-		totalDuration += anim.Duration
+		if anim == nil {
+			continue
+		}
+		if anim.Repeat < 0 {
+			panic("animation.Sequence does not support infinitely repeating child animations")
+		}
+		clone := anim.Clone()
+		steps = append(steps, clone)
+		totalDuration += animationTimelineDuration(clone)
 	}
 
-	return NewAnimation(id, AnimationCustom, totalDuration).
+	seq := NewAnimation(id, AnimationCustom, totalDuration).
 		WithEasingName("linear")
+	if len(steps) == 0 {
+		return seq.WithFromTo(nil, nil)
+	}
+
+	seq.From = steps[0].From
+	seq.To = sequenceFinalValue(steps)
+	seq.Current = seq.From
+	seq.OnProgress = func(_ float64) {
+		elapsed := seq.Elapsed
+		current := seq.From
+
+		for _, step := range steps {
+			stepDuration := animationTimelineDuration(step)
+			if elapsed < stepDuration {
+				current, _ = sampleAnimationAt(step, elapsed)
+				seq.Current = current
+				return
+			}
+
+			current, _ = sampleAnimationAt(step, stepDuration)
+			elapsed -= stepDuration
+		}
+
+		seq.Current = current
+	}
+	return seq
 }
 
 // Parallel creates multiple animations that play simultaneously.
@@ -178,4 +211,86 @@ func SpeedUp(anim *Animation, factor float64) *Animation {
 func SlowDown(anim *Animation, factor float64) *Animation {
 	anim.Duration = time.Duration(float64(anim.Duration) * factor)
 	return anim
+}
+
+func animationTimelineDuration(anim *Animation) time.Duration {
+	if anim == nil {
+		return 0
+	}
+
+	playCount := 1
+	if anim.Repeat > 0 {
+		playCount = anim.Repeat
+	}
+
+	total := anim.Delay + anim.Duration*time.Duration(playCount)
+	if playCount > 1 {
+		total += anim.RepeatDelay * time.Duration(playCount-1)
+	}
+	return total
+}
+
+func sampleAnimationAt(anim *Animation, elapsed time.Duration) (interface{}, bool) {
+	if anim == nil {
+		return nil, true
+	}
+	if elapsed <= 0 {
+		return anim.From, false
+	}
+	if elapsed < anim.Delay {
+		return anim.From, false
+	}
+
+	playCount := 1
+	if anim.Repeat > 0 {
+		playCount = anim.Repeat
+	}
+	if anim.Duration <= 0 {
+		return playFinalValue(anim, playCount-1), true
+	}
+
+	elapsed -= anim.Delay
+	for play := 0; play < playCount; play++ {
+		if elapsed < anim.Duration {
+			from, to := playRange(anim, play)
+			progress := float64(elapsed) / float64(anim.Duration)
+			if anim.Easing != nil {
+				progress = anim.Easing(progress)
+			}
+			return interpolate(from, to, progress), false
+		}
+
+		elapsed -= anim.Duration
+		finalValue := playFinalValue(anim, play)
+		if play == playCount-1 {
+			return finalValue, true
+		}
+		if elapsed < anim.RepeatDelay {
+			return finalValue, false
+		}
+		elapsed -= anim.RepeatDelay
+	}
+
+	return playFinalValue(anim, playCount-1), true
+}
+
+func playRange(anim *Animation, play int) (interface{}, interface{}) {
+	if anim.Alternate && play%2 == 1 {
+		return anim.To, anim.From
+	}
+	return anim.From, anim.To
+}
+
+func playFinalValue(anim *Animation, play int) interface{} {
+	_, to := playRange(anim, play)
+	return to
+}
+
+func sequenceFinalValue(steps []*Animation) interface{} {
+	if len(steps) == 0 {
+		return nil
+	}
+	last := steps[len(steps)-1]
+	value, _ := sampleAnimationAt(last, animationTimelineDuration(last))
+	return value
 }

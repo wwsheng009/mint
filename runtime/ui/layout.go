@@ -192,6 +192,12 @@ func (b *LayoutBuilder) SetProps(p Props) VNode {
 	return b
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (b *LayoutBuilder) SetProp(key string, value interface{}) VNode {
+	b.node.SetProp(key, value)
+	return b
+}
+
 // Tag implements VNode interface
 func (b *LayoutBuilder) Tag() string {
 	return b.node.Tag()
@@ -559,6 +565,7 @@ func (b *LayoutBuilder) RoundedBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -568,6 +575,7 @@ func (b *LayoutBuilder) DashedBorder(label ...string) *LayoutBuilder {
 	if len(label) > 0 && label[0] != "" {
 		b.node.borderLabel = label[0]
 	}
+	b.syncToProps()
 	return b
 }
 
@@ -737,18 +745,8 @@ func Flex(vnode VNode, flexFactors ...int) VNode {
 	if len(flexFactors) > 0 {
 		flex = flexFactors[0]
 	}
-	// Try SetProp method first (for builders)
-	if n, ok := vnode.(interface{ SetProp(string, interface{}) }); ok {
-		n.SetProp("flex", flex)
-		return vnode
-	}
-	// Fall back to SetProps (for VNode interface)
-	props := vnode.Props()
-	if props == nil {
-		props = make(Props)
-	}
-	props["flex"] = flex
-	vnode.SetProps(props)
+	// Use SetProp method directly (VNode interface now has SetProp)
+	vnode.SetProp("flex", flex)
 	return vnode
 }
 
@@ -997,21 +995,8 @@ func (l *LayoutNode) Measure(constraints runtime.BoxConstraints) runtime.Size {
 		totalHeight = constraints.MinHeight
 	}
 
-	// IMPORTANT: Cross-axis filling
-	// - VStack: fill available width (MaxWidth) so children can stretch horizontally
-	// - HStack: fill available height (MaxHeight) so children can stretch vertically
-	// This is the NATURAL SIZE for layout containers - they expand to fill cross-axis space.
-	if l.direction == DirectionColumn { // VStack
-		// Fill available width so children can stretch
-		if constraints.HasBoundedWidth() && totalWidth < constraints.MaxWidth {
-			totalWidth = constraints.MaxWidth
-		}
-	} else { // HStack
-		// Fill available height so children can stretch
-		if constraints.HasBoundedHeight() && totalHeight < constraints.MaxHeight {
-			totalHeight = constraints.MaxHeight
-		}
-	}
+	// NOTE: Do not auto-fill cross-axis in Measure().
+	// Natural size should be derived from children; stretching is handled in layout phase.
 
 	// Clamp to MaxWidth/MaxHeight if exceeded
 	if constraints.HasBoundedWidth() && totalWidth > constraints.MaxWidth {
@@ -1711,9 +1696,12 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 				}
 			}
 		} else {
-			// Fallback: estimate child size
-			contentWidth = 10 // Default minimum
-			contentHeight = 1
+			// Fallback: estimate child size from props/content
+			contentWidth = estimateVNodeWidth(child)
+			contentHeight = estimateVNodeHeight(child)
+			if contentHeight == 0 {
+				contentHeight = 1
+			}
 			// If fillWidth, expand to fill available space
 			if hasFillWidth && constraints.HasBoundedWidth() {
 				contentWidth = max(0, constraints.MaxWidth-borderWidth)
@@ -1741,12 +1729,9 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	// Total size = content + border
-	// When label is present, renderTopBorder adds extra 2 chars for visual balance
-	// This matches the actual rendering logic in renderTopBorder
+	// Note: labelWidth is already included in innerWidth calculation above
+	// (innerWidth = max(contentWidth, labelWidth)), so no extra padding needed
 	totalWidth := innerWidth + borderWidth
-	if labelWidth > 0 {
-		totalWidth += 2 // Extra padding for label rendering (see renderTopBorder)
-	}
 	totalHeight := contentHeight + borderHeight
 
 	// Apply constraints
@@ -1773,4 +1758,73 @@ func (bn *BorderedNode) Measure(constraints runtime.BoxConstraints) runtime.Size
 	}
 
 	return runtime.Size{Width: totalWidth, Height: totalHeight}
+}
+
+// estimateVNodeWidth provides a best-effort width estimate for non-measurable VNodes.
+func estimateVNodeWidth(child VNode) int {
+	if child == nil {
+		return 0
+	}
+
+	// Check explicit width
+	if props := child.Props(); props != nil {
+		if w := props.GetInt("width"); w > 0 {
+			return w
+		}
+	}
+
+	// Use explicit height as a width hint (e.g. inputs)
+	if props := child.Props(); props != nil {
+		if h := props.GetInt("height"); h > 0 {
+			return h
+		}
+	}
+
+	// Estimate from content
+	if props := child.Props(); props != nil {
+		if content := props.GetString("content"); content != "" {
+			runes := []rune(content)
+			return len(runes)
+		}
+	}
+
+	// Check common label/value/placeholder interfaces
+	if labelGetter, ok := child.(interface{ Label() string }); ok {
+		label := labelGetter.Label()
+		if label != "" {
+			return len(label) + 4
+		}
+	}
+	if valueGetter, ok := child.(interface{ Value() string }); ok {
+		value := valueGetter.Value()
+		if value != "" {
+			return len(value) + 2
+		}
+	}
+	if placeholderGetter, ok := child.(interface{ Placeholder() string }); ok {
+		placeholder := placeholderGetter.Placeholder()
+		if placeholder != "" {
+			return len(placeholder) + 2
+		}
+	}
+
+	return 10
+}
+
+// estimateVNodeHeight provides a best-effort height estimate for non-measurable VNodes.
+func estimateVNodeHeight(child VNode) int {
+	if child == nil {
+		return 0
+	}
+
+	if props := child.Props(); props != nil {
+		if h := props.GetInt("height"); h > 0 {
+			return h
+		}
+		if content := props.GetString("content"); content != "" {
+			return strings.Count(content, "\n") + 1
+		}
+	}
+
+	return 1
 }

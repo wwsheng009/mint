@@ -17,14 +17,19 @@ import (
 )
 
 type windowsInputReader struct {
-	events            chan<- RawInput
-	quit              chan struct{}
-	quitOnce          sync.Once
-	mu                sync.Mutex
-	originalMode      uint32
-	lastWidth         int
-	lastHeight        int
-	lastPressedButton MouseButton // Track which button was pressed for release events
+	events              chan<- RawInput
+	quit                chan struct{}
+	quitOnce            sync.Once
+	mu                  sync.Mutex
+	originalMode        uint32
+	originalOutputMode  uint32
+	lastWidth           int
+	lastHeight          int
+	pendingPollWidth    int
+	pendingPollHeight   int
+	pendingPollResize   bool
+	mouseCaptureEnabled bool
+	lastPressedButton   MouseButton // Track which button was pressed for release events
 }
 
 func newInputReaderImpl() inputReaderImpl {
@@ -33,7 +38,8 @@ func newInputReaderImpl() inputReaderImpl {
 
 func newWindowsInputReader() inputReaderImpl {
 	return &windowsInputReader{
-		quit: make(chan struct{}),
+		quit:                make(chan struct{}),
+		mouseCaptureEnabled: true,
 	}
 }
 
@@ -51,21 +57,17 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 
 	r.events = events
 
+	setConsoleUTF8CodePage()
+
 	// DEBUG: 打印启动信息
-	if log.PlatFormLogger.Enabled() {
-		log.PlatFormLogger.Debug("[WIN INPUT] Starting...")
-	}
+	log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Starting...")
 
 	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
 	if handle == 0 {
-		if log.PlatFormLogger.Enabled() {
-			log.PlatFormLogger.Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
-		}
+		log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Failed to get stdin handle: %v", err)
 		return err
 	}
-	if log.PlatFormLogger.Enabled() {
-		log.PlatFormLogger.Debug("[WIN INPUT] Got handle: 0x%x", handle)
-	}
+	log.PlatFormLogger.IfEnabled().Debug("[WIN INPUT] Got handle: 0x%x", handle)
 
 	// 🔥 关键修复：先重置控制台到安全模式，防止上次崩溃遗毒
 	r.resetConsoleToSaneMode(handle)
@@ -74,20 +76,9 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	r.originalMode = r.getConsoleMode(handle)
 
 	// 设置原始输入模式以获得逐字符输入
-	// 关键：必须禁用 ENABLE_LINE_INPUT 和 ENABLE_ECHO_INPUT
-	mode := r.originalMode
-	// 禁用行缓冲模式和回显
-	mode &^= ENABLE_LINE_INPUT
-	mode &^= ENABLE_ECHO_INPUT
-	// 禁用 PROCESSED_INPUT 以获得原始输入（包括 Ctrl+C 等）
-	// mode &^= ENABLE_PROCESSED_INPUT
-	// 启用我们需要的功能
-	mode |= ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT
-
-	// 打开 ANSI 支持
-	mode |= windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
-	// 禁用 VT 输入（使用原始输入）
-	mode &^= ENABLE_VIRTUAL_TERMINAL_INPUT
+	// 关键：必须禁用 ENABLE_LINE_INPUT 和 ENABLE_ECHO_INPUT。
+	// VT 输出能力属于 stdout 句柄，不能写到 stdin 模式里。
+	mode := buildWindowsInputConsoleMode(r.originalMode, r.mouseCaptureEnabled)
 
 	// DEBUG: 打印控制台模式
 	if log.PlatFormLogger.Enabled() {
@@ -98,22 +89,26 @@ func (r *windowsInputReader) Start(events chan<- RawInput) error {
 	}
 	r.setConsoleMode(handle, mode)
 
+	if err := r.enableVirtualTerminalOutput(); err != nil {
+		log.PlatFormLogger.IfEnabled().Debug("[WIN] Failed to enable VT output: %v", err)
+	}
+
 	// Verify the mode was set
 	actualMode := r.getConsoleMode(handle)
-	log.PlatFormLogger.Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] Actual console mode after set: 0x%08X", actualMode)
 
 	// 清空所有待处理的输入事件
 	// fmt.Scanln() 可能会留下一些待处理的事件，特别是 Enter 键
 	r.drainPendingInput(handle)
 
 	// 初始化当前窗口大小
-	r.updateWindowSize(handle)
+	r.updateWindowSize(false)
 
 	// DEBUG: 确认即将启动 readLoop
-	log.PlatFormLogger.Debug("[WIN] About to start readLoop...")
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] About to start readLoop...")
 
 	go r.readLoop(handle)
-	log.PlatFormLogger.Debug("[WIN] readLoop goroutine started (async)")
+	log.PlatFormLogger.IfEnabled().Debug("[WIN] readLoop goroutine started (async)")
 
 	return nil
 }
@@ -152,8 +147,45 @@ func (r *windowsInputReader) Stop() error {
 	if handle != 0 {
 		r.setConsoleMode(handle, r.originalMode)
 	}
+	if r.originalOutputMode != 0 {
+		if stdout, err := currentStdoutHandle(); err == nil {
+			_ = windows.SetConsoleMode(stdout, r.originalOutputMode)
+		}
+	}
 
 	return nil
+}
+
+func (r *windowsInputReader) SetMouseCaptureEnabled(enabled bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.mouseCaptureEnabled = enabled
+
+	// Not started yet: persist preference only.
+	if r.events == nil {
+		return nil
+	}
+
+	handle, _, err := procGetStdHandle.Call(STD_INPUT_HANDLE)
+	if handle == 0 {
+		return err
+	}
+
+	mode := r.getConsoleMode(handle)
+	if enabled {
+		mode |= ENABLE_MOUSE_INPUT
+	} else {
+		mode &^= ENABLE_MOUSE_INPUT
+	}
+	r.setConsoleMode(handle, mode)
+	return nil
+}
+
+func (r *windowsInputReader) MouseCaptureEnabled() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.mouseCaptureEnabled
 }
 
 func (r *windowsInputReader) ReadEvent() (RawInput, error) {
@@ -181,7 +213,7 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 
 		case <-pollTicker.C:
 			// 定期检查窗口大小变化（Windows resize 事件不可靠）
-			r.updateWindowSize(handle)
+			r.updateWindowSize(true)
 
 		default:
 			var count uint32
@@ -194,7 +226,7 @@ func (r *windowsInputReader) readLoop(handle uintptr) {
 
 			record, err := r.readSingleRecord(handle)
 			if err != nil {
-				log.PlatFormLogger.Debug("[WIN] Error reading record: %v", err)
+				log.PlatFormLogger.IfEnabled().Debug("[WIN] Error reading record: %v", err)
 				continue
 			}
 
@@ -254,13 +286,8 @@ func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 			// 使用 srWindow 获取实际可见窗口大小（而不是 dwSize 缓冲区大小）
 			width := int(info.srWindow.Right - info.srWindow.Left + 1)
 			height := int(info.srWindow.Bottom - info.srWindow.Top + 1)
-
-			return RawInput{
-				Type:      InputResize,
-				Timestamp: now,
-				Width:     width,
-				Height:    height,
-			}
+			r.clearPendingPolledResize()
+			return r.dedupeResizeInput(width, height, now)
 		}
 		// 返回无效输入
 		return RawInput{Type: -1, Timestamp: now}
@@ -269,6 +296,43 @@ func (r *windowsInputReader) parseRecord(record *INPUT_RECORD) RawInput {
 		// 返回无效输入
 		return RawInput{Type: -1, Timestamp: now}
 	}
+}
+
+func (r *windowsInputReader) dedupeResizeInput(width, height int, now time.Time) RawInput {
+	if width == r.lastWidth && height == r.lastHeight {
+		return RawInput{Type: -1, Timestamp: now}
+	}
+	r.lastWidth = width
+	r.lastHeight = height
+	return RawInput{
+		Type:      InputResize,
+		Timestamp: now,
+		Width:     width,
+		Height:    height,
+	}
+}
+
+func (r *windowsInputReader) clearPendingPolledResize() {
+	r.pendingPollWidth = 0
+	r.pendingPollHeight = 0
+	r.pendingPollResize = false
+}
+
+func (r *windowsInputReader) polledResizeInput(width, height int, now time.Time) RawInput {
+	if width == r.lastWidth && height == r.lastHeight {
+		r.clearPendingPolledResize()
+		return RawInput{Type: -1, Timestamp: now}
+	}
+
+	if r.pendingPollResize && width == r.pendingPollWidth && height == r.pendingPollHeight {
+		r.clearPendingPolledResize()
+		return r.dedupeResizeInput(width, height, now)
+	}
+
+	r.pendingPollWidth = width
+	r.pendingPollHeight = height
+	r.pendingPollResize = true
+	return RawInput{Type: -1, Timestamp: now}
 }
 
 func (r *windowsInputReader) parseKeyEvent(record *INPUT_RECORD, now time.Time) RawInput {
@@ -389,9 +453,23 @@ func (r *windowsInputReader) parseMouseEvent(record *INPUT_RECORD, now time.Time
 	// 确定鼠标动作类型
 	eventFlags := mouseEvent.EventFlags
 	if eventFlags&MOUSE_WHEELED != 0 {
-		input.MouseAction = MouseWheelUp
+		// Windows: vertical wheel delta is stored in high word of ButtonState.
+		// delta > 0 => wheel up, delta < 0 => wheel down.
+		wheelDelta := int16(mouseEvent.ButtonState >> 16)
+		if wheelDelta < 0 {
+			input.MouseAction = MouseWheelDown
+		} else {
+			input.MouseAction = MouseWheelUp
+		}
 	} else if eventFlags&MOUSE_HWHEELED != 0 {
-		input.MouseAction = MouseWheelDown
+		// Horizontal wheel is also encoded in high word.
+		// We only have vertical actions in RawInput, so map by sign.
+		wheelDelta := int16(mouseEvent.ButtonState >> 16)
+		if wheelDelta < 0 {
+			input.MouseAction = MouseWheelDown
+		} else {
+			input.MouseAction = MouseWheelUp
+		}
 	} else if eventFlags&DOUBLE_CLICK != 0 {
 		input.MouseAction = MousePress
 		input.MouseButton = currentButton
@@ -487,17 +565,55 @@ func (r *windowsInputReader) getConsoleMode(handle uintptr) uint32 {
 func (r *windowsInputReader) setConsoleMode(handle uintptr, mode uint32) {
 	ret, _, err := procSetConsoleMode.Call(handle, uintptr(mode))
 	if ret == 0 {
-		log.PlatFormLogger.Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
+		log.PlatFormLogger.IfEnabled().Debug("[WIN] SetConsoleMode FAILED! handle=0x%x mode=0x%x err=%v", handle, mode, err)
 
 	} else {
 		// Success - optionally log
-		log.PlatFormLogger.Debug("[WIN] SetConsoleMode success: 0x%x", mode)
+		log.PlatFormLogger.IfEnabled().Debug("[WIN] SetConsoleMode success: 0x%x", mode)
 
 	}
 }
 
-// updateWindowSize 检查并发送窗口大小变化事件
-func (r *windowsInputReader) updateWindowSize(handle uintptr) {
+func (r *windowsInputReader) enableVirtualTerminalOutput() error {
+	stdout, err := currentStdoutHandle()
+	if err != nil {
+		return err
+	}
+	var mode uint32
+	if err := windows.GetConsoleMode(stdout, &mode); err != nil {
+		return err
+	}
+	r.originalOutputMode = mode
+	return windows.SetConsoleMode(stdout, buildWindowsOutputConsoleMode(mode))
+}
+
+func currentStdoutHandle() (windows.Handle, error) {
+	return windows.Handle(os.Stdout.Fd()), nil
+}
+
+func buildWindowsInputConsoleMode(original uint32, mouseCaptureEnabled bool) uint32 {
+	mode := original
+	mode &^= ENABLE_LINE_INPUT
+	mode &^= ENABLE_ECHO_INPUT
+	mode |= ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS
+	if mouseCaptureEnabled {
+		mode |= ENABLE_MOUSE_INPUT
+	} else {
+		mode &^= ENABLE_MOUSE_INPUT
+	}
+	// 使用原始输入读取 INPUT_RECORD，不启用 VT 输入解析。
+	mode &^= ENABLE_VIRTUAL_TERMINAL_INPUT
+	return mode
+}
+
+func buildWindowsOutputConsoleMode(original uint32) uint32 {
+	return original | windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
+}
+
+// updateWindowSize 检查并发送窗口大小变化事件。
+// 轮询路径需要二次确认，避免 Windows Terminal 在 VT/SIXEL 混排下
+// 上报瞬时窗口尺寸抖动，从而触发无意义的重复重绘。
+func (r *windowsInputReader) updateWindowSize(fromPoll bool) {
 	outHandle, _, _ := procGetStdHandle.Call(STD_OUTPUT_HANDLE)
 	if outHandle == 0 {
 		return
@@ -523,19 +639,16 @@ func (r *windowsInputReader) updateWindowSize(handle uintptr) {
 		return
 	}
 
-	// 检查大小是否变化
-	if width != r.lastWidth || height != r.lastHeight {
-		r.lastWidth = width
-		r.lastHeight = height
-
-		// 发送大小变化事件
+	var input RawInput
+	if fromPoll {
+		input = r.polledResizeInput(width, height, time.Now())
+	} else {
+		r.clearPendingPolledResize()
+		input = r.dedupeResizeInput(width, height, time.Now())
+	}
+	if input.Type == InputResize {
 		select {
-		case r.events <- RawInput{
-			Type:      InputResize,
-			Timestamp: time.Now(),
-			Width:     width,
-			Height:    height,
-		}:
+		case r.events <- input:
 		case <-r.quit:
 		}
 	}
@@ -642,6 +755,8 @@ var (
 	kernel32                          = syscall.NewLazyDLL("kernel32.dll")
 	procGetConsoleMode                = kernel32.NewProc("GetConsoleMode")
 	procSetConsoleMode                = kernel32.NewProc("SetConsoleMode")
+	procSetConsoleCP                  = kernel32.NewProc("SetConsoleCP")
+	procSetConsoleOutputCP            = kernel32.NewProc("SetConsoleOutputCP")
 	procGetStdHandle                  = kernel32.NewProc("GetStdHandle")
 	procReadConsoleInput              = kernel32.NewProc("ReadConsoleInputW")
 	procGetNumberOfConsoleInputEvents = kernel32.NewProc("GetNumberOfConsoleInputEvents")
@@ -649,13 +764,20 @@ var (
 )
 
 func enableVirtualTerminal() error {
+	setConsoleUTF8CodePage()
 	stdout := windows.Handle(os.Stdout.Fd())
 	var mode uint32
 	if err := windows.GetConsoleMode(stdout, &mode); err != nil {
 		return err
 	}
-	// 打开 ANSI 支持
+	// ?? ANSI ??
 	return windows.SetConsoleMode(stdout, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+}
+
+func setConsoleUTF8CodePage() {
+	const utf8CodePage = 65001
+	procSetConsoleCP.Call(uintptr(utf8CodePage))
+	procSetConsoleOutputCP.Call(uintptr(utf8CodePage))
 }
 
 // restoreTerminalImpl Windows 终端恢复实现

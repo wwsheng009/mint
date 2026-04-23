@@ -245,9 +245,9 @@ layout.Dirtyable
 
 ## 相关文档
 
-- [Fiber-First 架构文档](../../fiber/fiber_first/consolidated/FIBER_FIRST_ARCHITECTURE.md)
-- [Fiber-First 快速参考](../../fiber/fiber_first/consolidated/FIBER_FIRST_QUICK_REFERENCE.md)
-- [当前渲染流程分析](../declarative_node_paint_analysis.md)
+- [Fiber-First 架构文档](/docs/fiber/fiber_first/consolidated/FIBER_FIRST_ARCHITECTURE.md)
+- [Fiber-First 快速参考](/docs/fiber/fiber_first/consolidated/FIBER_FIRST_QUICK_REFERENCE.md)
+- [当前渲染流程分析](/docsArchive/declarative_node_paint_analysis.md)
 
 ## 维护者
 

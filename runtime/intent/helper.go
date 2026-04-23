@@ -174,6 +174,12 @@ func RegisterTypedRuntime[T Intent](rt *Runtime, handler TypedHandler[T]) func()
 	return RegisterTyped(rt.Registry, handler)
 }
 
+// RegisterTypedRuntimeWithOpts registers a type-safe handler with options.
+// This allows overriding builtin handlers for specific intents.
+func RegisterTypedRuntimeWithOpts[T Intent](rt *Runtime, handler TypedHandler[T], opts ...RegisterOption) func() {
+	return RegisterTypedWithOpts(rt.Registry, handler, opts...)
+}
+
 // RegisterTypedWithOpts registers a type-safe handler with options.
 // Example:
 //

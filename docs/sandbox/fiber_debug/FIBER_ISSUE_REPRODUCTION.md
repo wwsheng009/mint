@@ -201,8 +201,8 @@ sb.ProcessEvents()
 ## 下一步调试
 
 1. 在 `ui/interaction_state.go` 中添加调试日志
-2. 在 `ui/handle_event.go` 中添加调试日志
-3. 在 `ui/reconciler.go` 的 `prepareFreshStack` 中添加调试日志
+2. 在 `internal/render/declarative_node_event.go` 中添加调试日志
+3. 在 `internal/reconciler/reconciler.go` 的 `prepareFreshStack` 中添加调试日志
 4. 使用 Sandbox 的快照功能对比每次渲染前后的差异
 
 ## 相关文件
@@ -210,4 +210,4 @@ sb.ProcessEvents()
 - `examples/fiber_counter/main.go` - 调试版本的计数器
 - `ui/hooks.go` - UseStateIntWithDebug 函数
 - `examples/counter/fiber_test.go` - Sandbox 测试用例
-- `docs/sandbox/FIBER_TESTING_GUIDE.md` - 完整测试指南
+- `docs/sandbox/fiber_debug/FIBER_TESTING_GUIDE.md` - 完整测试指南

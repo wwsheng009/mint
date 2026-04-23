@@ -1,0 +1,6 @@
+Charts Heatmap Viewport Fixture
+Viewport Heatmap
+Low ░ ▒ ▓ █ High
+     T W T
+Sou~ ▒ ▒ ▓
+Eur~ ▒ ▓ ▓

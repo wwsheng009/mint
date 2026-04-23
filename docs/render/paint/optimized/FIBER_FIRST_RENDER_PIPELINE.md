@@ -327,7 +327,7 @@ Fiber 通过适配器模式与 runtime/layout 解耦集成：
 ```
 
 > **注意**：`FiberToNodeAdapter` 已在 `internal/render/fiber_adapter.go` 中实现，
-> 而非 `runtime/layout/adapter_fiber.go`。这确保了 `runtime/layout` 保持为纯布局引擎。
+> 不在 `runtime/layout/` 目录中。这确保了 `runtime/layout` 保持为纯布局引擎。
 
 #### 核心接口映射
 
@@ -559,8 +559,8 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
    ```
 
 #### 文件修改
-- `runtime/layout/engine.go` (新建)
-- `runtime/layout/fiber_layout.go` (新建)
+- `runtime/layout/layout_engine.go`
+- `runtime/layout/layout_result.go`
 - `internal/render/layout_switcher.go`
 
 #### 验证
@@ -590,7 +590,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
    ```
 
 #### 文件修改
-- `runtime/paint/engine.go` (新建)
+- `runtime/paint/renderer.go`
 - `internal/render/paint_engine.go`
 
 #### 验证

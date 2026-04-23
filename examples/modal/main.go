@@ -1,11 +1,23 @@
 package main
 
 import (
-	"reflect"
-
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/ui"
 )
+
+// =============================================================================
+// AppState - Modal 状态
+// =============================================================================
+
+type AppState struct {
+	IsOpen bool // true = modal is open, false = modal is closed
+}
+
+// =============================================================================
+// Intent Types
+// =============================================================================
 
 type OpenModalIntent struct{}
 func (OpenModalIntent) IntentType() string { return "OpenModal" }
@@ -15,87 +27,110 @@ type CloseModalIntent struct{}
 func (CloseModalIntent) IntentType() string { return "CloseModal" }
 func (CloseModalIntent) StayPressed() bool  { return true }
 
+// =============================================================================
+// Store 初始化
+// =============================================================================
+
+var modalStore = store.NewStore(AppState{
+	IsOpen: false,
+})
+
+// =============================================================================
+// Reducer 注册
+// =============================================================================
+
+func init() {
+	reducer.NewBuilder[AppState]().
+		On(OpenModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.IsOpen = true
+			return s
+		}).
+		On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
+			s.IsOpen = false
+			return s
+		}).
+		BuildAndRegister(intent.DefaultRegistry(), modalStore)
+}
+
+// =============================================================================
+// Main
+// =============================================================================
+
 func main() {
+	// ✅ 无需 WithInit，Reducer 已在 init 中注册
 	ui.Run(
-		func() ui.VNode {
-			// Use int state: 0 = closed, 1 = open
-			state, setState, _ := ui.UseStateInt(0)
-			stateSetterKey := intent.StateKey[func(int)]("modalStateSetter")
-
-			// Save setter
-			ctx := ui.GetCurrentContext()
-			if ctx != nil {
-				ctx.GlobalState[stateSetterKey.String()] = setState
-			}
-
-			// If modal is open, show modal content
-			if state == 1 {
-				return ui.VStack(
-					ui.NewTextBuilder("┌───────────────────────────────────────┐").FgColor("cyan").Build(),
-					ui.NewTextBuilder("│           MODAL IS OPEN               │").FgColor("cyan").Build(),
-					ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-					ui.NewTextBuilder("│  Do you want to proceed?              │").FgColor("white").Build(),
-					ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-					ui.HStack(
-						ui.NewTextBuilder("│  ").FgColor("cyan").Build(),
-						ui.NewButtonBuilder(" Yes ").
-							OnPress(CloseModalIntent{}).
-							Build(),
-						ui.NewTextBuilder("  ").FgColor("cyan").Build(),
-						ui.NewButtonBuilder(" No ").
-							OnPress(CloseModalIntent{}).
-							Build(),
-						ui.NewTextBuilder("               │").FgColor("cyan").Build(),
-					),
-					ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
-					ui.NewTextBuilder("└───────────────────────────────────────┘").FgColor("cyan").Build(),
-					ui.Text(""),
-					ui.NewTextBuilder("Press Tab to focus, Enter to close").FgColor("gray").Build(),
-				)
-			}
-
-			// Modal is closed - show main content
-			return ui.VStack(
-				ui.NewTextBuilder("Modal Demo").Bold(true).FgColor("cyan").Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),
-				ui.Text(""),
-				ui.NewButtonBuilder("  Show Modal  ").
-					OnPress(OpenModalIntent{}).
-					Build(),
-				ui.Text(""),
-				ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click").FgColor("gray").Build(),
-			)
-		},
+		MainComponent,
 		ui.WithWidth(50),
 		ui.WithHeight(20),
-		ui.WithTitle("Modal Demo (MVP)"),
-		ui.WithInit(func() {
-			stateSetterKey := intent.StateKey[func(int)]("modalStateSetter")
-
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i OpenModalIntent) intent.IntentResult {
-				setter, _ := ctx.GetState(stateSetterKey.String())
-				callSetter(setter, 1)
-				return intent.HandledResult()
-			})
-
-			ui.RegisterIntent(func(ctx *intent.ActionContext, i CloseModalIntent) intent.IntentResult {
-				setter, _ := ctx.GetState(stateSetterKey.String())
-				callSetter(setter, 0)
-				return intent.HandledResult()
-			})
-		}),
+		ui.WithTitle("Modal Demo (Store 模式)"),
 	)
 }
 
-func callSetter(fn interface{}, arg interface{}) {
-	if fn == nil {
-		return
+// =============================================================================
+// Main Component
+// =============================================================================
+
+func MainComponent() ui.VNode {
+	// ✅ 订阅 IsOpen 状态
+	isOpen := ui.UseStoreSelector(
+		modalStore,
+		func(s AppState) bool { return s.IsOpen },
+	)
+
+	// 如果 modal 打开，显示 modal 内容
+	if isOpen {
+		return ModalContent()
 	}
-	v := reflect.ValueOf(fn)
-	if v.Kind() != reflect.Func {
-		return
-	}
-	argV := reflect.ValueOf(arg)
-	v.Call([]reflect.Value{argV})
+
+	// Modal 关闭 - 显示主内容
+	return MainContent()
+}
+
+// =============================================================================
+// Modal Content (打开状态)
+// =============================================================================
+
+func ModalContent() ui.VNode {
+	return ui.VStack(
+		ui.NewTextBuilder("┌───────────────────────────────────────┐").FgColor("cyan").Build(),
+		ui.NewTextBuilder("│           MODAL IS OPEN               │").FgColor("cyan").Build(),
+		ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+		ui.NewTextBuilder("│  Do you want to proceed?              │").FgColor("white").Build(),
+		ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+		ui.HStack(
+			ui.NewTextBuilder("│  ").FgColor("cyan").Build(),
+			ui.NewButtonBuilder(" Yes ").
+				// ✅ 使用自定义 Intent - 由 Reducer 处理
+				OnPress(CloseModalIntent{}).
+				Build(),
+			ui.NewTextBuilder("  ").FgColor("cyan").Build(),
+			ui.NewButtonBuilder(" No ").
+				OnPress(CloseModalIntent{}).
+				Build(),
+			ui.NewTextBuilder("               │").FgColor("cyan").Build(),
+		),
+		ui.NewTextBuilder("│                                       │").FgColor("cyan").Build(),
+		ui.NewTextBuilder("└───────────────────────────────────────┘").FgColor("cyan").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Press Tab to focus, Enter to close").FgColor("gray").Build(),
+	)
+}
+
+// =============================================================================
+// Main Content (关闭状态)
+// =============================================================================
+
+func MainContent() ui.VNode {
+	return ui.VStack(
+		ui.NewTextBuilder("Modal Demo").Bold(true).FgColor("cyan").Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Click the button below to open a modal dialog").FgColor("gray").Build(),
+		ui.Text(""),
+		ui.NewButtonBuilder("  Show Modal  ").
+			// ✅ 使用自定义 Intent - 由 Reducer 处理
+			OnPress(OpenModalIntent{}).
+			Build(),
+		ui.Text(""),
+		ui.NewTextBuilder("Tab/Arrows: focus | Enter/Space: click").FgColor("gray").Build(),
+	)
 }

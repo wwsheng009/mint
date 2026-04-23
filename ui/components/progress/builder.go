@@ -25,6 +25,56 @@ func (b *Builder) Max(v int) *Builder {
 	return b
 }
 
+func (b *Builder) Type(t Type) *Builder {
+	b.node.SetType(t)
+	return b
+}
+
+func (b *Builder) Status(status Status) *Builder {
+	b.node.SetStatus(status)
+	return b
+}
+
+func (b *Builder) Line() *Builder {
+	b.node.Line()
+	return b
+}
+
+func (b *Builder) Circle() *Builder {
+	b.node.Circle()
+	return b
+}
+
+func (b *Builder) Dashboard() *Builder {
+	b.node.Dashboard()
+	return b
+}
+
+func (b *Builder) Block() *Builder {
+	b.node.Block()
+	return b
+}
+
+func (b *Builder) Normal() *Builder {
+	b.node.Normal()
+	return b
+}
+
+func (b *Builder) Success() *Builder {
+	b.node.Success()
+	return b
+}
+
+func (b *Builder) Exception() *Builder {
+	b.node.Exception()
+	return b
+}
+
+func (b *Builder) Active() *Builder {
+	b.node.Active()
+	return b
+}
+
 func (b *Builder) Label(label string) *Builder {
 	b.node.SetLabel(label)
 	return b

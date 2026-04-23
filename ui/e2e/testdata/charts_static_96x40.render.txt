@@ -1,0 +1,24 @@
+Charts E2E Fixture
+Latency Trend
+● API
+● Worker
+      ●─●
+┈─●─●─●─●
+●─●─●
+─────────
+Throughput Bars
+█ Revenue
+█ Cost
+   █
+█  ██
+██ ██ ██
+────────
+ A  B  C
+Throughput Stacked
+█ North
+█ South
+  █
+█ █ █
+█ █ █
+─────
+X Y Z

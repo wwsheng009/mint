@@ -1,4 +1,4 @@
-        package ui
+package ui
 
 import "github.com/wwsheng009/mint/runtime/types"
 
@@ -56,6 +56,7 @@ func SetPortalRoot(vnode VNode, portalRootID string) VNode {
 		props = make(Props)
 	}
 	props["portalRoot"] = portalRootID
+	props["_portal"] = true
 	return vnode.SetProps(props)
 }
 
@@ -90,6 +91,7 @@ func SetPortalConfig(vnode VNode, portalRootID string, anchorID string, anchor t
 		props = make(Props)
 	}
 	props["portalRoot"] = portalRootID
+	props["_portal"] = true
 	props["anchorId"] = anchorID
 	props["anchor"] = anchor
 	props["position"] = position

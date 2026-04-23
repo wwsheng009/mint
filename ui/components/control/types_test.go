@@ -35,28 +35,29 @@ func TestInteractionState_IsIdle(t *testing.T) {
 
 func TestInteractionState_Reduce(t *testing.T) {
 	tests := []struct {
-		action     string
-		before     InteractionState
-		after      InteractionState
+		name   string
+		act    action.ActionType
+		before InteractionState
+		after  InteractionState
 	}{
-		{"Focus", InteractionState{}, InteractionState{Focused: true}},
-		{"Blur", InteractionState{Focused: true}, InteractionState{}},
-		{"MouseEnter", InteractionState{}, InteractionState{Hovered: true}},
-		{"MouseLeave", InteractionState{Hovered: true}, InteractionState{}},
-		{"PressStart", InteractionState{}, InteractionState{Pressed: true}},
-		{"PressEnd", InteractionState{Pressed: true}, InteractionState{}},
-		{"Enable", InteractionState{Disabled: true}, InteractionState{}},
-		{"Disable", InteractionState{}, InteractionState{Disabled: true}},
-		{"Activate", InteractionState{}, InteractionState{Active: true}},
-		{"Deactivate", InteractionState{Active: true}, InteractionState{}},
+		{"Focus", action.ActionFocus, InteractionState{}, InteractionState{Focused: true}},
+		{"Blur", action.ActionBlur, InteractionState{Focused: true}, InteractionState{}},
+		{"MouseEnter", action.ActionMouseEnter, InteractionState{}, InteractionState{Hovered: true}},
+		{"MouseLeave", action.ActionMouseLeave, InteractionState{Hovered: true}, InteractionState{}},
+		{"PressStart", action.ActionPressStart, InteractionState{}, InteractionState{Pressed: true}},
+		{"PressEnd", action.ActionPressEnd, InteractionState{Pressed: true}, InteractionState{}},
+		{"Enable", action.ActionEnable, InteractionState{Disabled: true}, InteractionState{}},
+		{"Disable", action.ActionDisable, InteractionState{}, InteractionState{Disabled: true}},
+		{"Activate", action.ActionActivate, InteractionState{}, InteractionState{Active: true}},
+		{"Deactivate", action.ActionDeactivate, InteractionState{Active: true}, InteractionState{}},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.action, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			state := tt.before
-			state.Reduce(action.ActionType(tt.action))
+			state.Reduce(tt.act)
 			if state != tt.after {
-				t.Errorf("Reduce(%q) = %+v, want %+v", tt.action, state, tt.after)
+				t.Errorf("Reduce(%q) = %+v, want %+v", tt.act, state, tt.after)
 			}
 		})
 	}
@@ -123,7 +124,7 @@ func TestFocusableBehavior_OnAction(t *testing.T) {
 	b := &FocusableBehavior{}
 
 	// Focus action
-	act := action.NewAction("Focus")
+	act := action.NewAction(action.ActionFocus)
 	if !b.OnAction(inst, act) {
 		t.Error("Focus action should return true")
 	}
@@ -136,7 +137,7 @@ func TestFocusableBehavior_OnAction(t *testing.T) {
 
 	// Blur action
 	inst.dirty = false
-	act = action.NewAction("Blur")
+	act = action.NewAction(action.ActionBlur)
 	if !b.OnAction(inst, act) {
 		t.Error("Blur action should return true")
 	}
@@ -150,7 +151,7 @@ func TestFocusableBehavior_OnAction_Disabled(t *testing.T) {
 	inst.state.Disabled = true
 	b := &FocusableBehavior{}
 
-	act := action.NewAction("Focus")
+	act := action.NewAction(action.ActionFocus)
 	if b.OnAction(inst, act) {
 		t.Error("Focus action on disabled should return false")
 	}
@@ -227,7 +228,7 @@ func TestHoverableBehavior_OnAction(t *testing.T) {
 	b := &HoverableBehavior{}
 
 	// MouseEnter action
-	act := action.NewAction("MouseEnter")
+	act := action.NewAction(action.ActionMouseEnter)
 	if !b.OnAction(inst, act) {
 		t.Error("MouseEnter action should return true")
 	}
@@ -237,7 +238,7 @@ func TestHoverableBehavior_OnAction(t *testing.T) {
 
 	// MouseLeave action
 	inst.dirty = false
-	act = action.NewAction("MouseLeave")
+	act = action.NewAction(action.ActionMouseLeave)
 	if !b.OnAction(inst, act) {
 		t.Error("MouseLeave action should return true")
 	}
@@ -277,7 +278,7 @@ func TestDisableableBehavior_OnAction(t *testing.T) {
 	b := &DisableableBehavior{}
 
 	// Disable action
-	act := action.NewAction("Disable")
+	act := action.NewAction(action.ActionDisable)
 	if !b.OnAction(inst, act) {
 		t.Error("Disable action should return true")
 	}
@@ -287,7 +288,7 @@ func TestDisableableBehavior_OnAction(t *testing.T) {
 
 	// Enable action
 	inst.dirty = false
-	act = action.NewAction("Enable")
+	act = action.NewAction(action.ActionEnable)
 	if !b.OnAction(inst, act) {
 		t.Error("Enable action should return true")
 	}
@@ -327,13 +328,13 @@ func TestBehaviorList_OnAction(t *testing.T) {
 	)
 
 	// First behavior should handle Focus
-	act := action.NewAction("Focus")
+	act := action.NewAction(action.ActionFocus)
 	if !bl.OnAction(inst, act) {
 		t.Error("BehaviorList should handle Focus")
 	}
 
 	// Second behavior should handle Press
-	act = action.NewAction("Press")
+	act = action.NewAction(action.ActionPress)
 	if !bl.OnAction(inst, act) {
 		t.Error("BehaviorList should handle Press")
 	}

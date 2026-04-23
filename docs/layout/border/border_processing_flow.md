@@ -785,8 +785,8 @@ func BorderStyles() ui.VNode {
 | `runtime/layout/border_test.go` | Border 类型定义、BorderedNode、辅助函数 |
 | `runtime/layout/comprehensive_layout_test.go` | 边框在布局引擎中的集成 |
 | `runtime/layout/style_layout_test.go` | 边框与 Paddding/Margin 组合 |
-| `internal/render/fiber_adapter_test.go` | FiberToNodeAdapter 边框处理 |
-| `ui/components/modal/modal_test.go` | Modal 边框样式测试 |
+| `internal/render/component_test.go` | 渲染组件边框处理（覆盖 Fiber 适配路径） |
+| `ui/components/modal/modal_positioning_test.go` | Modal 边框样式测试 |
 
 ---
 
@@ -892,7 +892,7 @@ LayoutBox (包含边框信息)
 - `runtime/layout/types.go` - 布局引擎核心逻辑
 - `internal/render/fiber_adapter.go` - Fiber 到 layout.Node 适配
 - `internal/reconciler/complete_work.go` - 边框属性同步
-- `ui/components/stack/vnode.go` - Stack 容器边框支持
+- `ui/layout.go` - HStack/VStack 边框支持
 - `ui/components/grid/vnode.go` - Grid 容器边框支持
 - `ui/components/wrap/vnode.go` - Wrap 容器边框支持
 - `ui/components/absolute/vnode.go` - Absolute 容器边框支持

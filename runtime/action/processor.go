@@ -1,6 +1,7 @@
 package action
 
 import (
+	"github.com/wwsheng009/mint/internal/log"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
@@ -75,6 +76,9 @@ func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action 
 	switch mouseMsg.Action {
 	case runtimemsg.MouseActionPress:
 		if mouseMsg.Button == runtimemsg.MouseLeft {
+			if log.RenderLogger.Enabled() {
+				log.RenderLogger.Debug("[InputProcessor] mouse press -> ActionClick button=%v targetID=%d local=(%d,%d)", mouseMsg.Button, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+			}
 			act := NewAction(ActionClick).
 				WithSource("mouse").
 				WithPayload(mouseMsg)
@@ -104,6 +108,9 @@ func (p *InputProcessor) processMouseMsg(mouseMsg *runtimemsg.MouseMsg) *Action 
 		// ✅ 修复：添加 Release 处理，让 pressed 状态能够正确重置
 		// 根据 key_release.md 的设计思想，使用推断模式替代依赖事件
 		if mouseMsg.Button == runtimemsg.MouseLeft {
+			if log.RenderLogger.Enabled() {
+				log.RenderLogger.Debug("[InputProcessor] mouse release -> ActionMouseRelease button=%v targetID=%d local=(%d,%d)", mouseMsg.Button, mouseMsg.TargetID, mouseMsg.LocalX, mouseMsg.LocalY)
+			}
 			act := NewAction(ActionMouseRelease).
 				WithSource("mouse").
 				WithPayload(mouseMsg)

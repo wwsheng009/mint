@@ -2,6 +2,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -46,7 +47,7 @@ func NewFuncValidator(fn ValidatorFunc, message string) *FuncValidator {
 func (v *FuncValidator) Validate(value interface{}) error {
 	if err := v.fn(value); err != nil {
 		if v.message != "" {
-			return fmt.Errorf("%s: %w", v.message, err)
+			return errors.New(v.message)
 		}
 		return err
 	}
@@ -104,23 +105,29 @@ func NewAnyValidator(validators ...Validator) *CompositeValidator {
 
 // Validate runs all validators according to the composite mode.
 func (v *CompositeValidator) Validate(value interface{}) error {
-	var errors []error
+	var validationErrors []error
 
 	for _, validator := range v.validators {
 		err := validator.Validate(value)
 		if v.mode == ModeAll {
 			if err != nil {
+				if v.message != "" {
+					return errors.New(v.message)
+				}
 				return err
 			}
 		} else { // ModeAny
 			if err == nil {
 				return nil
 			}
-			errors = append(errors, err)
+			validationErrors = append(validationErrors, err)
 		}
 	}
 
-	if v.mode == ModeAny && len(errors) > 0 {
+	if v.mode == ModeAny && len(validationErrors) > 0 {
+		if v.message != "" {
+			return errors.New(v.message)
+		}
 		return fmt.Errorf("none of the validators passed")
 	}
 

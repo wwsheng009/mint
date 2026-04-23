@@ -31,26 +31,26 @@ import (
 
 // ErrorBoundaryVNode represents an error boundary wrapper
 type ErrorBoundaryVNode struct {
-	key      string
-	id       string
-	name     string
+	key       string
+	id        string
+	name      string
 	component ComponentFunc
-	fallback VNode
-	props    Props
-	layer    Layer
+	fallback  VNode
+	props     Props
+	layer     Layer
 	// Error state
 	hadError bool
 	error    error
 	errorMsg string
-	stack     string
+	stack    string
 }
 
 // NewErrorBoundary creates a new error boundary VNode
 func NewErrorBoundary(name string, component ComponentFunc, fallback VNode) *ErrorBoundaryVNode {
 	return &ErrorBoundaryVNode{
-		name:     name,
+		name:      name,
 		component: component,
-		fallback: fallback,
+		fallback:  fallback,
 	}
 }
 
@@ -66,6 +66,12 @@ func (e *ErrorBoundaryVNode) Props() Props {
 
 // SetProps implements VNode - returns VNode for chaining
 func (e *ErrorBoundaryVNode) SetProps(p Props) VNode {
+	// Error boundary doesn't use props
+	return e
+}
+
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (e *ErrorBoundaryVNode) SetProp(key string, value interface{}) VNode {
 	// Error boundary doesn't use props
 	return e
 }
@@ -141,6 +147,7 @@ func (e *ErrorBoundaryVNode) SetPortalRoot(portalRootID string) VNode {
 		e.props = make(Props)
 	}
 	e.props["portalRoot"] = portalRootID
+	e.props["_portal"] = true
 	return e
 }
 

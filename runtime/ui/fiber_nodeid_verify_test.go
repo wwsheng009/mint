@@ -9,9 +9,9 @@ func TestFiberNodeIDGeneration(t *testing.T) {
 	t.Log("=== Testing NodeID Generation ===")
 
 	// Generate 5 NodeIDs and verify they are sequential
-	expectedIDs := []uint64{1, 2, 3, 4, 5}
-
-	for i, expected := range expectedIDs {
+	start := nodeIDGenerator
+	for i := 0; i < 5; i++ {
+		expected := start + uint64(i) + 1
 		nodeID := generateNodeID()
 		t.Logf("Generated NodeID %d: expected %d", nodeID, expected)
 		if nodeID != expected {

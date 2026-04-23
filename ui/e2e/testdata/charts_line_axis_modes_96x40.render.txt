@@ -1,0 +1,22 @@
+Charts Line Axis Modes Fixture
+Line Axis Dense
+  ●   ●
+┈╱┈│┈╱┈╲┈─●
+ │ ╲ │  ●
+●   ●
+───────────
+4 5 6 7 8 9
+Line Axis Sparse
+  ●   ●
+┈╱┈│┈╱┈╲┈─●
+ │ ╲ │  ●
+●   ●
+───────────
+4   6     9
+Line Axis Auto
+  ●   ●
+┈╱┈│┈╱┈╲┈─●
+ │ ╲ │  ●
+●   ●
+───────────
+4 5 6 7 8 9

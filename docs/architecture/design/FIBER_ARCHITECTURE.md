@@ -403,9 +403,9 @@ func reconcileChildren(fiber *Fiber, newChildren []VNode) {
 
 ## 相关文档
 
-- [REFACTOR_PLAN.md](./REFACTOR_PLAN.md) - 架构重构计划
-- [STORE_REDUCER_GUIDE.md](./STORE_REDUCER_GUIDE.md) - Store + Reducer 指南
-- [TYPE_SAFE_INTENT.md](./TYPE_SAFE_INTENT.md) - 类型安全 Intent
+- [REFACTOR_PLAN.md](/docsArchive/REFACTOR_PLAN.md) - 架构重构计划
+- [STORE_REDUCER_GUIDE.md](/docs/ui/store/guides/STORE_REDUCER_GUIDE.md) - Store + Reducer 指南
+- [TYPE_SAFE_INTENT.md](/docs/ui/store/features/TYPE_SAFE_INTENT.md) - 类型安全 Intent
 
 ---
 

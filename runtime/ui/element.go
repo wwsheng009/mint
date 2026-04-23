@@ -91,12 +91,12 @@ func (e *ElementVNode) SetStyle(s style.Style) VNode {
 
 // GetLayer returns the rendering layer
 func (e *ElementVNode) GetLayer() Layer {
-	return LayerBase
+	return getNodeLayer(e)
 }
 
 // SetLayer sets the rendering layer - returns VNode for chaining
 func (e *ElementVNode) SetLayer(l Layer) VNode {
-	return e
+	return setNodeLayer(e, l)
 }
 
 // =============================================================================
@@ -109,6 +109,7 @@ func (e *ElementVNode) SetPortalRoot(portalRootID string) VNode {
 		e.props = make(Props)
 	}
 	e.props["portalRoot"] = portalRootID
+	e.props["_portal"] = true
 	return e
 }
 
@@ -177,8 +178,8 @@ func (e *ElementVNode) AddChildren(children ...VNode) *ElementVNode {
 	return e
 }
 
-// SetProp sets a single property
-func (e *ElementVNode) SetProp(key string, value interface{}) *ElementVNode {
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (e *ElementVNode) SetProp(key string, value interface{}) VNode {
 	if e.props == nil {
 		e.props = make(Props)
 	}

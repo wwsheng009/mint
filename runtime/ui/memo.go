@@ -71,6 +71,12 @@ func (m *MemoVNode) SetProps(p Props) VNode {
 	return m
 }
 
+// SetProp sets a single property - returns VNode for chaining (implements VNode interface)
+func (m *MemoVNode) SetProp(key string, value interface{}) VNode {
+	m.component.SetProp(key, value)
+	return m
+}
+
 // Children implements VNode
 func (m *MemoVNode) Children() []VNode {
 	return m.component.Children()

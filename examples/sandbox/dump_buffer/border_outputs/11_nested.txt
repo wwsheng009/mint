@@ -1,10 +1,10 @@
-┌───── Outer ──────┐                                                            
-│Above nested      │                                                            
-│╔═══ Inner ════╗  │                                                            
-│║Nested content║  │                                                            
-│╚══════════════╝  │                                                            
-│Below nested      │                                                            
-└──────────────────┘                                                            
+┌──── Outer ─────┐                                                              
+│Above nested    │                                                              
+│╔═══ Inner ════╗│                                                              
+│║Nested content║│                                                              
+│╚══════════════╝│                                                              
+│Below nested    │                                                              
+└────────────────┘                                                              
                                                                                 
                                                                                 
                                                                                 

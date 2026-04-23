@@ -75,20 +75,20 @@ if log.InspectorLogger.Enabled() || log.UILogger.Enabled() {
 
 以下文件已经从直接使用 `os.Getenv()` 更新为使用 Logger：
 
-1. `components/layout/scroll_view.go` - 使用 InspectorLogger
+1. `ui/components/scrollview/vnode.go` - 使用 InspectorLogger
 2. `framework/event/handler.go` - 使用 UILogger/InspectorLogger
-3. `components/layout/wrap.go` - 使用 WrapLogger
-4. `components/button/button.go` - 使用 PaintLogger/RenderLogger
+3. `ui/components/wrap/vnode.go` - 使用 WrapLogger
+4. `ui/components/button/vnode.go` - 使用 PaintLogger/RenderLogger
 5. `framework/event/pump.go` - 使用 PumpLogger
-6. `framework/form/form.go` - 使用 FormLogger
-7. `framework/cursor/cursor.go` - 使用 CursorLogger
-8. `components/navigation/tabs.go` - 使用 InspectorLogger
+6. `ui/components/form/instance.go` - 使用 FormLogger
+7. `ui/components/cursor/instance.go` - 使用 CursorLogger
+8. `ui/components/tabs/vnode.go` - 使用 InspectorLogger
 
 ## 需要进一步更新的文件
 
 以下文件仍使用 `os.Getenv()`，建议统一更新：
 
-- `runtime/layer/manager.go` - TUI_DEBUG_HITMAP
+- `runtime/layout/layer_manager.go` - TUI_DEBUG_HITMAP
 - `framework/app.go` - TUI_DEBUG
 - `internal/inspector/tree_view.go` - TUI_DEBUG_INSPECTOR
 - `runtime/ui/fiber_util.go` - TUI_DEBUG_HITMAP
@@ -98,7 +98,7 @@ if log.InspectorLogger.Enabled() || log.UILogger.Enabled() {
 - `runtime/ui/hooks.go` - TUI_DEBUG_UI
 - `runtime/platform/input_windows.go` - TUI_DEBUG_WINDOWS
 - `runtime/event/hitmap_debug.go` - TUI_DEBUG_HITMAP
-- `runtime/compute/bounds_validator.go` - TUI_DEBUG_VALIDATION
+- `runtime/layout/validator.go` - TUI_DEBUG_VALIDATION
 - `internal/render/rendering_pipeline.go` - TUI_PIPELINE_DEBUG
 - `internal/render/declarative_node.go` - TUI_DEBUG_UI
 - `internal/reconciler/reconciler.go` - TUI_DEBUG_HITMAP
@@ -106,9 +106,9 @@ if log.InspectorLogger.Enabled() || log.UILogger.Enabled() {
 - `internal/reconciler/diff.go` - TUI_DEBUG_HITMAP
 - `internal/reconciler/begin_work.go` - TUI_DEBUG_HITMAP
 - `framework/inspector_integration.go` - TUI_DEBUG_UI
-- `framework/input/textinput.go` - TUI_INPUT_DEBUG
+- `ui/components/input/instance.go` - TUI_INPUT_DEBUG
 - `examples/fiber_counter/main.go` - TUI_DEBUG_UI
-- `components/layout/stack.go` - TUI_DEBUG_LAYOUT
+- `ui/layout.go` - TUI_DEBUG_LAYOUT
 
 ## 环境变量对照表
 

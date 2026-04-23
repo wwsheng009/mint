@@ -6,6 +6,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/layout"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
 )
 
 // =============================================================================
@@ -36,6 +37,9 @@ func TestVNode_Defaults(t *testing.T) {
 	if cb.ToggleIntent() != nil {
 		t.Error("Default toggleIntent should be nil")
 	}
+	if cb.Indeterminate() {
+		t.Error("Default indeterminate should be false")
+	}
 }
 
 func TestVNode_Builder(t *testing.T) {
@@ -55,6 +59,17 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.Key() != "terms" {
 		t.Errorf("Key = %q, want %q", vnode.Key(), "terms")
+	}
+}
+
+func TestVNode_Builder_Indeterminate(t *testing.T) {
+	cb := NewBuilder().
+		Label("Partial selection").
+		Indeterminate(true).
+		BuildTyped()
+
+	if !cb.Indeterminate() {
+		t.Error("Indeterminate should be true")
 	}
 }
 
@@ -102,8 +117,8 @@ func TestInstance_Measure(t *testing.T) {
 		label     string
 		wantWidth int
 	}{
-		{"Empty label", "", 4},           // "[X]" + " " = 4
-		{"Short label", "OK", 6},         // 4 + 2 = 6
+		{"Empty label", "", 4},             // "[X]" + " " = 4
+		{"Short label", "OK", 6},           // 4 + 2 = 6
 		{"Long label", "Accept Terms", 16}, // 4 + 12 = 16
 	}
 
@@ -165,6 +180,25 @@ func TestInstance_Toggle(t *testing.T) {
 	}
 	if inst.IsChecked() {
 		t.Error("Checked should be false after second toggle")
+	}
+}
+
+func TestInstance_Toggle_FromIndeterminate(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"label":         "Test",
+		"checked":       false,
+		"indeterminate": true,
+	})
+
+	newState := inst.Toggle()
+	if !newState {
+		t.Error("Toggle should return true from indeterminate state")
+	}
+	if !inst.IsChecked() {
+		t.Error("Checked should be true after toggling indeterminate checkbox")
+	}
+	if inst.IsIndeterminate() {
+		t.Error("Indeterminate should be cleared after toggle")
 	}
 }
 
@@ -261,19 +295,22 @@ func TestInstance_Focus(t *testing.T) {
 
 func TestInstance_Paint(t *testing.T) {
 	tests := []struct {
-		name    string
-		checked bool
-		want    string
+		name          string
+		checked       bool
+		indeterminate bool
+		want          string
 	}{
-		{"Unchecked", false, "[ ] Test"},
-		{"Checked", true, "[X] Test"},
+		{"Unchecked", false, false, "[ ] Test"},
+		{"Checked", true, false, "[X] Test"},
+		{"Indeterminate", false, true, "[-] Test"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inst := NewInstance(rtui.Props{
-				"label":   "Test",
-				"checked": tt.checked,
+				"label":         "Test",
+				"checked":       tt.checked,
+				"indeterminate": tt.indeterminate,
 			})
 
 			cmds := inst.Paint(0, 0)
@@ -301,5 +338,54 @@ func TestInstance_Paint_EmptyLabel(t *testing.T) {
 
 	if cmds[0].Text != "[X]" {
 		t.Errorf("Text = %q, want %q", cmds[0].Text, "[X]")
+	}
+}
+
+func TestGroupBuilder_WrapsOptionGroupMultipleMode(t *testing.T) {
+	group := NewGroupBuilder([]Option{
+		{Value: "a", Label: "A"},
+		{Value: "b", Label: "B"},
+	}).
+		Label("Pick many").
+		Selecteds([]string{"b"}).
+		Horizontal().
+		Spacing(2).
+		BuildTyped()
+
+	if group.Tag() != "checkboxgroup" {
+		t.Errorf("Tag = %q, want %q", group.Tag(), "checkboxgroup")
+	}
+	if group.Mode() != optiongroup.ModeMultiple {
+		t.Errorf("Mode = %v, want %v", group.Mode(), optiongroup.ModeMultiple)
+	}
+	if group.Orientation() != OrientationHorizontal {
+		t.Errorf("Orientation = %v, want %v", group.Orientation(), OrientationHorizontal)
+	}
+	if len(group.Selecteds()) != 1 || group.Selecteds()[0] != "b" {
+		t.Errorf("Selecteds = %v, want [b]", group.Selecteds())
+	}
+	if len(group.Options()) != 2 {
+		t.Errorf("Options len = %d, want 2", len(group.Options()))
+	}
+}
+
+func TestGroupInstance_SelectOption(t *testing.T) {
+	inst := NewGroupBuilder([]Option{
+		{Value: "a", Label: "A"},
+		{Value: "b", Label: "B"},
+	}).BuildInstance()
+
+	inst.SelectOption("a")
+	inst.SelectOption("b")
+
+	selecteds := inst.GetSelecteds()
+	if len(selecteds) != 2 {
+		t.Fatalf("Selecteds len = %d, want 2", len(selecteds))
+	}
+
+	inst.SelectOption("a")
+	selecteds = inst.GetSelecteds()
+	if len(selecteds) != 1 || selecteds[0] != "b" {
+		t.Errorf("Selecteds = %v, want [b]", selecteds)
 	}
 }

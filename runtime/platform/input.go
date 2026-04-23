@@ -19,13 +19,23 @@ type InputReader interface {
 	Stop() error
 }
 
+// MouseCaptureController is an optional capability for InputReader.
+// Implementations that support it can dynamically enable/disable mouse capture.
+type MouseCaptureController interface {
+	// SetMouseCaptureEnabled enables or disables mouse capture.
+	// When disabled, terminal-native text selection can work.
+	SetMouseCaptureEnabled(enabled bool) error
+	// MouseCaptureEnabled returns whether mouse capture is currently enabled.
+	MouseCaptureEnabled() bool
+}
+
 // RawInput 原始输入 (平台无关的表示)
 type RawInput struct {
 	Type RawInputType
 
 	// 键盘
-	Key      rune
-	Special  SpecialKey
+	Key       rune
+	Special   SpecialKey
 	Modifiers KeyModifier
 
 	// 鼠标
@@ -35,11 +45,11 @@ type RawInput struct {
 	MouseAction MouseAction
 
 	// 窗口大小
-	Width     int
-	Height    int
+	Width  int
+	Height int
 
 	// 其他
-	Data     []byte
+	Data      []byte
 	Timestamp time.Time
 }
 
@@ -191,10 +201,10 @@ func (k SpecialKey) String() string {
 type KeyModifier uint8
 
 const (
-	ModShift      KeyModifier = 1 << iota // 1 (二进制: 0001)
-	ModCtrl                               // 2 (二进制: 0010)
-	ModAlt                                // 4 (二进制: 0100)
-	ModMeta                         // 8 (二进制: 1000)
+	ModShift KeyModifier = 1 << iota // 1 (二进制: 0001)
+	ModCtrl                          // 2 (二进制: 0010)
+	ModAlt                           // 4 (二进制: 0100)
+	ModMeta                          // 8 (二进制: 1000)
 )
 
 // MouseButton 鼠标按钮
@@ -257,6 +267,22 @@ func (w *defaultInputReaderWrapper) ReadEvent() (RawInput, error) {
 	return w.impl.ReadEvent()
 }
 
+// SetMouseCaptureEnabled enables/disables mouse capture if the platform supports it.
+func (w *defaultInputReaderWrapper) SetMouseCaptureEnabled(enabled bool) error {
+	if w.impl == nil {
+		w.impl = newInputReaderImpl()
+	}
+	return w.impl.SetMouseCaptureEnabled(enabled)
+}
+
+// MouseCaptureEnabled reports whether mouse capture is enabled.
+func (w *defaultInputReaderWrapper) MouseCaptureEnabled() bool {
+	if w.impl == nil {
+		return true
+	}
+	return w.impl.MouseCaptureEnabled()
+}
+
 // RestoreTerminal 恢复终端到正常模式
 //
 // 🔥 这是应用层的恢复机制（多层防御系统的第 2 层）
@@ -294,4 +320,6 @@ type inputReaderImpl interface {
 	Start(events chan<- RawInput) error
 	Stop() error
 	ReadEvent() (RawInput, error)
+	SetMouseCaptureEnabled(enabled bool) error
+	MouseCaptureEnabled() bool
 }

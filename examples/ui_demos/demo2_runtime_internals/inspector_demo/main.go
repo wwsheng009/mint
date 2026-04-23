@@ -10,6 +10,8 @@
 // This version integrates the full UI Inspector for debugging and analysis.
 //
 // Based on: framework/docs/ui/demo/demo2_inside.md
+//
+// Architecture: Store + Reducer + Custom Intent (Single Source of Truth)
 
 package main
 
@@ -20,19 +22,137 @@ import (
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/reducer"
+	"github.com/wwsheng009/mint/runtime/store"
 	"github.com/wwsheng009/mint/runtime/style"
 	"github.com/wwsheng009/mint/ui"
 )
 
-// InspectorActionIntent defines custom intent for inspector demo actions
-type InspectorActionIntent struct {
-	Action string
+// =============================================================================
+// AppState (Single Source of Truth)
+// =============================================================================
+
+// AppState represents the demo state.
+type AppState struct {
+	CurrentPhase  string
+	EventCount    int
+	RenderCount   int
+	BufferUpdates int
+	ShowInspector bool
 }
 
-func (i InspectorActionIntent) IntentType() string { return "InspectorAction" }
-func (i InspectorActionIntent) StayPressed() bool  { return true }
+// =============================================================================
+// Custom Intent Types
+// =============================================================================
 
+// SetPhaseIntent sets the current pipeline phase.
+type SetPhaseIntent struct {
+	Phase string
+}
+
+func (SetPhaseIntent) IntentType() string { return "SetPhase" }
+func (SetPhaseIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithRenderCountIntent sets phase and increments render count.
+type SetPhaseWithRenderCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithRenderCountIntent) IntentType() string { return "SetPhaseWithRenderCount" }
+func (SetPhaseWithRenderCountIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithBufferCountIntent sets phase and increments buffer count.
+type SetPhaseWithBufferCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithBufferCountIntent) IntentType() string { return "SetPhaseWithBufferCount" }
+func (SetPhaseWithBufferCountIntent) StayPressed() bool  { return true }
+
+// SetPhaseWithEventCountIntent sets phase and increments event count.
+type SetPhaseWithEventCountIntent struct {
+	Phase string
+}
+
+func (SetPhaseWithEventCountIntent) IntentType() string { return "SetPhaseWithEventCount" }
+func (SetPhaseWithEventCountIntent) StayPressed() bool  { return true }
+
+// ToggleInspectorIntent toggles the inspector visibility.
+type ToggleInspectorIntent struct{}
+
+func (ToggleInspectorIntent) IntentType() string { return "ToggleInspector" }
+func (ToggleInspectorIntent) StayPressed() bool  { return true }
+
+// =============================================================================
+// Reducer (Pure Function)
+// =============================================================================
+
+// appReducer handles all state transitions.
+var appReducer = reducer.NewBuilder[AppState]()
+
+// Initialize the reducer.
+func init() {
+	// Handle SetPhaseIntent
+	appReducer.On(SetPhaseIntent{}, func(s AppState, i intent.Intent) AppState {
+		spi := i.(SetPhaseIntent)
+		s.CurrentPhase = spi.Phase
+		return s
+	})
+
+	// Handle SetPhaseWithEventCountIntent
+	appReducer.On(SetPhaseWithEventCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithEventCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.EventCount++
+		return s
+	})
+
+	// Handle SetPhaseWithRenderCountIntent
+	appReducer.On(SetPhaseWithRenderCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithRenderCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.RenderCount++
+		return s
+	})
+
+	// Handle SetPhaseWithBufferCountIntent
+	appReducer.On(SetPhaseWithBufferCountIntent{}, func(s AppState, i intent.Intent) AppState {
+		pi := i.(SetPhaseWithBufferCountIntent)
+		s.CurrentPhase = pi.Phase
+		s.BufferUpdates++
+		return s
+	})
+
+	// Handle ToggleInspectorIntent
+	appReducer.On(ToggleInspectorIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.ShowInspector = !s.ShowInspector
+		// Toggle global inspector
+		if s.ShowInspector {
+			globalInspector.Enable()
+		} else {
+			globalInspector.Disable()
+		}
+		return s
+	})
+}
+
+// =============================================================================
+// Store (Single State Source)
+// =============================================================================
+
+// appStore holds the demo state.
+var appStore = store.NewStore(AppState{
+	CurrentPhase:  "idle",
+	EventCount:    0,
+	RenderCount:   0,
+	BufferUpdates: 0,
+	ShowInspector: inspectorEnabled,
+})
+
+// =============================================================================
 // Global inspector instance
+// =============================================================================
+
 var globalInspector *inspector.Inspector
 var globalPerf *inspector.PerformanceAnalyzer
 var globalDiagnostics *inspector.LayoutDiagnostics
@@ -67,6 +187,9 @@ func main() {
 	// Initialize theme
 	_ = theme.SetTheme("nord")
 
+	// Register reducer handlers to store
+	appReducer.RegisterToGlobal(appStore)
+
 	err := ui.Run(RuntimeDemoWithInspector,
 		ui.WithWidth(120), // Wider to accommodate inspector
 		ui.WithHeight(40),
@@ -79,11 +202,8 @@ func main() {
 
 // RuntimeDemoWithInspector wraps the demo with inspector integration
 func RuntimeDemoWithInspector() ui.VNode {
-	currentPhase, setCurrentPhase := ui.UseStateString("idle")
-	eventCount, setEventCount, _ := ui.UseStateInt(0)
-	renderCount, setRenderCount, _ := ui.UseStateInt(0)
-	bufferUpdates, setBufferUpdates, _ := ui.UseStateInt(0)
-	showInspector, setShowInspector := ui.UseStateBool(inspectorEnabled)
+	// Get current state snapshot from Store
+	state := appStore.Get()
 
 	// Track render performance
 	globalPerf.StartFrame()
@@ -92,14 +212,14 @@ func RuntimeDemoWithInspector() ui.VNode {
 	// Build main UI
 	mainContent := ui.VStack(
 		HeaderPanel(),
-		PipelineVisualization(currentPhase),
-		StatisticsPanel(eventCount, renderCount, bufferUpdates),
-		ControlPanel(setCurrentPhase, setEventCount, setRenderCount, setBufferUpdates, setShowInspector),
-		ExplanationPanel(currentPhase),
+		PipelineVisualization(state.CurrentPhase),
+		StatisticsPanel(state.EventCount, state.RenderCount, state.BufferUpdates),
+		ControlPanel(),
+		ExplanationPanel(state.CurrentPhase),
 	)
 
 	// If inspector is enabled, show it alongside main content
-	if showInspector {
+	if state.ShowInspector {
 		// Perform layout diagnostics
 		rootVNode := mainContent
 		globalDiagnostics.Analyze(rootVNode)
@@ -108,7 +228,7 @@ func RuntimeDemoWithInspector() ui.VNode {
 		globalTreeView.SetRoot(rootVNode)
 
 		// Build inspector panel
-		inspectorPanel := buildInspectorPanel(currentPhase, eventCount, renderCount, bufferUpdates)
+		inspectorPanel := buildInspectorPanel(state.CurrentPhase, state.EventCount, state.RenderCount, state.BufferUpdates)
 
 		// Show main content and inspector side by side
 		// Use HStack to place inspector on the right side
@@ -413,155 +533,47 @@ func StatisticsPanel(eventCount, renderCount, bufferUpdates int) ui.VNode {
 }
 
 // ControlPanel provides buttons to trigger each phase
-func ControlPanel(
-	setCurrentPhase func(string),
-	setEventCount func(interface{}),
-	setRenderCount func(interface{}),
-	setBufferUpdates func(interface{}),
-	setShowInspector func(bool),
-) ui.VNode {
-	// 将 setter 保存到 GlobalState，供 handler 从 ActionContext 读取
-	ctx := ui.GetCurrentContext()
-	if ctx != nil {
-		ctx.GlobalState["setCurrentPhase"] = setCurrentPhase
-		ctx.GlobalState["setEventCount"] = setEventCount
-		ctx.GlobalState["setRenderCount"] = setRenderCount
-		ctx.GlobalState["setBufferUpdates"] = setBufferUpdates
-		ctx.GlobalState["setShowInspector"] = setShowInspector
-	}
-
-	// Register handlers for each button action
-	ui.On(InspectorActionIntent{Action: "event"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Event")
-			}
-		}
-		if fn, ok := actx.GetState("setEventCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "setstate"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("setState")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "scheduler"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Scheduler")
-			}
-		}
-		if fn, ok := actx.GetState("setRenderCount"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "render"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Render")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "reconcile"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Reconcile")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "layout"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Layout")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "paint"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("Paint")
-			}
-		}
-		if fn, ok := actx.GetState("setBufferUpdates"); ok {
-			if setter, ok := fn.(func(func(int) int)); ok {
-				setter(func(c int) int { return c + 1 })
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "idle"}, func(actx *intent.ActionContext) {
-		if fn, ok := actx.GetState("setCurrentPhase"); ok {
-			if setter, ok := fn.(func(string)); ok {
-				setter("idle")
-			}
-		}
-	})
-	ui.On(InspectorActionIntent{Action: "toggle-inspector"}, func(actx *intent.ActionContext) {
-		// Toggle inspector state
-		newState := !inspectorEnabled
-		inspectorEnabled = newState
-
-		// Update global inspector
-		if newState {
-			globalInspector.Enable()
-		} else {
-			globalInspector.Disable()
-		}
-
-		// Update UI state to trigger re-render
-		if fn, ok := actx.GetState("setShowInspector"); ok {
-			if setter, ok := fn.(func(bool)); ok {
-				setter(newState)
-			}
-		}
-	})
-
+func ControlPanel() ui.VNode {
 	allButtons := []ui.VNode{
 		ui.NewButtonBuilder("[1] Event").
 			Variant(ui.ButtonVariantDanger).
-			OnPress(InspectorActionIntent{Action: "event"}).
+			OnPress(SetPhaseWithEventCountIntent{Phase: "Event"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[2]setState").
 			Variant(ui.ButtonVariantSecondary).
-			OnPress(InspectorActionIntent{Action: "setstate"}).
+			OnPress(SetPhaseIntent{Phase: "setState"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[3]Scheduler").
 			Variant(ui.ButtonVariantSuccess).
-			OnPress(InspectorActionIntent{Action: "scheduler"}).
+			OnPress(SetPhaseWithRenderCountIntent{Phase: "Scheduler"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[4] Render").
 			Variant(ui.ButtonVariantPrimary).
-			OnPress(InspectorActionIntent{Action: "render"}).
+			OnPress(SetPhaseIntent{Phase: "Render"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[5]Reconcile").
-			OnPress(InspectorActionIntent{Action: "reconcile"}).
+			OnPress(SetPhaseIntent{Phase: "Reconcile"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[6] Layout").
-			OnPress(InspectorActionIntent{Action: "layout"}).
+			OnPress(SetPhaseIntent{Phase: "Layout"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[7] Paint").
-			OnPress(InspectorActionIntent{Action: "paint"}).
+			OnPress(SetPhaseWithBufferCountIntent{Phase: "Paint"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[0] Idle").
-			OnPress(InspectorActionIntent{Action: "idle"}).
+			OnPress(SetPhaseIntent{Phase: "idle"}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 		ui.NewButtonBuilder("[I] Toggle Inspector").
 			Variant(ui.ButtonVariantSecondary).
-			OnPress(InspectorActionIntent{Action: "toggle-inspector"}).
+			OnPress(ToggleInspectorIntent{}).
 			FocusStyle(ui.FocusStyleBracket).
 			Build(),
 	}

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
-	"github.com/wwsheng009/mint/framework"
 	ui "github.com/wwsheng009/mint/ui"
 )
 
@@ -34,28 +32,25 @@ func TestButtonInstanceCreation(t *testing.T) {
 	// Wait for initial render
 	time.Sleep(300 * time.Millisecond)
 
-	// Get the framework app to access InstanceManager
-	fwApp := testApp.GetFrameworkApp()
-
 	// Check instance count
-	instanceCount := getInstanceCount(t, fwApp)
+	instanceCount := getInstanceCount(t, testApp)
 	t.Logf("Found %d ComponentInstances", instanceCount)
 
 	if instanceCount < 4 {
 		t.Errorf("Expected at least 4 instances (3 buttons + root), got %d", instanceCount)
 	} else {
-		t.Logf("✅ SUCCESS: Found %d instances (expected at least 4)", instanceCount)
+		t.Logf("SUCCESS: Found %d instances (expected at least 4)", instanceCount)
 	}
 
-	// Check for specific button instances
-	buttonKeys := []string{"vnode:btn-1", "vnode:btn-2", "vnode:btn-3"}
+	// Check for specific button instances by their user-assigned key
+	buttonKeys := []string{"btn-1", "btn-2", "btn-3"}
 	foundCount := 0
 	for _, key := range buttonKeys {
-		if hasInstance(t, fwApp, key) {
-			t.Logf("✅ Found instance: %s", key)
+		if hasInstance(t, testApp, key) {
+			t.Logf("Found instance with key: %s", key)
 			foundCount++
 		} else {
-			t.Errorf("❌ Missing instance: %s", key)
+			t.Errorf("Missing instance with key: %s", key)
 		}
 	}
 
@@ -97,79 +92,28 @@ func TestButtonHitMapEnrichment(t *testing.T) {
 }
 
 // Helper functions
-func getInstanceCount(t *testing.T, fwApp *framework.App) int {
+
+// getInstanceCount returns the number of ComponentInstances registered via the DeclarativeRoot.
+func getInstanceCount(t *testing.T, testApp *ui.TestableApp) int {
 	t.Helper()
-	rootValue := reflect.ValueOf(fwApp).Elem().FieldByName("root")
-	if !rootValue.IsValid() {
+	root := testApp.GetDeclarativeRoot()
+	if root == nil {
 		return 0
 	}
-
-	getInstanceMgrMethod := rootValue.MethodByName("GetInstanceManager")
-	if !getInstanceMgrMethod.IsValid() {
-		return 0
-	}
-
-	results := getInstanceMgrMethod.Call(nil)
-	if len(results) == 0 || results[0].IsNil() {
-		return 0
-	}
-
-	instanceMgr := results[0].Interface()
-	mgrValue := reflect.ValueOf(instanceMgr)
-	getAllMethod := mgrValue.MethodByName("GetAllInstances")
-	if !getAllMethod.IsValid() {
-		return 0
-	}
-
-	instancesResult := getAllMethod.Call(nil)
-	if len(instancesResult) == 0 {
-		return 0
-	}
-
-	allInstances := instancesResult[0].Interface()
-	instancesMap, ok := allInstances.(map[string]ui.ComponentInstance)
-	if !ok {
-		return 0
-	}
-
-	return len(instancesMap)
+	return len(root.GetComponentInstances())
 }
 
-func hasInstance(t *testing.T, fwApp *framework.App, key string) bool {
+// hasInstance checks whether any registered ComponentInstance has the given key.
+func hasInstance(t *testing.T, testApp *ui.TestableApp, key string) bool {
 	t.Helper()
-	rootValue := reflect.ValueOf(fwApp).Elem().FieldByName("root")
-	if !rootValue.IsValid() {
+	root := testApp.GetDeclarativeRoot()
+	if root == nil {
 		return false
 	}
-
-	getInstanceMgrMethod := rootValue.MethodByName("GetInstanceManager")
-	if !getInstanceMgrMethod.IsValid() {
-		return false
+	for _, inst := range root.GetComponentInstances() {
+		if inst.Key() == key {
+			return true
+		}
 	}
-
-	results := getInstanceMgrMethod.Call(nil)
-	if len(results) == 0 || results[0].IsNil() {
-		return false
-	}
-
-	instanceMgr := results[0].Interface()
-	mgrValue := reflect.ValueOf(instanceMgr)
-	getAllMethod := mgrValue.MethodByName("GetAllInstances")
-	if !getAllMethod.IsValid() {
-		return false
-	}
-
-	instancesResult := getAllMethod.Call(nil)
-	if len(instancesResult) == 0 {
-		return false
-	}
-
-	allInstances := instancesResult[0].Interface()
-	instancesMap, ok := allInstances.(map[string]ui.ComponentInstance)
-	if !ok {
-		return false
-	}
-
-	_, exists := instancesMap[key]
-	return exists
+	return false
 }

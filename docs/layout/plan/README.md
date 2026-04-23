@@ -8,14 +8,14 @@
 
 | 文档 | 描述 | 状态 |
 |------|------|------|
-| [01-analysis.md](./01-analysis.md) | 详细分析报告，深入探讨当前问题、架构和影响评估 | ✅ |
-| [02-optimization.md](./02-optimization.md) | 优化实施方案，包含三个阶段的改进计划 | ✅ |
-| [03-testing.md](./03-testing.md) | 测试方案，涵盖单元测试、集成测试和性能测试 | ✅ |
-| [04-debug-tools.md](./04-debug-tools.md) | 调试工具开发方案，包含多种调试工具的设计 | ✅ |
-| [Phase 1 完成报告](../phase1_completion.md) | Phase 1 布局优化完成报告 | ✅ |
-| [Phase 2 完成报告](../phase2_completion.md) | Phase 2 API 改进完成报告 | ✅ |
-| [Phase 3 完成报告](../phase3_completion.md) | Phase 3 新布局引擎和可视化工具完成报告 | ✅ |
-| [总体完成报告](../completion_summary.md) | 所有阶段的总体完成总结 | ✅ |
+| [01-analysis.md](/docsArchive/01-analysis.md) | 详细分析报告，深入探讨当前问题、架构和影响评估（已归档） | ✅ |
+| [02-optimization.md](/docsArchive/02-optimization.md) | 优化实施方案，包含三个阶段的改进计划（已归档） | ✅ |
+| [03-testing.md](/docsArchive/03-testing.md) | 测试方案，涵盖单元测试、集成测试和性能测试（已归档） | ✅ |
+| [04-debug-tools.md](/docsArchive/04-debug-tools.md) | 调试工具开发方案，包含多种调试工具的设计（已归档） | ✅ |
+| [Phase 1 完成报告](/docsArchive/phase1_completion.md) | Phase 1 布局优化完成报告（已归档） | ✅ |
+| [Phase 2 完成报告](/docsArchive/phase2_completion.md) | Phase 2 API 改进完成报告（已归档） | ✅ |
+| [Phase 3 完成报告](/docsArchive/phase3_completion.md) | Phase 3 新布局引擎和可视化工具完成报告（已归档） | ✅ |
+| [总体完成报告](/docsArchive/completion_summary.md) | 所有阶段的总体完成总结（已归档） | ✅ |
 | [布局可视化工具使用指南](../visualizer_usage_guide.md) | 布局可视化工具详细使用方法 | ✅ |
 
 ---
@@ -26,17 +26,17 @@
 
 建议按以下顺序阅读：
 
-1. **首先阅读 [01-analysis.md](./01-analysis.md)** - 了解当前系统的问题和架构
-2. **然后阅读 [02-optimization.md](./02-optimization.md)** - 了解优化方案和实施计划
-3. **参考 [03-testing.md](./03-testing.md)** - 了解如何编写和运行测试
-4. **使用 [04-debug-tools.md](./04-debug-tools.md)** - 学习如何使用调试工具
+1. **首先阅读 [01-analysis.md](/docsArchive/01-analysis.md)** - 了解当前系统的问题和架构（已归档）
+2. **然后阅读 [02-optimization.md](/docsArchive/02-optimization.md)** - 了解优化方案和实施计划（已归档）
+3. **参考 [03-testing.md](/docsArchive/03-testing.md)** - 了解如何编写和运行测试（已归档）
+4. **使用 [04-debug-tools.md](/docsArchive/04-debug-tools.md)** - 学习如何使用调试工具（已归档）
 
 ### 对于开发者
 
-- 如果要修复 bug，先查看 [01-analysis.md](./01-analysis.md) 的相关章节
-- 如果要实现新功能，参考 [02-optimization.md](./02-optimization.md) 的设计原则
-- 如果要编写测试，参考 [03-testing.md](./03-testing.md) 的测试模板
-- 如果遇到问题时，使用 [04-debug-tools.md](./04-debug-tools.md) 中的工具
+- 如果要修复 bug，先查看 [01-analysis.md](/docsArchive/01-analysis.md) 的相关章节（已归档）
+- 如果要实现新功能，参考 [02-optimization.md](/docsArchive/02-optimization.md) 的设计原则（已归档）
+- 如果要编写测试，参考 [03-testing.md](/docsArchive/03-testing.md) 的测试模板（已归档）
+- 如果遇到问题时，使用 [04-debug-tools.md](/docsArchive/04-debug-tools.md) 中的工具（已归档）
 
 ---
 
@@ -63,7 +63,7 @@
 > **🎉 所有阶段已完成！**
 >
 > Mint 布局系统优化计划（Phase 1-3）已全部完成并验证通过。
-> 查看 [总体完成报告](../completion_summary.md) 了解详情。
+> 查看 [总体完成报告](/docsArchive/completion_summary.md) 了解详情。
 
 ### 短期优化（Phase 1）- Week 1-2 ✅ 已完成
 
@@ -74,7 +74,7 @@
 - [x] 实现约束追踪工具
 - [x] 添加边界检查测试
 
-**完成报告**：查看 [Phase 1 完成报告](../phase1_completion.md)
+**完成报告**：查看 [Phase 1 完成报告](/docsArchive/phase1_completion.md)
 
 ### 中期优化（Phase 2）- Week 3-4 ✅ 已完成
 
@@ -84,7 +84,7 @@
 - [x] 实现 Builder API 增强（方便的链式调用）
 - [x] 更新文档和示例
 
-**完成报告**：查看 [Phase 2 完成报告](../phase2_completion.md)
+**完成报告**：查看 [Phase 2 完成报告](/docsArchive/phase2_completion.md)
 
 ### 长期优化（Phase 3）- Week 5-6 ✅ 已完成
 
@@ -94,7 +94,7 @@
 - [x] 实现布局可视化工具
 - [x] 性能优化（Measure 缓存、增量布局）
 
-**完成报告**：查看 [Phase 3 完成报告](../phase3_completion.md)
+**完成报告**：查看 [Phase 3 完成报告](/docsArchive/phase3_completion.md)
 
 ---
 

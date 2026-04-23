@@ -1,6 +1,7 @@
 package treeview
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -34,6 +35,12 @@ func (b *Builder) SetID(id string) *Builder {
 	return b
 }
 
+// ComponentID sets the logical component ID for intent routing.
+func (b *Builder) ComponentID(id string) *Builder {
+	b.vnode.SetComponentID(id)
+	return b
+}
+
 // Nodes sets the tree nodes.
 func (b *Builder) Nodes(nodes []TreeNode) *Builder {
 	b.vnode.SetNodes(nodes)
@@ -64,6 +71,18 @@ func (b *Builder) Compact(compact bool) *Builder {
 	return b
 }
 
+// ShowBorder toggles the outer border.
+func (b *Builder) ShowBorder(show bool) *Builder {
+	b.vnode.SetShowBorder(show)
+	return b
+}
+
+// ShowScrollbar toggles the vertical scrollbar indicator.
+func (b *Builder) ShowScrollbar(show bool) *Builder {
+	b.vnode.SetShowScrollbar(show)
+	return b
+}
+
 // TreeStyle sets the style for tree items.
 func (b *Builder) TreeStyle(s style.Style) *Builder {
 	b.vnode.SetTreeStyle(s)
@@ -82,9 +101,45 @@ func (b *Builder) IconStyle(s style.Style) *Builder {
 	return b
 }
 
+// RowStyleFn sets the style function for rows.
+func (b *Builder) RowStyleFn(fn func(int, TreeNode) style.Style) *Builder {
+	b.vnode.SetRowStyleFn(fn)
+	return b
+}
+
+// MatchStyle sets the style for search matches.
+func (b *Builder) MatchStyle(s style.Style) *Builder {
+	b.vnode.SetMatchStyle(s)
+	return b
+}
+
+// ShowSearchStats toggles the search stats row.
+func (b *Builder) ShowSearchStats(show bool) *Builder {
+	b.vnode.SetShowSearchStats(show)
+	return b
+}
+
+// SearchStatsStyle sets the style for the search stats row.
+func (b *Builder) SearchStatsStyle(s style.Style) *Builder {
+	b.vnode.SetSearchStatsStyle(s)
+	return b
+}
+
+// ScrollbarStyle sets the style for the scrollbar.
+func (b *Builder) ScrollbarStyle(s style.Style) *Builder {
+	b.vnode.SetScrollbarStyle(s)
+	return b
+}
+
 // ScrollOffset sets the initial scroll offset.
 func (b *Builder) ScrollOffset(offset int) *Builder {
 	b.vnode.SetScrollOffset(offset)
+	return b
+}
+
+// ScrollOffsetControlled sets a controlled scroll offset.
+func (b *Builder) ScrollOffsetControlled(offset int) *Builder {
+	b.vnode.SetScrollOffsetControlled(offset)
 	return b
 }
 
@@ -94,9 +149,127 @@ func (b *Builder) SelectedIndex(index int) *Builder {
 	return b
 }
 
+// SelectedIndexControlled sets a controlled selected index.
+func (b *Builder) SelectedIndexControlled(index int) *Builder {
+	b.vnode.SetSelectedIndexControlled(index)
+	return b
+}
+
 // ViewportHeight sets the visible height for scrolling.
 func (b *Builder) ViewportHeight(height int) *Builder {
 	b.vnode.SetViewportHeight(height)
+	return b
+}
+
+// SearchQuery sets the filter query for nodes.
+func (b *Builder) SearchQuery(query string) *Builder {
+	b.vnode.SetSearchQuery(query)
+	return b
+}
+
+// SearchMatchesControlled sets externally computed async search matches by stable key.
+func (b *Builder) SearchMatchesControlled(keys map[string]bool) *Builder {
+	b.vnode.SetSearchMatchesControlled(keys)
+	return b
+}
+
+// SearchMatchPathsControlled sets externally computed async search matches by path.
+func (b *Builder) SearchMatchPathsControlled(paths ...string) *Builder {
+	b.vnode.SetSearchMatchPathsControlled(paths...)
+	return b
+}
+
+// SearchPending marks the externally controlled search as still running.
+func (b *Builder) SearchPending(pending bool) *Builder {
+	b.vnode.SetSearchPending(pending)
+	return b
+}
+
+// SearchPageSize configures the size of emitted search result pages.
+func (b *Builder) SearchPageSize(size int) *Builder {
+	b.vnode.SetSearchPageSize(size)
+	return b
+}
+
+// SearchQueryControlled sets a controlled filter query for nodes.
+func (b *Builder) SearchQueryControlled(query string) *Builder {
+	b.vnode.SetSearchQueryControlled(query)
+	return b
+}
+
+// SearchFn sets the custom search function.
+func (b *Builder) SearchFn(fn func(TreeNode, string) bool) *Builder {
+	b.vnode.SetSearchFn(fn)
+	return b
+}
+
+// SelectionMode sets the selection mode for checkbox-style selection.
+func (b *Builder) SelectionMode(mode SelectionMode) *Builder {
+	b.vnode.SetSelectionMode(mode)
+	return b
+}
+
+// SingleSelect enables single-select checkbox behavior.
+func (b *Builder) SingleSelect() *Builder {
+	return b.SelectionMode(SelectionSingle)
+}
+
+// MultiSelect enables multi-select checkbox behavior.
+func (b *Builder) MultiSelect() *Builder {
+	return b.SelectionMode(SelectionMultiple)
+}
+
+// CheckedKeys sets checked nodes by key (controlled).
+func (b *Builder) CheckedKeys(keys map[string]bool) *Builder {
+	b.vnode.SetCheckedKeys(keys)
+	return b
+}
+
+// CheckedPaths sets checked nodes by path (controlled).
+func (b *Builder) CheckedPaths(paths ...string) *Builder {
+	b.vnode.SetCheckedPaths(paths...)
+	return b
+}
+
+// OnSelectionChange sets the intent emitted when checkbox selection changes.
+func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
+	b.vnode.SetSelectionIntent(selectionIntent)
+	return b
+}
+
+// OnReorder sets the intent emitted when sibling drag reorder changes node order.
+func (b *Builder) OnReorder(reorderIntent intent.Intent) *Builder {
+	b.vnode.SetReorderIntent(reorderIntent)
+	return b
+}
+
+// SelectionForField binds checked nodes to a field.
+func (b *Builder) SelectionForField(binding intent.FieldIntent) *Builder {
+	b.vnode.SetSelectionFieldIntent(binding)
+	return b
+}
+
+// OnLazyLoad sets a synchronous lazy-load hook.
+func (b *Builder) OnLazyLoad(fn func(TreeNode)) *Builder {
+	b.vnode.SetLazyLoadFn(fn)
+	return b
+}
+
+// OnLazyLoadChildren sets a lazy-load hook that returns children to insert.
+func (b *Builder) OnLazyLoadChildren(fn func(TreeNode) []TreeNode) *Builder {
+	b.vnode.SetLazyLoadChildrenFn(fn)
+	return b
+}
+
+// ExpandedKeys sets the expanded state map (controlled).
+func (b *Builder) ExpandedKeys(keys map[string]bool) *Builder {
+	b.vnode.SetExpandedKeys(keys)
+	return b
+}
+
+// ExpandedPaths marks the given paths as expanded (controlled).
+func (b *Builder) ExpandedPaths(paths ...string) *Builder {
+	b.vnode.SetExpandedPaths(paths...)
 	return b
 }
 
@@ -109,6 +282,12 @@ func (b *Builder) AllowScroll(allow bool) *Builder {
 // AllowExpand enables/disables expand/collapse.
 func (b *Builder) AllowExpand(allow bool) *Builder {
 	b.vnode.SetAllowExpand(allow)
+	return b
+}
+
+// Reorderable enables/disables sibling drag reorder.
+func (b *Builder) Reorderable(reorderable bool) *Builder {
+	b.vnode.SetReorderable(reorderable)
 	return b
 }
 

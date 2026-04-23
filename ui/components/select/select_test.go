@@ -1,10 +1,17 @@
 package selectcomp
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/wwsheng009/mint/framework"
+	"github.com/wwsheng009/mint/framework/component"
+	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/action"
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
+	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
@@ -307,5 +314,618 @@ func TestInstance_Paint_NoSelection(t *testing.T) {
 	expected := "< Option A >"
 	if cmds[0].Text != expected {
 		t.Errorf("Text = %q, want %q", cmds[0].Text, expected)
+	}
+}
+
+func TestInstance_HandleAction_ClickOpensDropdown(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+	})
+
+	if handled := inst.HandleAction(action.NewAction(action.ActionClick)); !handled {
+		t.Fatal("click should open dropdown")
+	}
+	if !inst.open {
+		t.Fatal("dropdown should be open after click")
+	}
+}
+
+func TestInstance_HandleAction_MouseReleaseDoesNotCloseOverlayTrigger(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"overlayPopup": true,
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+	})
+
+	press := runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	if handled := inst.HandleAction(action.NewAction(action.ActionClick).WithPayload(press)); !handled {
+		t.Fatal("mouse press should open dropdown")
+	}
+	if !inst.open {
+		t.Fatal("overlay select should be open after mouse press")
+	}
+
+	release := runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	if handled := inst.HandleAction(action.NewAction(action.ActionSelect).WithPayload(release)); !handled {
+		t.Fatal("mouse release should be consumed")
+	}
+	if !inst.open {
+		t.Fatal("mouse release should not close overlay select")
+	}
+}
+
+func TestInstance_HandleAction_ActionMouseReleaseDoesNotCloseOverlayTrigger(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"overlayPopup": true,
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+	})
+	inst.open = true
+
+	release := runtimemsg.NewMouseMsg(1, 1, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	if handled := inst.HandleAction(action.NewAction(action.ActionMouseRelease).WithPayload(release)); !handled {
+		t.Fatal("ActionMouseRelease should be consumed by trigger")
+	}
+	if !inst.open {
+		t.Fatal("ActionMouseRelease should not close overlay select")
+	}
+}
+
+func TestInstance_Paint_OpenDropdownIncludesPopup(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "Option A"},
+			{Value: "b", Label: "Option B"},
+			{Value: "c", Label: "Option C"},
+		},
+		"selectedIndex": 1,
+	})
+
+	inst.openDropdown()
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 5 {
+		t.Fatalf("Paint returned %d commands, want popup commands too", len(cmds))
+	}
+
+	var texts []string
+	for _, cmd := range cmds {
+		texts = append(texts, cmd.Text)
+	}
+	joined := strings.Join(texts, "\n")
+	if !strings.Contains(joined, "┌") || !strings.Contains(joined, "Option A") || !strings.Contains(joined, "Option B") {
+		t.Fatalf("open popup paint missing expected content:\n%s", joined)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectTogglesIndices(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+			{Value: "c", Label: "C"},
+		},
+		"selectionMode": SelectionMultiple,
+	})
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should open multi-select dropdown")
+	}
+	if !inst.open {
+		t.Fatal("dropdown should be open")
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should toggle highlighted option")
+	}
+	if got := inst.SelectedIndices(); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("SelectedIndices = %v, want [0]", got)
+	}
+	if !inst.open {
+		t.Fatal("multi-select should stay open after toggle")
+	}
+
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("down should move highlight")
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("enter should toggle second option")
+	}
+	if got := inst.SelectedIndices(); len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("SelectedIndices = %v, want [0 1]", got)
+	}
+}
+
+func TestInstance_HandleAction_MultiSelectEmitsFieldChangeIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+		},
+		"selectionMode": SelectionMultiple,
+		"changeIntent":  intent.BindField("choices"),
+	})
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	inst.openDropdown()
+	inst.HandleAction(action.NewAction(action.ActionEnter))
+	inst.HandleAction(action.NewAction(action.ActionNavigateDown))
+	inst.HandleAction(action.NewAction(action.ActionEnter))
+
+	var lastField intent.FieldChangeIntent
+	found := false
+	for _, emittedIntent := range emitted {
+		fieldChange, ok := emittedIntent.(intent.FieldChangeIntent)
+		if !ok {
+			continue
+		}
+		lastField = fieldChange
+		found = true
+	}
+	if !found {
+		t.Fatal("expected FieldChangeIntent to be emitted")
+	}
+	if lastField.Field != "choices" {
+		t.Fatalf("Field = %q, want %q", lastField.Field, "choices")
+	}
+	if lastField.Value != "0,1" {
+		t.Fatalf("Value = %q, want %q", lastField.Value, "0,1")
+	}
+}
+
+func TestInstance_RuntimeChildren_OverlayPopupChild(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"selectID":       "country-select",
+		"portalRoot":     rtui.DefaultOverlayPortalRootID,
+		"overlayPopup":   true,
+		"maxVisibleRows": 6,
+		"options": []Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+		},
+	})
+
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("closed RuntimeChildren len = %d, want 0", len(children))
+	}
+
+	inst.openDropdown()
+	if children := inst.RuntimeChildren(); len(children) != 0 {
+		t.Fatalf("overlay RuntimeChildren len = %d, want 0", len(children))
+	}
+}
+
+func TestPopupInstance_Measure_UsesPopupProps(t *testing.T) {
+	popup := newPopupInstance(rtui.Props{
+		"selectID":       "country-select",
+		"componentID":    "country-select",
+		"options":        []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"maxVisibleRows": 6,
+		"minWidth":       20,
+	})
+	size := popup.Measure(layout.UnboundedConstraints())
+	if size.Width <= 0 || size.Height <= 0 {
+		t.Fatalf("popup Measure = %+v, want non-zero size", size)
+	}
+}
+
+func TestPopupInstance_HandleAction_CommitsSelection(t *testing.T) {
+	state := overlayControllerState{
+		selectedIndex:    -1,
+		selectedIndices:  nil,
+		open:             true,
+		highlightedIndex: 0,
+		scrollOffset:     0,
+	}
+	callbacks := &overlayCallbacks{
+		setOpen: func(open bool) overlayControllerState {
+			state.open = open
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
+				SelectionSingle,
+				2,
+				state.selectedIndex,
+				state.selectedIndices,
+				index,
+			)
+			state.selectedIndex = nextIndex
+			state.selectedIndices = nextIndices
+			state.highlightedIndex = index
+			state.open = !shouldClose
+			return state
+		},
+	}
+	emitted := make([]intent.Intent, 0, 2)
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
+		"changeIntent":     intent.BindField("country"),
+		overlayCallbacksProp: callbacks,
+	})
+	popup.SetIntentEmitter(func(i intent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	mouse := runtimemsg.NewMouseMsg(1, 2, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouse.LocalX = 1
+	mouse.LocalY = 1
+	if !popup.HandleAction(action.NewAction(action.ActionClick).WithPayload(mouse)) {
+		t.Fatal("popup click should be handled")
+	}
+	if state.selectedIndex != 0 {
+		t.Fatalf("selectedIndex = %d, want 0", state.selectedIndex)
+	}
+	if state.open {
+		t.Fatal("single-select popup should close after commit")
+	}
+	if len(emitted) == 0 {
+		t.Fatal("expected popup commit to emit intents")
+	}
+}
+
+func TestPopupInstance_HandleAction_MouseReleaseCommitsSelection(t *testing.T) {
+	state := overlayControllerState{
+		selectedIndex:    -1,
+		selectedIndices:  nil,
+		open:             true,
+		highlightedIndex: 0,
+		scrollOffset:     0,
+	}
+	callbacks := &overlayCallbacks{
+		setOpen: func(open bool) overlayControllerState {
+			state.open = open
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
+				SelectionSingle,
+				2,
+				state.selectedIndex,
+				state.selectedIndices,
+				index,
+			)
+			state.selectedIndex = nextIndex
+			state.selectedIndices = nextIndices
+			state.highlightedIndex = index
+			state.open = !shouldClose
+			return state
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectedIndex":      -1,
+		"selectedIndices":    []int{},
+		"highlightedIndex":   0,
+		"maxVisibleRows":     6,
+		"minWidth":           20,
+		overlayCallbacksProp: callbacks,
+	})
+
+	mouse := runtimemsg.NewMouseMsg(1, 2, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouse.LocalX = 1
+	mouse.LocalY = 1
+	if !popup.HandleAction(action.NewAction(action.ActionMouseRelease).WithPayload(mouse)) {
+		t.Fatal("popup mouse release should be handled")
+	}
+	if state.selectedIndex != 0 {
+		t.Fatalf("selectedIndex = %d, want 0", state.selectedIndex)
+	}
+	if state.open {
+		t.Fatal("single-select popup should close after mouse release commit")
+	}
+}
+
+func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight(t *testing.T) {
+	state := overlayControllerState{
+		selectedIndex:    -1,
+		selectedIndices:  nil,
+		open:             true,
+		highlightedIndex: 0,
+		scrollOffset:     0,
+	}
+	callbacks := &overlayCallbacks{
+		setOpen: func(open bool) overlayControllerState {
+			state.open = open
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
+		overlayCallbacksProp: callbacks,
+	})
+
+	if !popup.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("popup down should be handled")
+	}
+	if state.highlightedIndex != 1 {
+		t.Fatalf("highlightedIndex = %d, want 1", state.highlightedIndex)
+	}
+}
+
+func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight_EmptyComponentID(t *testing.T) {
+	state := overlayControllerState{
+		selectedIndex:    -1,
+		selectedIndices:  nil,
+		open:             true,
+		highlightedIndex: 0,
+		scrollOffset:     0,
+	}
+	callbacks := &overlayCallbacks{
+		setOpen: func(open bool) overlayControllerState {
+			state.open = open
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":    -1,
+		"selectedIndices":  []int{},
+		"highlightedIndex": 0,
+		"maxVisibleRows":   6,
+		"minWidth":         20,
+		overlayCallbacksProp: callbacks,
+	})
+
+	if !popup.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("popup down should be handled")
+	}
+	if state.highlightedIndex != 1 {
+		t.Fatalf("highlightedIndex = %d, want 1", state.highlightedIndex)
+	}
+}
+
+func TestMiddleware_ClickOutsideClosesOpenOverlaySelect(t *testing.T) {
+	open := true
+	callbacks := &overlayCallbacks{
+		setOpen: func(next bool) overlayControllerState {
+			open = next
+			return overlayControllerState{open: open}
+		},
+		setHighlight: func(index int) overlayControllerState {
+			return overlayControllerState{open: open, highlightedIndex: index}
+		},
+		commit: func(index int) overlayControllerState {
+			return overlayControllerState{open: open, highlightedIndex: index}
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"componentID":      "country-select",
+		"closeOnOutside":   true,
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		overlayCallbacksProp: callbacks,
+	})
+	popup.SetBounds(2, 3, 12, 4)
+	popup.OnMount()
+	defer popup.OnUnmount()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionClick).WithPayload(
+		runtimemsg.NewMouseMsg(40, 20, runtimemsg.MouseLeft, runtimemsg.MouseActionPress),
+	)
+
+	if result := middleware.Before(act); result != nil {
+		t.Fatal("outside click should be intercepted after overlay select closes")
+	}
+	if open {
+		t.Fatal("overlay select should be closed after outside click")
+	}
+}
+
+func TestMiddleware_CancelClosesOpenOverlaySelect(t *testing.T) {
+	open := true
+	callbacks := &overlayCallbacks{
+		setOpen: func(next bool) overlayControllerState {
+			open = next
+			return overlayControllerState{open: open}
+		},
+		setHighlight: func(index int) overlayControllerState {
+			return overlayControllerState{open: open, highlightedIndex: index}
+		},
+		commit: func(index int) overlayControllerState {
+			return overlayControllerState{open: open, highlightedIndex: index}
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"componentID":      "country-select",
+		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		overlayCallbacksProp: callbacks,
+	})
+	popup.OnMount()
+	defer popup.OnUnmount()
+
+	middleware := NewMiddleware()
+	act := action.NewAction(action.ActionCancel)
+
+	if result := middleware.Before(act); result != nil {
+		t.Fatal("cancel should be intercepted after overlay select closes")
+	}
+	if open {
+		t.Fatal("overlay select should be closed after cancel")
+	}
+}
+
+func TestOverlayPopup_AnchorsToSelectBounds(t *testing.T) {
+	selectNode := NewBuilder().
+		SetID("country-select").
+		OverlayPopup(true).
+		Width(20).
+		Options([]Option{
+			{Value: "us", Label: "United States"},
+			{Value: "cn", Label: "China"},
+			{Value: "jp", Label: "Japan"},
+		}).
+		Build()
+
+	app := func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			rtui.NewElement("text").SetProps(rtui.Props{"content": "Country:"}),
+			rtui.HStack(
+				rtui.NewElement("text").SetProps(rtui.Props{"content": "  "}),
+				selectNode,
+			),
+		)
+	}
+
+	node := render.NewDeclarativeNodeFromFuncWithFiber(app)
+	node.SetApp(framework.NewApp())
+	node.SetRenderMode(render.RenderModeFiberFirst)
+
+	ctx := component.PaintContext{
+		Bounds:          paint.Rect{X: 0, Y: 0, Width: 50, Height: 12},
+		AvailableWidth:  50,
+		AvailableHeight: 12,
+	}
+
+	node.Paint(ctx, paint.NewBuffer(50, 12))
+	fiberRoot := node.GetFiberRoot()
+	if fiberRoot == nil || fiberRoot.Child == nil {
+		t.Fatalf("unexpected fiber tree shape after render")
+	}
+	var selectFiber *rtui.Fiber
+	var overlayFiber *rtui.Fiber
+	var findSelect func(*rtui.Fiber)
+	findSelect = func(f *rtui.Fiber) {
+		if f == nil {
+			return
+		}
+		if f.Tag == "SelectOverlay" && overlayFiber == nil {
+			overlayFiber = f
+		}
+		if f.Tag == "select" {
+			selectFiber = f
+		}
+		findSelect(f.Child)
+		findSelect(f.Sibling)
+	}
+	findSelect(fiberRoot)
+	if selectFiber == nil || overlayFiber == nil {
+		t.Fatalf("expected select overlay fibers in tree")
+	}
+	if selectFiber.Tag != "select" {
+		t.Fatalf("select fiber tag = %q", selectFiber.Tag)
+	}
+	triggerInst, ok := selectFiber.Instance.(*Instance)
+	if !ok || triggerInst == nil {
+		t.Fatal("expected select fiber instance")
+	}
+	if !triggerInst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("select enter should open popup")
+	}
+	node.Paint(ctx, paint.NewBuffer(50, 12))
+	fiberRoot = node.GetFiberRoot()
+	selectFiber = nil
+	overlayFiber = nil
+	findSelect(fiberRoot)
+	if selectFiber == nil {
+		t.Fatalf("expected select fiber after opening popup")
+	}
+	if selectFiber.ID != "country-select" {
+		t.Fatalf("select fiber ID = %q, want %q", selectFiber.ID, "country-select")
+	}
+
+	portals := node.GetPortalRoots()
+	if len(portals) != 1 {
+		t.Fatalf("portal roots len = %d, want 1\nlayout:\n%s\nportal:\n%s", len(portals), node.GetLayoutTreeString(), node.GetPortalTreeString())
+	}
+
+	triggerInst = selectFiber.Instance.(*Instance)
+	triggerX, triggerY, _, triggerH := triggerInst.GetBounds()
+	if triggerX == 0 && triggerY == 0 {
+		t.Fatalf("trigger bounds stayed at origin; test would not validate anchoring\nlayout:\n%s\npaintable:\n%s", node.GetLayoutTreeString(), node.GetPaintableTreeString())
+	}
+	portal := portals[0]
+	if portal.X != triggerX {
+		t.Fatalf("portal X = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", portal.X, triggerX, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+	expectedPopupY := triggerY + triggerH
+	if portal.Y != expectedPopupY {
+		t.Fatalf("portal Y = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", portal.Y, expectedPopupY, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+
+	var popupBox *paint.PaintableBox
+	var findPopup func(*paint.PaintableBox)
+	findPopup = func(box *paint.PaintableBox) {
+		if box == nil || popupBox != nil {
+			return
+		}
+		if box.Node != nil && box.Node.Tag() == "select-popup" {
+			popupBox = box
+			return
+		}
+		for _, child := range box.Children {
+			findPopup(child)
+		}
+	}
+	findPopup(node.GetPaintableRoot())
+	if popupBox == nil {
+		t.Fatalf("select-popup paintable box not found\npaintable:\n%s", node.GetPaintableTreeString())
+	}
+	if popupBox.X != triggerX {
+		t.Fatalf("popup paintable X = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", popupBox.X, triggerX, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
+	}
+	if popupBox.Y != expectedPopupY {
+		t.Fatalf("popup paintable Y = %d, want %d\nlayout:\n%s\nportal:\n%s\npaintable:\n%s", popupBox.Y, expectedPopupY, node.GetLayoutTreeString(), node.GetPortalTreeString(), node.GetPaintableTreeString())
 	}
 }

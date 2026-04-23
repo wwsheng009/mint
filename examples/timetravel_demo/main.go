@@ -78,7 +78,7 @@ func appReducer(state AppState, i intent.Intent) AppState {
 // =============================================================================
 
 func main() {
-	fmt.Println(`
+	fmt.Print(`
 ╔════════════════════════════════════════════════════════════╗
 ║           Time Travel Debug Demo                           ║
 ╚════════════════════════════════════════════════════════════╝
@@ -105,7 +105,7 @@ func main() {
 	// Record initial state
 	tdbg.RecordWithIntent(state, nil, "initial")
 
-	fmt.Println("=== Simulating State Changes ===\n")
+	fmt.Println("=== Simulating State Changes ===")
 
 	// Simulate state changes
 	state = appReducer(state, IncrementIntent{})
@@ -126,11 +126,11 @@ func main() {
 	state = appReducer(state, IncrementIntent{})
 	tdbg.RecordWithIntent(state, IncrementIntent{}, "increment 3")
 
-	fmt.Println("\n=== Current State ===")
+	fmt.Println("=== Current State ===")
 	fmt.Printf("Count: %d\n", state.Count)
 	fmt.Printf("Message: %s\n", state.Message)
 
-	fmt.Println("\n=== History Navigation ===")
+	fmt.Println("=== History Navigation ===")
 
 	// Show history
 	history := tdbg.GetHistory()
@@ -143,7 +143,7 @@ func main() {
 		fmt.Printf("  %s [%d] %s - %s\n", marker, s.Index, s.GetIntentType(), s.Label)
 	}
 
-	fmt.Println("\n=== Undo Demo ===")
+	fmt.Println("=== Undo Demo ===")
 
 	// Undo 3 times
 	for i := 0; i < 3; i++ {
@@ -152,14 +152,14 @@ func main() {
 		}
 	}
 
-	fmt.Println("\n=== Redo Demo ===")
+	fmt.Println("=== Redo Demo ===")
 
 	// Redo once
 	if tdbg.CanRedo() {
 		tdbg.Redo()
 	}
 
-	fmt.Println("\n=== Jump To Specific Point ===")
+	fmt.Println("=== Jump To Specific Point ===")
 
 	// Jump to beginning
 	tdbg.JumpTo(0)
@@ -171,7 +171,7 @@ func main() {
 	currentState, _ = tdbg.GetCurrentState()
 	fmt.Printf("After jump to end: Count=%d\n", currentState.Count)
 
-	fmt.Println("\n=== Export/Import Demo ===")
+	fmt.Println("=== Export/Import Demo ===")
 
 	// Export history
 	data, err := tdbg.Export()
@@ -195,13 +195,13 @@ func main() {
 		}
 	}
 
-	fmt.Println("\n=== Debug Panel State ===")
+	fmt.Println("=== Debug Panel State ===")
 
 	panelState := tdbg.GetDebugPanelState()
 	panelJSON, _ := json.MarshalIndent(panelState, "", "  ")
 	fmt.Printf("%s\n", panelJSON)
 
-	fmt.Println(`
+	fmt.Print(`
 ╔════════════════════════════════════════════════════════════╗
 ║                    Demo Complete                           ║
 ║                                                            ║

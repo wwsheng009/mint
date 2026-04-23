@@ -1,10 +1,27 @@
 package checkbox
 
 import (
-	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/optiongroup"
+)
+
+// =============================================================================
+// Prop Keys
+// =============================================================================
+
+// Prop key constants — shared by VNode and Instance to avoid magic strings.
+const (
+	propChecked       = "checked"
+	propDisabled      = "disabled"
+	propFormID        = "formID"
+	propIndeterminate = "indeterminate"
+	propKey           = "key"
+	propLabel         = "label"
+	propStyle         = "style"
+	propToggleIntent  = "toggleIntent"
 )
 
 // =============================================================================
@@ -20,15 +37,17 @@ type VNode struct {
 	key string
 
 	// === Visual Props ===
-	label  string
-	style  style.Style
+	label string
+	style style.Style
 
 	// === Intent Props (no closures!) ===
 	toggleIntent intent.Intent // Structured intent instead of func(bool)
+	formID       string        // Form ID for Form integration (Phase 6)
 
 	// === State Props (declarative, actual state managed by Instance) ===
-	disabled bool
-	checked  bool
+	disabled      bool
+	checked       bool
+	indeterminate bool
 
 	// === Box Model (via interface) ===
 	rtui.BoxModelMixin
@@ -107,34 +126,42 @@ func (c *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 // Props returns the node properties.
 func (c *VNode) Props() rtui.Props {
 	return rtui.Props{
-		"key":          c.key,
-		"label":        c.label,
-		"style":        c.style,
-		"toggleIntent": c.toggleIntent,
-		"disabled":     c.disabled,
-		"checked":      c.checked,
+		propKey:           c.key,
+		propLabel:         c.label,
+		propStyle:         c.style,
+		propToggleIntent:  c.toggleIntent,
+		propFormID:        c.formID,
+		propDisabled:      c.disabled,
+		propChecked:       c.checked,
+		propIndeterminate: c.indeterminate,
 	}
 }
 
 // SetProps sets the node properties - returns VNode for chaining.
 func (c *VNode) SetProps(p rtui.Props) rtui.VNode {
-	if v, ok := p["key"].(string); ok {
+	if v, ok := p[propKey].(string); ok {
 		c.key = v
 	}
-	if v, ok := p["label"].(string); ok {
+	if v, ok := p[propLabel].(string); ok {
 		c.label = v
 	}
-	if v, ok := p["style"].(style.Style); ok {
+	if v, ok := p[propStyle].(style.Style); ok {
 		c.style = v
 	}
-	if v, ok := p["toggleIntent"].(intent.Intent); ok {
+	if v, ok := p[propToggleIntent].(intent.Intent); ok {
 		c.toggleIntent = v
 	}
-	if v, ok := p["disabled"].(bool); ok {
+	if v, ok := p[propFormID].(string); ok {
+		c.formID = v
+	}
+	if v, ok := p[propDisabled].(bool); ok {
 		c.disabled = v
 	}
-	if v, ok := p["checked"].(bool); ok {
+	if v, ok := p[propChecked].(bool); ok {
 		c.checked = v
+	}
+	if v, ok := p[propIndeterminate].(bool); ok {
+		c.indeterminate = v
 	}
 	return c
 }
@@ -146,12 +173,14 @@ func (c *VNode) SetProps(p rtui.Props) rtui.VNode {
 // CreateInstance creates a new CheckboxInstance from this VNode description.
 func (c *VNode) CreateInstance() rtui.ComponentInstance {
 	props := rtui.Props{
-		"key":          c.key,
-		"label":        c.label,
-		"style":        c.style,
-		"toggleIntent": c.toggleIntent,
-		"disabled":     c.disabled,
-		"checked":      c.checked,
+		propKey:           c.key,
+		propLabel:         c.label,
+		propStyle:         c.style,
+		propToggleIntent:  c.toggleIntent,
+		propFormID:        c.formID,
+		propDisabled:      c.disabled,
+		propChecked:       c.checked,
+		propIndeterminate: c.indeterminate,
 	}
 	return NewInstance(props)
 }
@@ -178,9 +207,22 @@ func (c *VNode) SetChecked(checked bool) *VNode {
 	return c
 }
 
+// SetIndeterminate sets the indeterminate state (declarative).
+func (c *VNode) SetIndeterminate(indeterminate bool) *VNode {
+	c.indeterminate = indeterminate
+	return c
+}
+
 // SetIntent sets the toggle intent (replaces OnChange closure).
 func (c *VNode) SetIntent(toggleIntent intent.Intent) *VNode {
 	c.toggleIntent = toggleIntent
+	return c
+}
+
+// SetFormID sets the form ID for Form integration.
+// When set, the component will emit FormFieldChangeIntent/FormFieldBlurIntent.
+func (c *VNode) SetFormID(formID string) *VNode {
+	c.formID = formID
 	return c
 }
 
@@ -219,9 +261,130 @@ func (c *VNode) Checked() bool {
 	return c.checked
 }
 
+// Indeterminate returns the indeterminate state.
+func (c *VNode) Indeterminate() bool {
+	return c.indeterminate
+}
+
 // ToggleIntent returns the toggle intent.
 func (c *VNode) ToggleIntent() intent.Intent {
 	return c.toggleIntent
+}
+
+// Option re-exports the option type used by CheckboxGroup.
+type Option = optiongroup.Option
+
+// Orientation re-exports the layout orientation used by CheckboxGroup.
+type Orientation = optiongroup.Orientation
+
+const (
+	OrientationVertical   = optiongroup.OrientationVertical
+	OrientationHorizontal = optiongroup.OrientationHorizontal
+)
+
+// GroupVNode is the CheckboxGroup description.
+type GroupVNode struct {
+	*optiongroup.VNode
+}
+
+var (
+	_ rtui.VNode           = (*GroupVNode)(nil)
+	_ rtui.InstanceFactory = (*GroupVNode)(nil)
+)
+
+// NewGroup creates a new CheckboxGroup VNode.
+func NewGroup(options []Option) *GroupVNode {
+	return &GroupVNode{
+		VNode: optiongroup.New(options).Multiple(),
+	}
+}
+
+// Tag returns the tag name.
+func (g *GroupVNode) Tag() string {
+	return "checkboxgroup"
+}
+
+// CreateInstance creates a new CheckboxGroup instance.
+func (g *GroupVNode) CreateInstance() rtui.ComponentInstance {
+	inst := g.VNode.CreateInstance()
+	groupInst, _ := inst.(*optiongroup.Instance)
+	return &GroupInstance{Instance: groupInst}
+}
+
+// SetLabel sets the group label.
+func (g *GroupVNode) SetLabel(label string) *GroupVNode {
+	g.VNode.SetLabel(label)
+	return g
+}
+
+// SetDisabled sets the disabled state.
+func (g *GroupVNode) SetDisabled(disabled bool) *GroupVNode {
+	g.VNode.SetDisabled(disabled)
+	return g
+}
+
+// SetSelecteds sets the selected values.
+func (g *GroupVNode) SetSelecteds(selecteds []string) *GroupVNode {
+	g.VNode.SetSelecteds(selecteds)
+	return g
+}
+
+// SetIntent sets the select intent.
+func (g *GroupVNode) SetIntent(selectIntent intent.Intent) *GroupVNode {
+	g.VNode.SetIntent(selectIntent)
+	return g
+}
+
+// SetStyleProps sets the visual style.
+func (g *GroupVNode) SetStyleProps(s style.Style) *GroupVNode {
+	g.VNode.SetStyle(s)
+	return g
+}
+
+// SetOrientation sets the layout orientation.
+func (g *GroupVNode) SetOrientation(orientation Orientation) *GroupVNode {
+	g.VNode.SetOrientation(orientation)
+	return g
+}
+
+// SetSpacing sets the gap between options.
+func (g *GroupVNode) SetSpacing(spacing int) *GroupVNode {
+	g.VNode.SetSpacing(spacing)
+	return g
+}
+
+// SetOptions replaces the option list.
+func (g *GroupVNode) SetOptions(options []Option) *GroupVNode {
+	g.VNode.SetProps(rtui.Props{"options": options})
+	return g
+}
+
+// OnSelect sets the intent to emit when values change.
+func (g *GroupVNode) OnSelect(selectIntent intent.Intent) *GroupVNode {
+	return g.SetIntent(selectIntent)
+}
+
+// Vertical sets orientation to vertical.
+func (g *GroupVNode) Vertical() *GroupVNode {
+	return g.SetOrientation(OrientationVertical)
+}
+
+// Horizontal sets orientation to horizontal.
+func (g *GroupVNode) Horizontal() *GroupVNode {
+	return g.SetOrientation(OrientationHorizontal)
+}
+
+// Options returns the option list.
+func (g *GroupVNode) Options() []Option {
+	if options, ok := g.VNode.Props()["options"].([]optiongroup.Option); ok {
+		return options
+	}
+	return nil
+}
+
+// Selecteds returns the selected values.
+func (g *GroupVNode) Selecteds() []string {
+	return g.VNode.Selecteds()
 }
 
 // =============================================================================

@@ -699,7 +699,7 @@ func TestPerformanceMonitoring(t *testing.T) {
 ### A. 相关文档
 
 - [APP_LIFECYCLE_AND_SANDBOX.md](./APP_LIFECYCLE_AND_SANDBOX.md) - 应用生命周期与 Sandbox 集成
-- [ENGINE_SANDBOX_INTEGRATION.md](./ENGINE_SANDBOX_INTEGRATION.md) - Engine 与 Sandbox 集成架构
+- [ENGINE_SANDBOX_INTEGRATION.md](/docsArchive/ENGINE_SANDBOX_INTEGRATION.md) - Engine 与 Sandbox 集成架构
 - [SANDBOX_DEBUG_GUIDE.md](./SANDBOX_DEBUG_GUIDE.md) - Sandbox 调试技巧
 - [API_REFERENCE.md](./API_REFERENCE.md) - 完整 API 参考
 

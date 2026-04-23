@@ -1,8 +1,6 @@
 package grid
 
 import (
-	"fmt"
-
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 )
@@ -20,68 +18,68 @@ const (
 
 // BorderChars 边框字符集
 type BorderChars struct {
-	horizontal, vertical             string // 水平和垂直线
-	topLeft, topRight, bottomLeft, bottomRight string // 四个角
+	horizontal, vertical                         string // 水平和垂直线
+	topLeft, topRight, bottomLeft, bottomRight   string // 四个角
 	topCross, bottomCross, leftCross, rightCross string // 四个交点
-	cross string // 中心交点
+	cross                                        string // 中心交点
 }
 
 // 边框字符集定义
 var cellBorderChars = map[string]BorderChars{
 	"single": {
-		horizontal:   "─",
-		vertical:     "│",
-		topLeft:      "┌",
-		topRight:     "┐",
-		bottomLeft:   "└",
-		bottomRight:  "┘",
-		topCross:     "┬",
-		bottomCross:  "┴",
-		leftCross:    "├",
-		rightCross:   "┤",
-		cross:        "┼",
+		horizontal:  "─",
+		vertical:    "│",
+		topLeft:     "┌",
+		topRight:    "┐",
+		bottomLeft:  "└",
+		bottomRight: "┘",
+		topCross:    "┬",
+		bottomCross: "┴",
+		leftCross:   "├",
+		rightCross:  "┤",
+		cross:       "┼",
 	},
 	"double": {
-		horizontal:   "═",
-		vertical:     "║",
-		topLeft:      "╔",
-		topRight:     "╗",
-		bottomLeft:   "╚",
-		bottomRight:  "╝",
-		topCross:     "╦",
-		bottomCross:  "╩",
-		leftCross:    "╠",
-		rightCross:   "╣",
-		cross:        "╬",
+		horizontal:  "═",
+		vertical:    "║",
+		topLeft:     "╔",
+		topRight:    "╗",
+		bottomLeft:  "╚",
+		bottomRight: "╝",
+		topCross:    "╦",
+		bottomCross: "╩",
+		leftCross:   "╠",
+		rightCross:  "╣",
+		cross:       "╬",
 	},
 	"light": {
-		horizontal:   "─",
-		vertical:     "│",
-		topLeft:      "┌",
-		topRight:     "┐",
-		bottomLeft:   "└",
-		bottomRight:  "┘",
-		topCross:     "┬",
-		bottomCross:  "┴",
-		leftCross:    "├",
-		rightCross:   "┤",
-		cross:        "┼",
+		horizontal:  "─",
+		vertical:    "│",
+		topLeft:     "┌",
+		topRight:    "┐",
+		bottomLeft:  "└",
+		bottomRight: "┘",
+		topCross:    "┬",
+		bottomCross: "┴",
+		leftCross:   "├",
+		rightCross:  "┤",
+		cross:       "┼",
 	},
 }
 
 // 圆角边框字符
 var roundedBorderChars = BorderChars{
-	horizontal:   "─",
-	vertical:     "│",
-	topLeft:      "╭",
-	topRight:     "╮",
-	bottomLeft:   "╰",
-	bottomRight:  "╯",
-	topCross:     "┬",
-	bottomCross:  "┴",
-	leftCross:    "├",
-	rightCross:   "┤",
-	cross:        "┼",
+	horizontal:  "─",
+	vertical:    "│",
+	topLeft:     "╭",
+	topRight:    "╮",
+	bottomLeft:  "╰",
+	bottomRight: "╯",
+	topCross:    "┬",
+	bottomCross: "┴",
+	leftCross:   "├",
+	rightCross:  "┤",
+	cross:       "┼",
 }
 
 // =============================================================================
@@ -166,11 +164,6 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 				char = chars.cross
 			}
 
-			// ✨ DEBUG: 打印四个角和底部边框字符
-			if row == numRows {
-				fmt.Printf("[DEBUG BORDERS] Bottom border char at(%d, %d): %s (row=%d, col=%d)\n", x, originY+y, char, row, col)
-			}
-
 			// 添加绘制命令（交点）
 			if len(char) > 0 {
 				cmds = append(cmds, paint.DrawCmd{
@@ -188,11 +181,6 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 			// 绘制该格子的水平线内容
 			for dx := 0; dx < inst.colWidths[col]; dx++ {
 				if len(chars.horizontal) > 0 {
-					// ✨ DEBUG: 打印底部边框水平线
-					if row == numRows && col == 0 && dx == 0 {
-						fmt.Printf("[DEBUG BORDERS] Bottom horizontal starting at(%d, %d)\n", horizontalX + 1 + dx, originY + y)
-					}
-
 					cmds = append(cmds, paint.DrawCmd{
 						X:     horizontalX + 1 + dx,
 						Y:     y,
@@ -212,14 +200,11 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 		// 每个格子都有右边框(1)，最后一条边框是 Grid 右边界
 		x := contentX
 		for c := 0; c < col; c++ {
-			x += inst.colWidths[c] + 1  // 格子内容宽度 + 右边框宽度(1)
+			x += inst.colWidths[c] + 1 // 格子内容宽度 + 右边框宽度(1)
 			if c < col-1 {
 				x += inst.columnGap
 			}
 		}
-
-		// ✨ DEBUG: 打印垂直线位置
-		fmt.Printf("[DEBUG BORDERS] Vertical line %d: x=%d (relative to originX=%d)\n", col, x-contentX, contentX)
 
 		// 垂直线 y 坐标从 contentY 开始（在边框上），内容区域是 contentY + 1
 		verticalY := contentY
@@ -229,17 +214,17 @@ func (inst *Instance) GenCellBorderDrawCmds(originX, originY int) []paint.DrawCm
 				if len(chars.vertical) > 0 {
 					cmds = append(cmds, paint.DrawCmd{
 						X:     x,
-						Y:     verticalY + 1 + dy,  // 从上边框之后开始绘制
-						Text:  chars.vertical,      // 直接使用完整字符串
+						Y:     verticalY + 1 + dy, // 从上边框之后开始绘制
+						Text:  chars.vertical,     // 直接使用完整字符串
 						Style: borderStyle,
 					})
 				}
 			}
 			// 移动到下一行（最后一行不加边框高度，因为底边框在那一行底部）
 			if row == numRows-1 {
-				verticalY += inst.rowHeights[row]  // 最后一行只加内容高度
+				verticalY += inst.rowHeights[row] // 最后一行只加内容高度
 			} else {
-				verticalY += inst.rowHeights[row] + 1 + inst.rowGap  // 其他行：内容 + 边框 + 间距
+				verticalY += inst.rowHeights[row] + 1 + inst.rowGap // 其他行：内容 + 边框 + 间距
 			}
 		}
 	}

@@ -32,7 +32,7 @@ Virtual scrolling implementation for handling large trees efficiently.
 
 ### UniqueID System
 
-#### [INSPECTOR_UNIQUEID_FINAL_SOLUTION.md](INSPECTOR_UNIQUEID_FINAL_SOLUTION.md)
+#### [INSPECTOR_UNIQUEID_FINAL_SOLUTION.md](/docsArchive/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md)
 Complete solution for UniqueID collision issues in the TreeView.
 
 **Problem:**
@@ -45,15 +45,15 @@ Complete solution for UniqueID collision issues in the TreeView.
 - Priority 2: VNode pointer address (unique per instance)
 - Format: `path[key]` or `path[index]@0x...`
 
-#### [INSPECTOR_UNIQUEID_IMPLEMENTATION.md](INSPECTOR_UNIQUEID_IMPLEMENTATION.md)
+#### [INSPECTOR_UNIQUEID_IMPLEMENTATION.md](/docsArchive/INSPECTOR_UNIQUEID_IMPLEMENTATION.md)
 Initial implementation of the UniqueID system.
 
-#### [INSPECTOR_UNIQUEID_QUICK_REFERENCE.md](INSPECTOR_UNIQUEID_QUICK_REFERENCE.md)
+#### [INSPECTOR_UNIQUEID_QUICK_REFERENCE.md](/docsArchive/INSPECTOR_UNIQUEID_QUICK_REFERENCE.md)
 Quick reference guide for UniqueID format and usage.
 
 ### Bug Fixes
 
-#### [INSPECTOR_POINTER_ID_FIX.md](INSPECTOR_POINTER_ID_FIX.md)
+#### [INSPECTOR_POINTER_ID_FIX.md](/docsArchive/INSPECTOR_POINTER_ID_FIX.md)
 Fix for using VNode pointer addresses as fallback IDs.
 
 **Before:**
@@ -68,7 +68,7 @@ uniqueID = fmt.Sprintf("%s[%d]@%p", nodePath, index, vnode)
 // Unique: pointer address differs per instance
 ```
 
-#### [INSPECTOR_SETLAYER_BUG_FIX.md](INSPECTOR_SETLAYER_BUG_FIX.md)
+#### [INSPECTOR_SETLAYER_BUG_FIX.md](/docsArchive/INSPECTOR_SETLAYER_BUG_FIX.md)
 Critical bug fix: SetProps() replaces entire props map, not merging.
 
 **Problem:**
@@ -86,7 +86,7 @@ overlay.SetProps(rtui.Props{"x": 80, "y": 5, "width": 80, "height": 25})
 overlay.SetLayer(rtui.LayerInspector)
 ```
 
-#### [INSPECTOR_POSITION_FIX.md](INSPECTOR_POSITION_FIX.md)
+#### [INSPECTOR_POSITION_FIX.md](/docsArchive/INSPECTOR_POSITION_FIX.md)
 Fix for Inspector default positioning being off-screen.
 
 **Problem:**
@@ -100,15 +100,15 @@ floatX: 0   // Left edge, always visible
 floatY: 0   // Top edge
 ```
 
-#### [INSPECTOR_HARDCODED_BORDER_FIX.md](INSPECTOR_HARDCODED_BORDER_FIX.md)
+#### [INSPECTOR_HARDCODED_BORDER_FIX.md](/docsArchive/INSPECTOR_HARDCODED_BORDER_FIX.md)
 Fix for hardcoded border characters in components.
 
-#### [INSPECTOR_PATH_INDEX_FIX.md](INSPECTOR_PATH_INDEX_FIX.md)
+#### [INSPECTOR_PATH_INDEX_FIX.md](/docsArchive/INSPECTOR_PATH_INDEX_FIX.md)
 Fix for path index calculation in UniqueID generation.
 
 ### Diagnostics
 
-#### [TREEVIEW_DISPLAY_DIAGNOSIS.md](TREEVIEW_DISPLAY_DIAGNOSIS.md)
+#### [TREEVIEW_DISPLAY_DIAGNOSIS.md](/docsArchive/TREEVIEW_DISPLAY_DIAGNOSIS.md)
 Diagnostic analysis of TreeView display issues.
 
 ## Implementation Timeline
@@ -279,6 +279,6 @@ ui.VStack(
 
 ## Related Documentation
 
-- [Architecture Overview](../architecture/)
-- [Investigation Analysis](../investigation/)
+- [Architecture Overview](/docsArchive/architecture/)
+- [Investigation Analysis](/docsArchive/investigation/)
 - [Hook System](../../render/hook/README.md)

@@ -36,11 +36,11 @@ func NewFiberToPaintableConverter(rootFiber *reconciler.Fiber) *FiberToPaintable
 	c := &FiberToPaintableConverter{
 		fiberMap: make(map[string]*reconciler.Fiber),
 	}
-	
+
 	if rootFiber != nil {
 		c.buildFiberMap(rootFiber)
 	}
-	
+
 	return c
 }
 
@@ -49,7 +49,7 @@ func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 	if fiber == nil {
 		return
 	}
-	
+
 	// Index by DiffKey (primary)
 	if fiber.DiffKey != "" {
 		c.fiberMap[fiber.DiffKey] = fiber
@@ -61,7 +61,7 @@ func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 	// Index by NodeID string
 	nodeIDKey := fmt.Sprintf("%d", fiber.NodeID)
 	c.fiberMap[nodeIDKey] = fiber
-	
+
 	// Recursively index children
 	for child := fiber.Child; child != nil; child = child.Sibling {
 		c.buildFiberMap(child)
@@ -129,19 +129,19 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 	if id == "" {
 		return nil
 	}
-	
+
 	// Strategy 1: Direct match by DiffKey
 	if f, ok := c.fiberMap[id]; ok {
 		return f
 	}
-	
+
 	// Strategy 2: Match by NodeID format
 	for _, f := range c.fiberMap {
 		if fmt.Sprintf("%d", f.NodeID) == id {
 			return f
 		}
 	}
-	
+
 	return nil
 }
 
@@ -149,10 +149,13 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 func (c *FiberToPaintableConverter) fillFromFiber(pbox *paint.PaintableBox, fiber *reconciler.Fiber) {
 	pbox.NodeID = fiber.NodeID
 	pbox.DiffKey = fiber.DiffKey
-	
+	pbox.LayoutDirty = fiber.IsLayoutDirty() ||
+		fiber.IsPaintDirty() ||
+		(fiber.Flags&(reconciler.EffectPlacement|reconciler.EffectUpdate|reconciler.EffectDeletion) != 0)
+
 	// PaintableNode interface (wraps Fiber)
 	pbox.Node = NewFiberPaintableNode(fiber)
-	
+
 	// Border info from Props
 	// Note: Panel components don't render their own border - the internal VStack does.
 	// This prevents double border rendering.
@@ -190,13 +193,13 @@ func (n *FiberPaintableNode) ID() string {
 		return ""
 	}
 	if n.fiber.NodeID != 0 {
-		return fmt.Sprintf("fiber-node-%d",n.fiber.NodeID) 
+		return fmt.Sprintf("fiber-node-%d", n.fiber.NodeID)
 	}
 	if n.fiber.DiffKey != "" {
 		return n.fiber.DiffKey
 	}
-	
-	return n.fiber.Key;
+
+	return n.fiber.Key
 }
 
 // NodeType returns the paint node type based on Fiber type
@@ -266,6 +269,15 @@ func (n *FiberPaintableNode) SetBounds(x, y, w, h int) {
 	// Pass bounds to Instance if it supports SetBounds
 	if boundsSetter, ok := n.fiber.Instance.(interface{ SetBounds(int, int, int, int) }); ok {
 		boundsSetter.SetBounds(x, y, w, h)
+	}
+}
+
+func (n *FiberPaintableNode) SetViewportSize(width, height int) {
+	if n.fiber == nil || n.fiber.Instance == nil {
+		return
+	}
+	if viewportSetter, ok := n.fiber.Instance.(interface{ SetViewportSize(int, int) }); ok {
+		viewportSetter.SetViewportSize(width, height)
 	}
 }
 
@@ -569,6 +581,15 @@ func (n *VNodePaintableNode) SetBounds(x, y, w, h int) {
 	// Pass bounds to VNode if it supports SetBounds
 	if boundsSetter, ok := n.vnode.(interface{ SetBounds(int, int, int, int) }); ok {
 		boundsSetter.SetBounds(x, y, w, h)
+	}
+}
+
+func (n *VNodePaintableNode) SetViewportSize(width, height int) {
+	if n.vnode == nil {
+		return
+	}
+	if viewportSetter, ok := n.vnode.(interface{ SetViewportSize(int, int) }); ok {
+		viewportSetter.SetViewportSize(width, height)
 	}
 }
 

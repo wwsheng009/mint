@@ -1,0 +1,11 @@
+Charts ScatterPlot Collision Fixture
+ScatterPlot Collision
+● API
+◆ Worker
+
+    2
+
+ 3
+
+───────
+x:0..10 y:0..10

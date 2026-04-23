@@ -1,0 +1,11 @@
+Charts ScatterPlot Domain Fixture
+ScatterPlot Domain
+● API
+◆ Worker
+  ┆  ┆ ┆
+┈┈┈┈┈┈┈◆●┈┈
+┈┈┈┈●┈◆┈┈┈┈
+┈┈●◆┈┈┈┈┈┈┈
+  ┆  ┆ ┆
+───────────
+x:0..10 y:0..12

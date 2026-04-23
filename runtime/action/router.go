@@ -77,15 +77,16 @@ func (c *MiddlewareChain) Add(middleware ActionMiddleware) {
 // ============================================================================
 
 // Router implements three-phase action dispatching:
-//   1. Capture Phase: From root to target, handlers by priority
-//   2. Target Phase: At the target component
-//   3. Bubble Phase: From target to root
+//  1. Capture Phase: From root to target, handlers by priority
+//  2. Target Phase: At the target component
+//  3. Bubble Phase: From target to root
 //
 // Usage:
-//   router := NewRouter(rootNode)
-//   router.AddCaptureHandler(inspector, PriorityHigh)
-//   router.SetMiddleware(NewMiddlewareChain(loggingMW))
-//   result := router.Dispatch(action)
+//
+//	router := NewRouter(rootNode)
+//	router.AddCaptureHandler(inspector, PriorityHigh)
+//	router.SetMiddleware(NewMiddlewareChain(loggingMW))
+//	result := router.Dispatch(action)
 type Router struct {
 	// Root is the component tree root node
 	Root *runtime.LayoutNode
@@ -335,12 +336,44 @@ func (r *Router) Dispatch(act *Action) *RouterResult {
 		return result
 	}
 
+	result = r.dispatchCore(act, result)
+	r.callMiddlewareAfter(act, result)
+	return result
+}
+
+// DispatchWithoutMiddleware dispatches action through router phases only.
+// Callers that already executed middleware should use this to avoid double invocation.
+func (r *Router) DispatchWithoutMiddleware(act *Action) *RouterResult {
+	result := &RouterResult{
+		Handled: false,
+		Stopped: false,
+		Phase:   ActionPhaseNone,
+	}
+	if act == nil {
+		return result
+	}
+	if act.IsStopped() {
+		result.Handled = true
+		result.Stopped = true
+		return result
+	}
+	return r.dispatchCore(act, result)
+}
+
+func (r *Router) dispatchCore(act *Action, result *RouterResult) *RouterResult {
+	if result == nil {
+		result = &RouterResult{
+			Handled: false,
+			Stopped: false,
+			Phase:   ActionPhaseNone,
+		}
+	}
+
 	// Global handlers (no target)
 	if act.Target == "" && act.TargetID == 0 && len(r.GlobalHandlers) > 0 {
 		for _, handler := range r.GlobalHandlers {
 			if handler.HandleGlobalAction(act) {
 				result.Handled = true
-				r.callMiddlewareAfter(act, result)
 				return result
 			}
 		}
@@ -360,23 +393,19 @@ func (r *Router) Dispatch(act *Action) *RouterResult {
 
 	// Phase 1: Capture
 	if r.capturePhase(act, targetNode, result) {
-		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
 	// Phase 2: Target
 	if r.targetPhase(act, targetNode, result) {
-		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
 	// Phase 3: Bubble
 	if r.bubblePhase(act, targetNode, result) {
-		r.callMiddlewareAfter(act, result)
 		return result
 	}
 
-	r.callMiddlewareAfter(act, result)
 	return result
 }
 

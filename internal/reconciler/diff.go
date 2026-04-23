@@ -156,17 +156,13 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 	// ✨ Track type counts for correct indexing
 	typeCounts := make(map[string]int)
 
-	if log.HitMapLogger.Enabled() {
-		log.UILogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
-			len(children), returnFiber.Key, returnFiber.Tag)
-	}
+	log.RenderLogger.Debug("[createAllNewChildren] Creating %d children for parent Key=%q, Tag=%q",
+		len(children), returnFiber.Key, returnFiber.Tag)
 
 	for i, childVNode := range children {
 		// ⚠️ Skip nil VNodes - they should not be in the Fiber tree
 		if childVNode == nil {
-			if log.HitMapLogger.Enabled() {
-				log.UILogger.Debug("[createAllNewChildren] Skipping nil VNode at index %d", i)
-			}
+			log.RenderLogger.IfEnabled().Debug("[createAllNewChildren] Skipping nil VNode at index %d", i)
 			continue
 		}
 
@@ -182,13 +178,15 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 		child := createChildFiberWithIndex(returnFiber, childVNode, lanes, i, typeIndex)
 		if child == nil {
 			// CreateFiber may return nil for nil VNode (though we check above)
-			if log.HitMapLogger.Enabled() {
-				log.UILogger.Debug("[createAllNewChildren] Skipping nil Fiber at index %d", i)
-			}
+			log.RenderLogger.IfEnabled().Debug("[createAllNewChildren] Skipping nil Fiber at index %d", i)
 			continue
 		}
 
-		if log.HitMapLogger.Enabled() {
+		// ===== Instance Tree (Mint Runtime 2.0 - Phase 1) =====
+		// Establish parent-child relationship in Instance Tree
+		mountInstanceToTree(returnFiber, child)
+
+		if log.RenderLogger.Enabled() {
 			typeName := "UNKNOWN"
 			switch child.Type {
 			case rtui.VNodeComponent:
@@ -200,7 +198,7 @@ func createAllNewChildren(returnFiber *Fiber, children []rtui.VNode, lanes Lane)
 			case rtui.VNodeFragment:
 				typeName = "VNodeFragment"
 			}
-			log.UILogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q, Path=%q",
+			log.RenderLogger.Debug("[createAllNewChildren] Created child %d: Type=%d(%s), Key=%q, Tag=%q, Path=%q",
 				i, child.Type, typeName, child.Key, child.Tag, child.Path)
 		}
 
@@ -426,6 +424,12 @@ func createChildFiberWithIndex(returnFiber *Fiber, vnode rtui.VNode, lanes Lane,
 func cloneExistingFiber(returnFiber *Fiber, current *Fiber, vnode rtui.VNode, siblingIndex int) *Fiber {
 	fiber := CloneFiber(current)
 	fiber.Return = returnFiber
+	// IMPORTANT: drop copied tree links from CloneFiber.
+	// Child/sibling relationships must be rebuilt by reconcileChildren for the
+	// current render, otherwise stale links from previous trees can leak into hit
+	// testing and lifecycle traversals.
+	fiber.Child = nil
+	fiber.Sibling = nil
 	// Extract data from vnode instead of storing reference
 	// IMPORTANT: For elements/fragments, ensure children are stored in Props
 	props := vnode.Props()
@@ -510,4 +514,54 @@ func markForDeletion(fiber *Fiber) {
 	// Trigger cleanup for component instances (e.g., useEffect cleanup)
 	// This will be called during commit phase
 	_ = fiber
+}
+
+// =============================================================================
+// Instance Tree Management (Mint Runtime 2.0 - Phase 1)
+// =============================================================================
+
+// mountInstanceToTree establishes parent-child relationship in Instance Tree
+// This is called when a new Fiber/Instance is created
+func mountInstanceToTree(parentFiber, childFiber *Fiber) {
+	if parentFiber == nil || childFiber == nil {
+		return
+	}
+
+	childInstance := childFiber.Instance
+
+	if childInstance == nil {
+		// No instance for this fiber (e.g., Element/Text without InstanceFactory)
+		return
+	}
+
+	// Attach to the nearest ancestor with an instance tree container.
+	// This keeps the instance tree connected across structural fibers like
+	// Fragment/Layout/Portal wrappers that do not create runtime instances.
+	for ancestor := parentFiber; ancestor != nil; ancestor = ancestor.Return {
+		if parentContainer, ok := ancestor.Instance.(rtui.TreeContainer); ok {
+			parentContainer.AddChild(childInstance)
+			return
+		}
+	}
+}
+
+// unmountInstanceFromTree removes parent-child relationship in Instance Tree
+// This is called when a Fiber/Instance is being removed
+func unmountInstanceFromTree(parentFiber, childFiber *Fiber) {
+	if parentFiber == nil || childFiber == nil {
+		return
+	}
+
+	childInstance := childFiber.Instance
+
+	if childInstance == nil {
+		return
+	}
+
+	for ancestor := parentFiber; ancestor != nil; ancestor = ancestor.Return {
+		if parentContainer, ok := ancestor.Instance.(rtui.TreeContainer); ok {
+			parentContainer.RemoveChild(childInstance)
+			return
+		}
+	}
 }

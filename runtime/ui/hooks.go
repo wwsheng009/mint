@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/wwsheng009/mint/internal/log"
@@ -63,6 +64,7 @@ type ComponentContext struct {
 	HookIndex   int
 	Validator   *HookValidator
 	RenderCount int
+	owner       ComponentInstance
 
 	// IntentRuntime is the intent runtime for this component context.
 	// Initialized by DeclarativeNode and shared across root component tree.
@@ -72,6 +74,11 @@ type ComponentContext struct {
 	// This allows Intent handlers to update cross-component state without closures.
 	// Example: ctx.SetState("username", "john")
 	// Note: Renamed from State to GlobalState for clarity.
+	//
+	// Deprecated: Use Store + Reducer architecture instead.
+	// Use UseStoreField or UseStoreSelector for type-safe state management.
+	// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+	// Status: Will be removed in v1.0
 	GlobalState map[string]interface{}
 
 	// PendingUpdates is a batch queue for state updates.
@@ -171,19 +178,15 @@ func (ctx *ComponentContext) ResetContext() {
 	// Flush any pending updates before re-rendering
 	count := ctx.FlushUpdates()
 	if count > 0 && log.UILogger.Enabled() {
-		log.UILogger.Debug("ResetContext: Flushed %d pending updates", count)
+		log.UILogger.IfEnabled().Debug("ResetContext: Flushed %d pending updates", count)
 	}
 
-	if log.UILogger.Enabled() {
+	if len(ctx.Hooks) > 0 {
+		log.UILogger.IfEnabled().Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
+		ctx.HookIndex = 0
+		ctx.RenderCount++
 		if len(ctx.Hooks) > 0 {
-			log.UILogger.Debug("ResetContext: BEFORE reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
-		}
-	}
-	ctx.HookIndex = 0
-	ctx.RenderCount++
-	if log.UILogger.Enabled() {
-		if len(ctx.Hooks) > 0 {
-			log.UILogger.Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
+			log.UILogger.IfEnabled().Debug("ResetContext: AFTER reset, Hooks[0].Value=%v, &ctx=%p", ctx.Hooks[0].Value, ctx)
 		}
 	}
 }
@@ -252,6 +255,16 @@ func (ctx *ComponentContext) GetOrCreateHook(hookType HookType) *Hook {
 	return &ctx.Hooks[len(ctx.Hooks)-1]
 }
 
+// SetOwnerInstance records which component instance is rendering with this context.
+func (ctx *ComponentContext) SetOwnerInstance(owner ComponentInstance) {
+	ctx.owner = owner
+}
+
+// OwnerInstance returns the component instance currently associated with this context.
+func (ctx *ComponentContext) OwnerInstance() ComponentInstance {
+	return ctx.owner
+}
+
 // =============================================================================
 // Intent Support
 // =============================================================================
@@ -273,7 +286,7 @@ func (ctx *ComponentContext) GetIntentRuntime() *intent.Runtime {
 func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 	if ctx.IntentRuntime == nil {
 		// Fallback: if no runtime, log warning and mark as unhandled
-		log.UILogger.Debug("[ComponentContext] EmitIntent: no IntentRuntime set, intent=%s ignored", i.IntentType())
+		log.UILogger.IfEnabled().Debug("[ComponentContext] EmitIntent: no IntentRuntime set, intent=%s ignored", i.IntentType())
 		return intent.ErrorResult(fmt.Errorf("IntentRuntime not initialized"))
 	}
 	return ctx.IntentRuntime.EmitFromSource(i, ctx.ComponentID)
@@ -288,21 +301,51 @@ func (ctx *ComponentContext) EmitIntent(i intent.Intent) intent.IntentResult {
 // into a single re-render for better performance.
 // This implements the StateSetter interface for use by ActionContext.
 // Example: ctx.SetState("username", "john")
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management with automatic subscriptions.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) SetState(key string, value interface{}) {
+	defer func() {
+		// Recover from panics (e.g., uncomparable type comparison)
+		if r := recover(); r != nil {
+			log.UILogger.IfEnabled().Error("[ComponentContext] SetState panic recovered: %v (key=%s, value=%T)", r, key, value)
+			// Schedule update anyway to ensure state is set
+			if !ctx.UpdateScheduled && ctx.scheduleUpdate != nil {
+				ctx.UpdateScheduled = true
+				ctx.scheduleUpdate()
+			}
+		}
+	}()
+
 	ctx.StateMu.Lock()
 	defer ctx.StateMu.Unlock()
 
 	// Check if value actually changed
-	if existing, exists := ctx.GlobalState[key]; exists && existing == value {
+	// Use reflect.DeepEqual to handle uncomparable types (e.g., functions, slices, maps)
+	changed := true
+	if existing, exists := ctx.GlobalState[key]; exists {
+		// Try direct comparison first for performance
+		if existing == value {
+			changed = false
+		} else {
+			// Fall back to DeepEqual for uncomparable types
+			// This handles types like functions, slices, maps, etc.
+			if reflect.DeepEqual(existing, value) {
+				changed = false
+			}
+		}
+	}
+
+	if !changed {
 		return
 	}
 
 	// Add to pending updates queue for batching
 	ctx.PendingUpdates[key] = value
 
-	if log.UILogger.Enabled() {
-		log.UILogger.Debug("[ComponentContext] SetState: %s = %v (queued)", key, value)
-	}
+	log.UILogger.IfEnabled().Debug("[ComponentContext] SetState: %s = %v (queued)", key, value)
 
 	// Schedule update only once per batch
 	if !ctx.UpdateScheduled && ctx.scheduleUpdate != nil {
@@ -314,6 +357,11 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 // GetState retrieves a state value by key.
 // Returns (value, true) if key exists, (nil, false) otherwise.
 // This implements the StateSetter interface for use by ActionContext.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management with automatic subscriptions.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetState(key string) (interface{}, bool) {
 	ctx.StateMu.RLock()
 	defer ctx.StateMu.RUnlock()
@@ -342,9 +390,7 @@ func (ctx *ComponentContext) FlushUpdates() int {
 	count := len(ctx.PendingUpdates)
 	for key, value := range ctx.PendingUpdates {
 		ctx.GlobalState[key] = value
-		if log.UILogger.Enabled() {
-			log.UILogger.Debug("[ComponentContext] FlushUpdates: %s = %v", key, value)
-		}
+		log.UILogger.IfEnabled().Debug("[ComponentContext] FlushUpdates: %s = %v", key, value)
 	}
 
 	// Clear the pending queue
@@ -355,6 +401,11 @@ func (ctx *ComponentContext) FlushUpdates() int {
 }
 
 // GetStringState retrieves a string state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetStringState(key string, defaultValue string) string {
 	if value, exists := ctx.GetState(key); exists {
 		if str, ok := value.(string); ok {
@@ -365,6 +416,11 @@ func (ctx *ComponentContext) GetStringState(key string, defaultValue string) str
 }
 
 // GetIntState retrieves an int state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetIntState(key string, defaultValue int) int {
 	if value, exists := ctx.GetState(key); exists {
 		if i, ok := value.(int); ok {
@@ -375,6 +431,11 @@ func (ctx *ComponentContext) GetIntState(key string, defaultValue int) int {
 }
 
 // GetBoolState retrieves a boolean state value with a default.
+//
+// Deprecated: Use Store + Reducer architecture instead.
+// Use UseStoreField for type-safe state management.
+// Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
+// Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetBoolState(key string, defaultValue bool) bool {
 	if value, exists := ctx.GetState(key); exists {
 		if b, ok := value.(bool); ok {
@@ -399,47 +460,24 @@ func (ctx *ComponentContext) ScheduleUpdate() {
 }
 
 // =============================================================================
-// Global State Accessors (Aliases for clarity)
-// =============================================================================
-
-// GetGlobalState retrieves a global state value by key.
-// This is an alias for GetState() that provides clearer semantic intent.
-func (ctx *ComponentContext) GetGlobalState(key string, defaultValue interface{}) interface{} {
-	if value, exists := ctx.GetState(key); exists {
-		return value
-	}
-	return defaultValue
-}
-
-// SetGlobalState updates a global state value.
-// This is an alias for SetState() that provides clearer semantic intent.
-func (ctx *ComponentContext) SetGlobalState(key string, value interface{}) {
-	ctx.SetState(key, value)
-}
-
-// GetGlobalString retrieves a global string state value with a default.
-func (ctx *ComponentContext) GetGlobalString(key string, defaultValue string) string {
-	return ctx.GetStringState(key, defaultValue)
-}
-
-// GetGlobalInt retrieves a global int state value with a default.
-func (ctx *ComponentContext) GetGlobalInt(key string, defaultValue int) int {
-	return ctx.GetIntState(key, defaultValue)
-}
-
-// GetGlobalBool retrieves a global boolean state value with a default.
-func (ctx *ComponentContext) GetGlobalBool(key string, defaultValue bool) bool {
-	return ctx.GetBoolState(key, defaultValue)
-}
-
-// =============================================================================
-
 // Global Intent Runtime Management
 // =============================================================================
 
 // globalIntentRuntime is the global intent runtime shared across app.
 // Set by ui.Run() when starting the declarative UI app.
-var globalIntentRuntime *intent.Runtime
+var (
+	globalIntentRuntime   *intent.Runtime
+	globalIntentRuntimeMu sync.RWMutex
+	pendingIntentMu       sync.Mutex
+	pendingIntents        []*pendingIntent
+)
+
+type pendingIntent struct {
+	mu         sync.Mutex
+	register   func(*intent.Registry) func()
+	unregister func()
+	canceled   bool
+}
 
 // RegisterIntent registers an intent handler for a specific intent type.
 // This is the public API for registering intent handlers in declarative UI components.
@@ -451,29 +489,107 @@ var globalIntentRuntime *intent.Runtime
 //	    return intent.HandledResult()
 //	})
 func RegisterIntent[T intent.Intent](handler intent.TypedHandler[T]) func() {
-	if globalIntentRuntime == nil {
-		panic("RegisterIntent called before app initialized. Call ui.Run() first.")
+	if handler == nil {
+		return func() {}
 	}
-	return intent.RegisterTyped(globalIntentRuntime.Registry, handler)
+
+	globalIntentRuntimeMu.RLock()
+	rt := globalIntentRuntime
+	globalIntentRuntimeMu.RUnlock()
+	if rt != nil {
+		return intent.RegisterTyped(rt.Registry, handler)
+	}
+
+	pending := &pendingIntent{
+		register: func(reg *intent.Registry) func() {
+			return intent.RegisterTyped(reg, handler)
+		},
+	}
+
+	pendingIntentMu.Lock()
+	pendingIntents = append(pendingIntents, pending)
+	pendingIntentMu.Unlock()
+
+	log.UILogger.IfEnabled().Debug("[Intent] RegisterIntent queued until runtime is initialized")
+
+	return func() {
+		pending.mu.Lock()
+		unregister := pending.unregister
+		if unregister != nil {
+			pending.mu.Unlock()
+			unregister()
+			return
+		}
+		if pending.canceled {
+			pending.mu.Unlock()
+			return
+		}
+		pending.canceled = true
+		pending.mu.Unlock()
+
+		pendingIntentMu.Lock()
+		for i, item := range pendingIntents {
+			if item == pending {
+				pendingIntents = append(pendingIntents[:i], pendingIntents[i+1:]...)
+				break
+			}
+		}
+		pendingIntentMu.Unlock()
+	}
 }
 
 // SetGlobalIntentRuntime sets the global intent runtime.
 // This is called internally by ui.Run().
 func SetGlobalIntentRuntime(rt *intent.Runtime) {
+	globalIntentRuntimeMu.Lock()
 	globalIntentRuntime = rt
+	globalIntentRuntimeMu.Unlock()
+
+	if rt == nil {
+		return
+	}
+
+	pendingIntentMu.Lock()
+	pending := pendingIntents
+	pendingIntents = nil
+	pendingIntentMu.Unlock()
+
+	for _, item := range pending {
+		item.mu.Lock()
+		if item.canceled {
+			item.mu.Unlock()
+			continue
+		}
+		item.mu.Unlock()
+
+		unregister := item.register(rt.Registry)
+		item.mu.Lock()
+		if item.canceled {
+			item.mu.Unlock()
+			unregister()
+			continue
+		}
+		item.unregister = unregister
+		item.mu.Unlock()
+	}
 }
 
 // GetGlobalIntentRuntime returns the global intent runtime.
 // This can be used to directly emit intents without a component context.
 func GetGlobalIntentRuntime() *intent.Runtime {
+	globalIntentRuntimeMu.RLock()
+	defer globalIntentRuntimeMu.RUnlock()
 	return globalIntentRuntime
 }
 
 // EmitIntentGlobal emits an intent through the global runtime.
 // This can be used outside of component contexts.
 func EmitIntentGlobal(i intent.Intent) intent.IntentResult {
-	if globalIntentRuntime == nil {
+	globalIntentRuntimeMu.RLock()
+	rt := globalIntentRuntime
+	globalIntentRuntimeMu.RUnlock()
+	if rt == nil {
 		return intent.ErrorResult(fmt.Errorf("Global IntentRuntime not initialized"))
 	}
-	return globalIntentRuntime.Emit(i)
+	return rt.Emit(i)
 }

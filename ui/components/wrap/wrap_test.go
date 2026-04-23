@@ -497,6 +497,7 @@ func (m *mockVNode) Props() rtui.Props {
 	}
 }
 func (m *mockVNode) SetProps(rtui.Props) rtui.VNode { return m }
+func (m *mockVNode) SetProp(key string, value interface{}) rtui.VNode { return m }
 func (m *mockVNode) GetLayer() rtui.Layer           { return rtui.LayerBase }
 func (m *mockVNode) SetLayer(rtui.Layer) rtui.VNode { return m }
 func (m *mockVNode) CreateInstance() rtui.ComponentInstance {
