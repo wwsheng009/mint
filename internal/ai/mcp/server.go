@@ -410,7 +410,7 @@ func (s *Server) Start() error {
 
 	s.listener = ln
 	s.baseEndpoint = baseEndpoint
-	s.mcpEndpoint = mcpEndpoint
+	s.mcpEndpoint = endpointWithAuthToken(mcpEndpoint, s.cfg.AuthToken)
 	s.cleanup = cleanup
 	s.server = &http.Server{
 		Handler:           s.withMiddleware(mux),
@@ -478,8 +478,10 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 				token = strings.TrimPrefix(token, "Bearer ")
 			}
 			customToken := r.Header.Get("X-Mint-AI-Token")
+			queryToken := r.URL.Query().Get("auth_token")
 			if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AuthToken)) != 1 &&
-				subtle.ConstantTimeCompare([]byte(customToken), []byte(s.cfg.AuthToken)) != 1 {
+				subtle.ConstantTimeCompare([]byte(customToken), []byte(s.cfg.AuthToken)) != 1 &&
+				subtle.ConstantTimeCompare([]byte(queryToken), []byte(s.cfg.AuthToken)) != 1 {
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}

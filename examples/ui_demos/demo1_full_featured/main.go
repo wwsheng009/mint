@@ -37,9 +37,9 @@ import (
 // =============================================================================
 
 type AppState struct {
-	Count    int    // 按钮点击计数
+	Count     int    // 按钮点击计数
 	ShowModal bool   // 是否显示模态框
-	Input    string // 输入框文本
+	Input     string // 输入框文本
 }
 
 // =============================================================================
@@ -47,18 +47,22 @@ type AppState struct {
 // =============================================================================
 
 type OpenModalIntent struct{}
+
 func (OpenModalIntent) IntentType() string { return "OpenModal" }
 func (OpenModalIntent) StayPressed() bool  { return true }
 
 type AddCountIntent struct{}
+
 func (AddCountIntent) IntentType() string { return "AddCount" }
 func (AddCountIntent) StayPressed() bool  { return true }
 
 type QuitIntent struct{}
+
 func (QuitIntent) IntentType() string { return "Quit" }
-func (QuitIntent) StayPressed() bool  { return true }
+func (QuitIntent) StayPressed() bool  { return false }
 
 type CloseModalIntent struct{}
+
 func (CloseModalIntent) IntentType() string { return "CloseModal" }
 func (CloseModalIntent) StayPressed() bool  { return false }
 
@@ -66,6 +70,7 @@ func (CloseModalIntent) StayPressed() bool  { return false }
 type SetInputIntent struct {
 	Value string
 }
+
 func (SetInputIntent) IntentType() string { return "SetInput" }
 func (SetInputIntent) StayPressed() bool  { return false }
 
@@ -77,9 +82,9 @@ func (SetInputIntent) StayPressed() bool  { return false }
 var autoOpenModal = os.Getenv("AUTO_OPEN_MODAL") == "true"
 
 var appStore = store.NewStore(AppState{
-	Count:    0,
+	Count:     0,
 	ShowModal: autoOpenModal,
-	Input:    "",
+	Input:     "",
 })
 
 // =============================================================================
@@ -98,6 +103,10 @@ func init() {
 		}).
 		On(CloseModalIntent{}, func(s AppState, i intent.Intent) AppState {
 			s.ShowModal = false
+			return s
+		}).
+		On(QuitIntent{}, func(s AppState, i intent.Intent) AppState {
+			ui.Quit()
 			return s
 		}).
 		On(SetInputIntent{}, func(s AppState, i intent.Intent) AppState {
@@ -125,10 +134,10 @@ func main() {
 	os.Setenv("AUTO_OPEN_MODAL", "true")
 
 	// 启用以下环境变量可获取更详细的调试信息：
-	os.Setenv("TUI_DEBUG_HITMAP", "true")   // HitMap 构建详情
+	os.Setenv("TUI_DEBUG_HITMAP", "true") // HitMap 构建详情
 	// os.Setenv("TUI_DEBUG_LAYER", "true")    // Layer 系统调试
 	// os.Setenv("TUI_DEBUG_RENDER", "true") // 渲染管线调试
-	os.Setenv("TUI_DEBUG_UI", "true")       // UI 通用调试
+	os.Setenv("TUI_DEBUG_UI", "true") // UI 通用调试
 
 	// ============================================================
 	// 运行应用
@@ -225,7 +234,6 @@ func Header(count int) ui.VNode {
 
 // MainBody uses VStack/HStack with Bordered components for layout
 // Matches the design from framework/docs/ui/demo/demo1.md:
-//
 //
 //	┌───────────┬──────────────────────────────────────────┐
 //	│ Menu      │ [ Input box............................... ] │

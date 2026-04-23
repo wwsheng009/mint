@@ -1,7 +1,12 @@
 package screen
 
 import (
+	"io"
+	"os"
+
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
+	"golang.org/x/term"
 )
 
 // Manager 屏幕管理器
@@ -15,8 +20,12 @@ type Manager struct {
 	back  *Buffer
 
 	// 光标
-	cursor       Cursor
+	cursor        Cursor
 	cursorVisible bool
+
+	out      io.Writer
+	stdin    *os.File
+	rawState *term.State
 }
 
 // NewManager 创建屏幕管理器
@@ -25,50 +34,79 @@ func NewManager(width, height int) *Manager {
 		width:  width,
 		height: height,
 		cursor: Cursor{},
+		out:    os.Stdout,
+		stdin:  os.Stdin,
 	}
 }
 
 // Init 初始化屏幕
 func (m *Manager) Init() error {
-	m.front = NewBuffer(m.width, m.height)
-	m.back = NewBuffer(m.width, m.height)
+	m.ensureBuffers(m.width, m.height)
 
 	// 进入备用屏幕
-	print("\x1b[?1049h")
+	if err := m.writeString("\x1b[?1049h"); err != nil {
+		return err
+	}
 
 	// 启用原始模式
-	// TODO: 实现 Unix 原始模式
+	if err := m.enableRawMode(); err != nil {
+		_ = m.writeString("\x1b[?1049l")
+		return err
+	}
 
 	// 隐藏光标
-	m.hideCursor()
+	if err := m.hideCursor(); err != nil {
+		_ = m.disableRawMode()
+		_ = m.writeString("\x1b[?1049l")
+		return err
+	}
+	m.cursorVisible = false
 
 	return nil
 }
 
 // Close 关闭屏幕
 func (m *Manager) Close() error {
+	var firstErr error
+
 	// 显示光标
-	m.showCursor()
+	if err := m.showCursor(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	m.cursorVisible = true
 
 	// 退出原始模式
-	// TODO: 实现 Unix 原始模式退出
+	if err := m.disableRawMode(); err != nil && firstErr == nil {
+		firstErr = err
+	}
 
 	// 退出备用屏幕
-	print("\x1b[?1049l")
+	if err := m.writeString("\x1b[?1049l"); err != nil && firstErr == nil {
+		firstErr = err
+	}
 
-	return nil
+	return firstErr
 }
 
 // Render 渲染缓冲区
 func (m *Manager) Render(buf *Buffer) error {
+	if buf == nil {
+		return nil
+	}
+
+	m.ensureBuffers(buf.width, buf.height)
+	m.back.CopyFrom(buf)
+
 	// 计算差异
-	diff := m.diff(m.front, buf)
+	diff := m.diff(m.front, m.back)
 
 	// 输出变更
-	m.drawChanges(diff)
+	if err := m.drawChanges(diff); err != nil {
+		return err
+	}
 
 	// 更新前缓冲
-	m.front = buf
+	m.front, m.back = m.back, m.front
 
 	return nil
 }
@@ -100,22 +138,21 @@ func (m *Manager) diff(old, new *Buffer) []Change {
 }
 
 // drawChanges 绘制变更
-func (m *Manager) drawChanges(changes []Change) {
-	// TODO: 优化输出，批量处理相同样式
-	for _, c := range changes {
-		m.moveCursor(c.X, c.Y)
-		ansi := c.Style.ToANSI()
-		if ansi != "" {
-			print(ansi)
-		}
-		if c.Cluster == "" || c.Cluster == " " {
-			print(" ")
-		} else {
-			print(c.Cluster)
-		}
+func (m *Manager) drawChanges(changes []Change) error {
+	if len(changes) == 0 {
+		return nil
 	}
-	// 重置样式
-	print("\x1b[0m")
+
+	batch := paint.NewCommandBatch()
+	for _, c := range changes {
+		text := c.Cluster
+		if text == "" || text == " " {
+			text = " "
+		}
+		batch.Add(c.X, c.Y, text, c.Style)
+	}
+
+	return m.writeString(batch.Flush())
 }
 
 // GetSize 获取屏幕尺寸
@@ -125,9 +162,7 @@ func (m *Manager) GetSize() (width, height int) {
 
 // SetSize 设置屏幕尺寸
 func (m *Manager) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-	m.back = NewBuffer(width, height)
+	m.ensureBuffers(width, height)
 }
 
 // SetCursor 设置光标位置
@@ -135,7 +170,7 @@ func (m *Manager) SetCursor(x, y int) {
 	m.cursor.X = x
 	m.cursor.Y = y
 	if m.cursorVisible {
-		m.moveCursor(x, y)
+		_ = m.moveCursor(x, y)
 	}
 }
 
@@ -148,31 +183,85 @@ func (m *Manager) GetCursor() (x, y int) {
 func (m *Manager) SetCursorVisible(visible bool) {
 	if visible != m.cursorVisible {
 		if visible {
-			m.showCursor()
+			_ = m.showCursor()
 		} else {
-			m.hideCursor()
+			_ = m.hideCursor()
 		}
 		m.cursorVisible = visible
 	}
 }
 
 // hideCursor 隐藏光标
-func (m *Manager) hideCursor() {
-	print("\x1b[?25l")
+func (m *Manager) hideCursor() error {
+	return m.writeString("\x1b[?25l")
 }
 
 // showCursor 显示光标
-func (m *Manager) showCursor() {
-	print("\x1b[?25h")
+func (m *Manager) showCursor() error {
+	return m.writeString("\x1b[?25h")
 }
 
 // moveCursor 移动光标
-func (m *Manager) moveCursor(x, y int) {
-	print("\x1b[")
-	print(itoa(y+1))
-	print(";")
-	print(itoa(x+1))
-	print("H")
+func (m *Manager) moveCursor(x, y int) error {
+	return m.writeString("\x1b[" + itoa(y+1) + ";" + itoa(x+1) + "H")
+}
+
+func (m *Manager) writeString(text string) error {
+	if text == "" {
+		return nil
+	}
+	if m.out == nil {
+		m.out = os.Stdout
+	}
+	_, err := io.WriteString(m.out, text)
+	return err
+}
+
+func (m *Manager) ensureBuffers(width, height int) {
+	if width < 0 {
+		width = 0
+	}
+	if height < 0 {
+		height = 0
+	}
+
+	m.width = width
+	m.height = height
+
+	if m.front == nil || m.front.width != width || m.front.height != height {
+		m.front = NewBuffer(width, height)
+	}
+	if m.back == nil || m.back.width != width || m.back.height != height {
+		m.back = NewBuffer(width, height)
+	}
+}
+
+func (m *Manager) enableRawMode() error {
+	if m.rawState != nil || m.stdin == nil {
+		return nil
+	}
+
+	fd := int(m.stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return nil
+	}
+
+	state, err := term.MakeRaw(fd)
+	if err != nil {
+		return err
+	}
+	m.rawState = state
+	return nil
+}
+
+func (m *Manager) disableRawMode() error {
+	if m.rawState == nil || m.stdin == nil {
+		return nil
+	}
+
+	err := term.Restore(int(m.stdin.Fd()), m.rawState)
+	m.rawState = nil
+	return err
 }
 
 // Cursor 光标结构
@@ -260,6 +349,21 @@ func (b *Buffer) Clear() {
 		for x := 0; x < b.width; x++ {
 			b.cells[y][x] = Cell{Cluster: " "}
 		}
+	}
+}
+
+// CopyFrom 复制另一个缓冲区的内容。
+func (b *Buffer) CopyFrom(src *Buffer) {
+	if b == nil || src == nil {
+		return
+	}
+
+	if b.width != src.width || b.height != src.height {
+		*b = *NewBuffer(src.width, src.height)
+	}
+
+	for y := 0; y < src.height; y++ {
+		copy(b.cells[y], src.cells[y])
 	}
 }
 

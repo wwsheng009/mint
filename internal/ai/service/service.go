@@ -1781,7 +1781,36 @@ func (s *Service) mutateFiberWithLocator(loc snapshotpkg.NodeLocator, fn func(fi
 		return err
 	}
 	s.syncOverridesFromFiber(loc.ComponentID, fiber)
+	s.refreshFrameFromHostState()
 	return nil
+}
+
+func (s *Service) refreshFrameFromHostState() {
+	if s == nil || s.builder == nil || s.host == nil {
+		return
+	}
+
+	s.mu.RLock()
+	renderSeq := s.status.RenderSeq
+	renderedAt := s.status.LastRenderAt
+	s.mu.RUnlock()
+
+	frame := s.builder.BuildFrame(snapshotpkg.Input{
+		Root:         s.host.GetRoot(),
+		FocusManager: s.host.GetFocusManager(),
+		HitMap:       s.host.GetHitMap(),
+		RenderSeq:    renderSeq,
+		RenderedAt:   renderedAt,
+	})
+	if frame == nil {
+		return
+	}
+
+	s.mu.Lock()
+	s.latestFrame = frame
+	s.latest = frame.Snapshot
+	s.lastBuildAt = time.Now()
+	s.mu.Unlock()
 }
 
 func findOptionIndexByValue(fiber *rtui.Fiber, value string) (int, bool) {

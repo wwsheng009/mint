@@ -728,9 +728,11 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 		return
 	}
 
-	// Check for Modal layer presence before updating
-	hasModal := r.hasLayerFibers(fiber, rtui.LayerModal)
-	hasOverlay := r.hasLayerFibers(fiber, rtui.LayerOverlay)
+	// Check for active layer content before updating. Default portal hosts are
+	// always present in the tree, so they must not count as active modal/overlay
+	// content on their own.
+	hasModal := r.hasLayerContent(fiber, rtui.LayerModal, rtui.LayerBase)
+	hasOverlay := r.hasLayerContent(fiber, rtui.LayerOverlay, rtui.LayerBase)
 
 	// Determine the highest active layer
 	activeLayer := rtui.LayerBase
@@ -765,33 +767,47 @@ func (r *Reconciler) updateFocusManagerFromFiber(fiber *Fiber) {
 	}
 }
 
-// hasLayerFibers checks if there are any fibers in the specified layer
-func (r *Reconciler) hasLayerFibers(fiber *rtui.Fiber, layer rtui.Layer) bool {
+// hasLayerContent checks if there is any real content in the specified layer.
+// Portal host placeholders are ignored so default empty overlay/modal roots do
+// not activate focus trapping by themselves. Layer inheritance is propagated to
+// descendants so base-layer children inside a modal subtree still count as
+// modal content.
+func (r *Reconciler) hasLayerContent(fiber *rtui.Fiber, layer rtui.Layer, inheritedLayer rtui.Layer) bool {
 	if fiber == nil {
 		return false
 	}
 
-	// Check current fiber
-	if fiber.Layer == layer {
-		// Fiber-first: use Instance.(FocusableInstance) to check if focusable
-		if fiber.Instance != nil {
-			if _, ok := fiber.Instance.(interface{ IsDisabled() bool }); ok {
-				return true
-			}
-		}
+	effectiveLayer := inheritedLayer
+	if fiber.Layer != rtui.LayerBase && fiber.Layer.IsValid() {
+		effectiveLayer = fiber.Layer
+	}
+
+	// Ignore structural portal hosts; they are injected by default even when no
+	// portal content is present.
+	if effectiveLayer == layer && !isPortalRootFiber(fiber) {
+		return true
 	}
 
 	// Check children
-	if r.hasLayerFibers(fiber.Child, layer) {
+	if r.hasLayerContent(fiber.Child, layer, effectiveLayer) {
 		return true
 	}
 
 	// Check siblings
-	if r.hasLayerFibers(fiber.Sibling, layer) {
+	if r.hasLayerContent(fiber.Sibling, layer, inheritedLayer) {
 		return true
 	}
 
 	return false
+}
+
+func isPortalRootFiber(fiber *rtui.Fiber) bool {
+	if fiber == nil || fiber.Props == nil {
+		return false
+	}
+
+	rootID, ok := fiber.Props["portalRootId"].(string)
+	return ok && rootID != ""
 }
 
 // =============================================================================

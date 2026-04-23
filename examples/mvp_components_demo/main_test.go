@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/ui"
@@ -29,14 +30,34 @@ func TestMVPComponentsDemo_RendersDateAndTimePickers(t *testing.T) {
 	}
 	defer testApp.Close()
 
-	testApp.ForceRender()
-	render := testApp.GetRenderString()
-	for _, want := range []string{
+	wants := []string{
 		"Ship Date:",
 		"Ship Time:",
 		"2026-04-05",
 		"09:30",
-	} {
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var render string
+	for time.Now().Before(deadline) {
+		testApp.ForceRender()
+		render = testApp.GetRenderString()
+
+		missing := ""
+		for _, want := range wants {
+			if !strings.Contains(render, want) {
+				missing = want
+				break
+			}
+		}
+		if missing == "" {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	for _, want := range wants {
 		if !strings.Contains(render, want) {
 			t.Fatalf("render missing %q\n%s", want, render)
 		}

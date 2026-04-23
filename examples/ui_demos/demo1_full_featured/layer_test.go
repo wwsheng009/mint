@@ -19,16 +19,7 @@ import (
 
 // TestModalOpenClick verifies modal opens when store state has ShowModal=true
 func TestModalOpenClick(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
+	testApp := newDemoTestApp(t)
 
 	// Open modal via store after app is running
 	prevState := appStore.Get()
@@ -57,22 +48,10 @@ func TestModalOpenClick(t *testing.T) {
 
 // TestModalCloseESC verifies modal closes when pressing ESC
 func TestModalCloseESC(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-
-	// Open modal - Open Modal button is already focused
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	// Open modal directly so this test only validates ESC close behavior.
+	openModalViaStore(t, testApp)
 
 	// Verify modal is open
 	if err := testApp.AssertRender("*** Are you sure? ***"); err != nil {
@@ -94,16 +73,7 @@ func TestModalCloseESC(t *testing.T) {
 
 // TestModalCentered verifies modal is centered in viewport
 func TestModalCentered(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
+	testApp := newDemoTestApp(t)
 
 	// Open modal via store after app is running
 	prevState := appStore.Get()
@@ -147,16 +117,7 @@ func TestModalCentered(t *testing.T) {
 
 // TestLayerRenderingOrder verifies layer rendering order (modal on top)
 func TestLayerRenderingOrder(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
+	testApp := newDemoTestApp(t)
 
 	// Open modal via store after app is running
 	prevState := appStore.Get()
@@ -186,26 +147,10 @@ func TestLayerRenderingOrder(t *testing.T) {
 
 // TestFocusTrap verifies Tab navigation is limited to modal when open
 func TestFocusTrap(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-
-	// Open modal
-	for i := 0; i < 5; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(50 * time.Millisecond)
-	}
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	// Open modal directly so this test only validates focus trapping.
+	openModalViaStore(t, testApp)
 
 	// With modal open, Tab should cycle between modal buttons only
 	// The modal has [ Cancel ] and [ OK ] buttons
@@ -231,22 +176,7 @@ func TestFocusTrap(t *testing.T) {
 
 // TestClickCount verifies the click counter works (tests state updates)
 func TestClickCount(t *testing.T) {
-	// Reset store so this test is safe for -count>1
-	prevState := appStore.Get()
-	appStore.Set(AppState{Count: 0, ShowModal: false, Input: ""})
-	t.Cleanup(func() { appStore.Set(prevState) })
-
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// Check initial count
 	rendered := testApp.GetRenderString()
@@ -255,18 +185,12 @@ func TestClickCount(t *testing.T) {
 	}
 	t.Logf("Initial render (looking for focus indicator):\n%s", rendered)
 
-	// Check initial focus position - the ">" indicates focused button
-	// From output: >[ Quit ] means Quit has focus
-	// We need to navigate to "Add Count" button
-
-	// Navigate to "Add Count" button and click it a few times
-	// Focus order: [Open Modal] -> Input -> Add Count -> Quit
-	// Since Quit has focus, Shift+Tab goes to Add Count
+	// Focus Add Count explicitly before clicking.
+	focusButton(t, testApp, focusedAddCountButton)
 	for iteration := 0; iteration < 3; iteration++ {
-		// Shift+Tab to go backwards from Quit to Add Count
-		testApp.InjectSpecialKeyWithMod(platform.KeyTab, platform.ModShift)
-		time.Sleep(30 * time.Millisecond)
-		testApp.InjectSpecialKey(platform.KeyEnter)
+		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+			t.Fatalf("InjectSpecialKey(KeyEnter) failed on iteration %d: %v", iteration, err)
+		}
 		time.Sleep(100 * time.Millisecond)
 		testApp.ForceRender()
 	}
@@ -330,25 +254,13 @@ func TestManualInteraction(t *testing.T) {
 	t.Setenv("TUI_PIPELINE_DEBUG", "true")
 	t.Setenv("TUI_PAINT_DEBUG", "true")
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	t.Log("=== Initial State ===")
 	testApp.DumpBuffer()
 
 	t.Log("\n=== Pressing Enter (should open modal) ===")
-	testApp.InjectSpecialKey(platform.KeyEnter)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	openModalViaStore(t, testApp)
 	testApp.DumpBuffer()
 
 	t.Log("\n=== Focused Index:", testApp.GetFocusedIndex(), "===")
@@ -356,17 +268,7 @@ func TestManualInteraction(t *testing.T) {
 
 // TestLayerDetection tests the internal layer detection
 func TestLayerDetection(t *testing.T) {
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	root := testApp.GetDeclarativeRoot()
 	if root == nil {

@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -33,4 +34,18 @@ func listenHTTP(host string, port int) (net.Listener, string, string, func(), er
 	}
 	base := "http://" + ln.Addr().String()
 	return ln, base, base + "/mcp", func() {}, nil
+}
+
+func endpointWithAuthToken(rawEndpoint, token string) string {
+	if strings.TrimSpace(rawEndpoint) == "" || strings.TrimSpace(token) == "" {
+		return rawEndpoint
+	}
+	parsed, err := url.Parse(rawEndpoint)
+	if err != nil {
+		return rawEndpoint
+	}
+	query := parsed.Query()
+	query.Set("auth_token", token)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }

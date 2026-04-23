@@ -3,6 +3,7 @@ package inspector
 import (
 	"testing"
 
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -168,8 +169,8 @@ func TestHandleKeyEvent_Disabled(t *testing.T) {
 	// Don't enable inspector
 
 	tests := []struct {
-		name     string
-	 KeyEvent
+		name string
+		KeyEvent
 		expected bool
 	}{
 		{"Tab", KeyEvent{Key: "tab"}, false},
@@ -318,18 +319,169 @@ func TestIntegrationHelper(t *testing.T) {
 	}
 }
 
-// TestIntegrationHelper_EnableFromEnvironment tests environment-based enabling
-func TestIntegrationHelper_EnableFromEnvironment(t *testing.T) {
-	// This test requires environment variable manipulation
-	// Skip if not in test mode
-	t.Skip("Environment variable testing requires setup")
+type mockInspectorApp struct {
+	inspector      interface{}
+	filter         func(frameworkevent.Event) bool
+	shortcutCalled bool
+}
 
+func (m *mockInspectorApp) SetInspector(inspector interface{}) {
+	m.inspector = inspector
+}
+
+func (m *mockInspectorApp) SetupInspectorShortcut() {
+	m.shortcutCalled = true
+}
+
+func (m *mockInspectorApp) SetEventFilter(filter func(frameworkevent.Event) bool) {
+	m.filter = filter
+}
+
+type mockFilterOnlyApp struct {
+	filter func(frameworkevent.Event) bool
+}
+
+func (m *mockFilterOnlyApp) SetEventFilter(filter func(frameworkevent.Event) bool) {
+	m.filter = filter
+}
+
+func TestIntegrationHelper_RegisterWithApp_InspectorBridge(t *testing.T) {
+	inspector := NewInspector()
+	helper := NewIntegrationHelper(inspector)
+	app := &mockInspectorApp{}
+
+	if !helper.RegisterWithApp(app) {
+		t.Fatal("RegisterWithApp should succeed for app with inspector support")
+	}
+
+	if !app.shortcutCalled {
+		t.Fatal("SetupInspectorShortcut should be called when available")
+	}
+
+	bridge, ok := app.inspector.(*inspectorAppBridge)
+	if !ok {
+		t.Fatalf("app.inspector = %T, want *inspectorAppBridge", app.inspector)
+	}
+
+	if bridge.IsVisible() {
+		t.Fatal("bridge should not be visible before toggle")
+	}
+
+	bridge.ToggleVisibility()
+	if !bridge.IsVisible() || !inspector.IsEnabled() {
+		t.Fatal("bridge toggle should enable inspector")
+	}
+
+	root := ui.NewButtonBuilder("Bridge Root").Build()
+	bridge.AttachToApp(root)
+	if helper.rootVNode != root {
+		t.Fatal("AttachToApp should update helper rootVNode")
+	}
+
+	mouseEv := frameworkevent.NewMouseEvent(frameworkevent.EventMouseMove, 7, 9, frameworkevent.MouseLeft)
+	if handled := bridge.HandleMouseEvent(frameworkevent.EventMouseMove, mouseEv); handled {
+		t.Fatal("simple inspector mouse bridge should not claim mouse events")
+	}
+	x, y := inspector.GetMousePosition()
+	if x != 7 || y != 9 {
+		t.Fatalf("mouse position = (%d,%d), want (7,9)", x, y)
+	}
+
+	if !bridge.HandleKeyEvent("escape", false, false, false) {
+		t.Fatal("escape should be handled while inspector is visible")
+	}
+	if bridge.IsVisible() || inspector.IsEnabled() {
+		t.Fatal("escape should disable inspector through bridge")
+	}
+}
+
+func TestIntegrationHelper_RegisterWithApp_EventFilterFallback(t *testing.T) {
+	inspector := NewInspector()
+	helper := NewIntegrationHelper(inspector)
+	app := &mockFilterOnlyApp{}
+
+	if !helper.RegisterWithApp(app) {
+		t.Fatal("RegisterWithApp should succeed for app with event filter support")
+	}
+	if app.filter == nil {
+		t.Fatal("event filter should be installed")
+	}
+
+	if pass := app.filter(frameworkevent.NewKeyEvent(frameworkevent.Key{Rune: 'x'})); !pass {
+		t.Fatal("regular keys should pass through when inspector is disabled")
+	}
+
+	if pass := app.filter(frameworkevent.NewSpecialKeyEvent(frameworkevent.KeyF12)); pass {
+		t.Fatal("F12 should be intercepted by fallback event filter")
+	}
+	if !inspector.IsEnabled() {
+		t.Fatal("fallback event filter should enable inspector on F12")
+	}
+}
+
+func TestIntegrationHelper_RegisterWithApp_Unsupported(t *testing.T) {
 	inspector := NewInspector()
 	helper := NewIntegrationHelper(inspector)
 
-	enabled := helper.EnableFromEnvironment()
-	// Test with TUI_INSPECTOR=true set
-	if !enabled {
-		t.Error("Should enable when TUI_INSPECTOR=true")
+	if helper.RegisterWithApp(struct{}{}) {
+		t.Fatal("RegisterWithApp should fail for unsupported app types")
 	}
+}
+
+// TestIntegrationHelper_EnableFromEnvironment tests environment-based enabling
+func TestIntegrationHelper_EnableFromEnvironment(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		inspector := NewInspector()
+		helper := NewIntegrationHelper(inspector)
+
+		if helper.EnableFromEnvironment() {
+			t.Fatal("EnableFromEnvironment should be false with no env set")
+		}
+		if inspector.IsEnabled() {
+			t.Fatal("inspector should remain disabled with no env set")
+		}
+	})
+
+	t.Run("enable via TUI_INSPECTOR", func(t *testing.T) {
+		t.Setenv("TUI_INSPECTOR", "true")
+
+		inspector := NewInspector()
+		helper := NewIntegrationHelper(inspector)
+
+		if !helper.EnableFromEnvironment() {
+			t.Fatal("EnableFromEnvironment should enable via TUI_INSPECTOR")
+		}
+		if !inspector.IsEnabled() {
+			t.Fatal("inspector should be enabled via TUI_INSPECTOR")
+		}
+	})
+
+	t.Run("enable via TUI_INSPECTOR_AUTO", func(t *testing.T) {
+		t.Setenv("TUI_INSPECTOR_AUTO", "1")
+
+		inspector := NewInspector()
+		helper := NewIntegrationHelper(inspector)
+
+		if !helper.EnableFromEnvironment() {
+			t.Fatal("EnableFromEnvironment should enable via TUI_INSPECTOR_AUTO")
+		}
+		if !inspector.IsEnabled() {
+			t.Fatal("inspector should be enabled via TUI_INSPECTOR_AUTO")
+		}
+	})
+
+	t.Run("ignore falsey values", func(t *testing.T) {
+		t.Setenv("TUI_INSPECTOR", "false")
+		t.Setenv("TUI_INSPECTOR_AUTO", "off")
+
+		inspector := NewInspector()
+		helper := NewIntegrationHelper(inspector)
+
+		if helper.EnableFromEnvironment() {
+			t.Fatal("EnableFromEnvironment should ignore falsey values")
+		}
+		if inspector.IsEnabled() {
+			t.Fatal("inspector should stay disabled for falsey values")
+		}
+	})
 }

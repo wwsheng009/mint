@@ -67,3 +67,123 @@ func TestReconciler_UpdateFocusManagerFromFiber_SwitchesToOverlayFocus(t *testin
 		t.Fatal("overlay instance should receive focus after overlay layer becomes active")
 	}
 }
+
+func TestReconciler_UpdateFocusManagerFromFiber_TrapsFocusInModalSubtree(t *testing.T) {
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{EnableFiber: true})
+	reconciler.focusMgr = rtui.NewFiberFocusManager()
+
+	baseInst := &focusLayerInstance{}
+	modalPrimaryInst := &focusLayerInstance{}
+	modalSecondaryInst := &focusLayerInstance{}
+
+	root := &rtui.Fiber{NodeID: 1, Tag: "root", Layer: rtui.LayerBase}
+	baseFiber := &rtui.Fiber{
+		NodeID:   2,
+		Tag:      "button",
+		Layer:    rtui.LayerBase,
+		Instance: baseInst,
+		Return:   root,
+	}
+	modalFiber := &rtui.Fiber{
+		NodeID: 3,
+		Tag:    "modal",
+		Layer:  rtui.LayerModal,
+		Return: root,
+	}
+	modalPrimaryFiber := &rtui.Fiber{
+		NodeID:   4,
+		Tag:      "button",
+		Layer:    rtui.LayerBase,
+		Instance: modalPrimaryInst,
+		Return:   modalFiber,
+	}
+	modalSecondaryFiber := &rtui.Fiber{
+		NodeID:   5,
+		Tag:      "button",
+		Layer:    rtui.LayerBase,
+		Instance: modalSecondaryInst,
+		Return:   modalFiber,
+	}
+
+	root.Child = baseFiber
+	baseFiber.Sibling = modalFiber
+	modalFiber.Child = modalPrimaryFiber
+	modalPrimaryFiber.Sibling = modalSecondaryFiber
+
+	reconciler.focusMgr.UpdateFocusableList([]*rtui.Fiber{baseFiber})
+	if ok := reconciler.focusMgr.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should succeed")
+	}
+
+	reconciler.updateFocusManagerFromFiber(root)
+
+	if got := reconciler.focusMgr.GetActiveLayer(); got != rtui.LayerModal {
+		t.Fatalf("active layer = %v, want modal", got)
+	}
+	if got := reconciler.focusMgr.GetCurrent(); got != modalPrimaryFiber {
+		t.Fatalf("focused fiber = %#v, want modal primary fiber", got)
+	}
+	if !modalPrimaryInst.focused {
+		t.Fatal("modal primary instance should receive focus when modal layer is active")
+	}
+	if baseInst.focused {
+		t.Fatal("base instance should not remain focused while modal is active")
+	}
+
+	if !reconciler.focusMgr.FocusNext() {
+		t.Fatal("FocusNext should stay within modal subtree")
+	}
+	if got := reconciler.focusMgr.GetCurrent(); got != modalSecondaryFiber {
+		t.Fatalf("focused fiber after next = %#v, want modal secondary fiber", got)
+	}
+}
+
+func TestReconciler_UpdateFocusManagerFromFiber_IgnoresEmptyPortalHosts(t *testing.T) {
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{EnableFiber: true})
+	reconciler.focusMgr = rtui.NewFiberFocusManager()
+
+	baseInst := &focusLayerInstance{}
+
+	root := &rtui.Fiber{NodeID: 1, Tag: "root", Layer: rtui.LayerBase}
+	overlayHost := &rtui.Fiber{
+		NodeID: 2,
+		Tag:    "box",
+		Layer:  rtui.LayerOverlay,
+		Props: rtui.Props{
+			"portalRootId": rtui.DefaultOverlayPortalRootID,
+		},
+		Return: root,
+	}
+	modalHost := &rtui.Fiber{
+		NodeID: 3,
+		Tag:    "box",
+		Layer:  rtui.LayerModal,
+		Props: rtui.Props{
+			"portalRootId": rtui.DefaultModalPortalRootID,
+		},
+		Return: root,
+	}
+	baseFiber := &rtui.Fiber{
+		NodeID:   4,
+		Tag:      "button",
+		Layer:    rtui.LayerBase,
+		Instance: baseInst,
+		Return:   root,
+	}
+
+	root.Child = overlayHost
+	overlayHost.Sibling = modalHost
+	modalHost.Sibling = baseFiber
+
+	reconciler.updateFocusManagerFromFiber(root)
+
+	if got := reconciler.focusMgr.GetActiveLayer(); got != rtui.LayerBase {
+		t.Fatalf("active layer = %v, want base", got)
+	}
+	if got := reconciler.focusMgr.GetCurrent(); got != baseFiber {
+		t.Fatalf("focused fiber = %#v, want base fiber", got)
+	}
+	if !baseInst.focused {
+		t.Fatal("base instance should receive focus when only empty portal hosts exist")
+	}
+}

@@ -1,6 +1,9 @@
 package inspector
 
 import (
+	"os"
+	"strings"
+
 	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	"github.com/wwsheng009/mint/internal/log"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -11,6 +14,57 @@ import (
 type IntegrationHelper struct {
 	inspector *Inspector
 	rootVNode rtui.VNode
+}
+
+type inspectorAppBridge struct {
+	helper *IntegrationHelper
+}
+
+func (b *inspectorAppBridge) ToggleVisibility() {
+	if b == nil || b.helper == nil || b.helper.inspector == nil {
+		return
+	}
+
+	if b.helper.inspector.IsEnabled() {
+		b.helper.inspector.Disable()
+		return
+	}
+	b.helper.inspector.Enable()
+}
+
+func (b *inspectorAppBridge) IsVisible() bool {
+	if b == nil || b.helper == nil || b.helper.inspector == nil {
+		return false
+	}
+	return b.helper.inspector.IsEnabled()
+}
+
+func (b *inspectorAppBridge) HandleKeyEvent(key string, alt, ctrl, shift bool) bool {
+	if b == nil || b.helper == nil || b.helper.inspector == nil {
+		return false
+	}
+
+	return b.helper.inspector.HandleKeyEvent(KeyEvent{
+		Key:   key,
+		Alt:   alt,
+		Ctrl:  ctrl,
+		Shift: shift,
+	})
+}
+
+func (b *inspectorAppBridge) HandleMouseEvent(_ frameworkevent.EventType, ev *frameworkevent.MouseEvent) bool {
+	if b == nil || b.helper == nil || ev == nil {
+		return false
+	}
+
+	return b.helper.CreateMouseHandler()(ev.X, ev.Y)
+}
+
+func (b *inspectorAppBridge) AttachToApp(root rtui.VNode) {
+	if b == nil || b.helper == nil {
+		return
+	}
+	b.helper.SetRootVNode(root)
 }
 
 // NewIntegrationHelper creates a new integration helper
@@ -91,35 +145,51 @@ func (ih *IntegrationHelper) CreateMouseHandler() func(x, y int) bool {
 // Note: This is a simplified integration. For more control, use the individual
 // CreateEventFilter() and CreateMouseHandler() methods.
 func (ih *IntegrationHelper) RegisterWithApp(app interface{}) bool {
-	// This is a placeholder for full framework integration
-	// The actual implementation will depend on how framework.App exposes its event system
-	// For now, this demonstrates the intended API
+	if ih == nil || ih.inspector == nil || app == nil {
+		return false
+	}
 
-	// TODO: Implement actual registration once framework.App integration points are clear
-	// Potential approaches:
-	// 1. app.SetEventFilter(helper.CreateEventFilter())
-	// 2. app.RegisterGlobalHandler(handler)
-	// 3. app.AddInspector(inspector)
+	if appWithInspector, ok := app.(interface{ SetInspector(interface{}) }); ok {
+		appWithInspector.SetInspector(&inspectorAppBridge{helper: ih})
+		if shortcutHost, ok := app.(interface{ SetupInspectorShortcut() }); ok {
+			shortcutHost.SetupInspectorShortcut()
+		}
+		log.InspectorLogger.IfEnabled().Debug("RegisterWithApp: registered inspector bridge")
+		return true
+	}
 
-	log.InspectorLogger.IfEnabled().Debug("RegisterWithApp called (integration pending)")
+	if appWithFilter, ok := app.(interface {
+		SetEventFilter(func(frameworkevent.Event) bool)
+	}); ok {
+		appWithFilter.SetEventFilter(ih.CreateEventFilter())
+		log.InspectorLogger.IfEnabled().Debug("RegisterWithApp: registered event filter fallback")
+		return true
+	}
 
+	log.InspectorLogger.IfEnabled().Debug("RegisterWithApp: unsupported app type %T", app)
 	return false
 }
 
 // EnableFromEnvironment checks environment variables and enables the inspector if requested
 // Returns true if the inspector was enabled
 func (ih *IntegrationHelper) EnableFromEnvironment() bool {
-	// Check for TUI_INSPECTOR environment variable
- ih.inspector.Enable()
+	if ih == nil || ih.inspector == nil {
+		return false
+	}
+
+	if envEnabled("TUI_INSPECTOR") {
+		ih.inspector.Enable()
 		log.InspectorLogger.IfEnabled().Debug("Enabled via TUI_INSPECTOR=true")
 		log.InspectorLogger.IfEnabled().Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
- return true
-
-	// Check for TUI_INSPECTOR_AUTO environment variable (enable with auto-start)
-			ih.inspector.Enable()
- log.InspectorLogger.IfEnabled().Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true")
- log.InspectorLogger.IfEnabled().Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
 		return true
+	}
+
+	if envEnabled("TUI_INSPECTOR_AUTO") {
+		ih.inspector.Enable()
+		log.InspectorLogger.IfEnabled().Debug("Auto-enabled via TUI_INSPECTOR_AUTO=true")
+		log.InspectorLogger.IfEnabled().Debug("Press F12 or Ctrl+I to toggle, Tab to navigate, Esc to close")
+		return true
+	}
 
 	return false
 }
@@ -127,4 +197,18 @@ func (ih *IntegrationHelper) EnableFromEnvironment() bool {
 // GetInspector returns the underlying Inspector instance
 func (ih *IntegrationHelper) GetInspector() *Inspector {
 	return ih.inspector
+}
+
+func envEnabled(name string) bool {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

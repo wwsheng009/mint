@@ -16,18 +16,20 @@ import (
 // - Focus is runtime state, so it belongs to Fiber
 // - Layer-aware: when a Modal is open, focus is trapped within the Modal layer
 type FiberFocusManager struct {
-	focusable   []*Fiber              // All focusable Fiber nodes in the tree
-	current     int                   // Index of currently focused Fiber, -1 if none
-	onNavigate  func(from, to *Fiber) // Callback when focus changes
-	activeLayer Layer                 // Current active layer (highest layer with content)
+	focusable      []*Fiber              // All focusable Fiber nodes in the tree
+	focusableLayer []Layer               // Effective layer for each focusable Fiber (inherits modal/overlay scope)
+	current        int                   // Index of currently focused Fiber, -1 if none
+	onNavigate     func(from, to *Fiber) // Callback when focus changes
+	activeLayer    Layer                 // Current active layer (highest layer with content)
 }
 
 // NewFiberFocusManager creates a new Fiber-based focus manager.
 func NewFiberFocusManager() *FiberFocusManager {
 	return &FiberFocusManager{
-		focusable:   []*Fiber{},
-		current:     -1,
-		activeLayer: LayerBase,
+		focusable:      []*Fiber{},
+		focusableLayer: []Layer{},
+		current:        -1,
+		activeLayer:    LayerBase,
 	}
 }
 
@@ -58,25 +60,31 @@ func (m *FiberFocusManager) HasActiveLayer() bool {
 // CollectFromFiber collects all focusable Fiber nodes from a Fiber tree.
 // This should be called during Commit phase after the Fiber tree is complete.
 func (m *FiberFocusManager) CollectFromFiber(root *Fiber) {
-	m.focusable = m.collectFocusableFibers(root)
+	m.focusable, m.focusableLayer = m.collectFocusableFibers(root, LayerBase)
 	log.FocusLogger.IfEnabled().Debug("CollectFromFiber: collected %d focusable fibers", len(m.focusable))
 	for i, f := range m.focusable {
 		focusID := fmt.Sprintf("node-%d", f.NodeID)
-		log.FocusLogger.IfEnabled().Debug("  [%d] FocusID=%s, Tag=%s", i, focusID, f.Tag)
+		log.FocusLogger.IfEnabled().Debug("  [%d] FocusID=%s, Tag=%s, EffectiveLayer=%s", i, focusID, f.Tag, m.getFocusableLayer(i))
 	}
 }
 
 // collectFocusableFibers recursively collects focusable Fiber nodes.
-func (m *FiberFocusManager) collectFocusableFibers(fiber *Fiber) []*Fiber {
+func (m *FiberFocusManager) collectFocusableFibers(fiber *Fiber, inheritedLayer Layer) ([]*Fiber, []Layer) {
 	var result []*Fiber
+	var layers []Layer
 
 	if fiber == nil {
-		return result
+		return result, layers
 	}
 
 	// Skip the root ComponentVNode wrapper
 	if fiber.Key == "root" && fiber.Type == VNodeComponent {
-		return m.collectFocusableFibers(fiber.Child)
+		return m.collectFocusableFibers(fiber.Child, inheritedLayer)
+	}
+
+	effectiveLayer := inheritedLayer
+	if fiber.Layer != LayerBase && fiber.Layer.IsValid() {
+		effectiveLayer = fiber.Layer
 	}
 
 	// Check if current Fiber is focusable via FocusableInstance
@@ -86,21 +94,26 @@ func (m *FiberFocusManager) collectFocusableFibers(fiber *Fiber) []*Fiber {
 			// Only add to focusable list if not disabled
 			if !focusable.IsDisabled() {
 				result = append(result, fiber)
+				layers = append(layers, effectiveLayer)
 			}
 		}
 	}
 
 	// Recursively check children
 	if child := fiber.Child; child != nil {
-		result = append(result, m.collectFocusableFibers(child)...)
+		childFibers, childLayers := m.collectFocusableFibers(child, effectiveLayer)
+		result = append(result, childFibers...)
+		layers = append(layers, childLayers...)
 	}
 
 	// Recursively check siblings
 	if sibling := fiber.Sibling; sibling != nil {
-		result = append(result, m.collectFocusableFibers(sibling)...)
+		siblingFibers, siblingLayers := m.collectFocusableFibers(sibling, inheritedLayer)
+		result = append(result, siblingFibers...)
+		layers = append(layers, siblingLayers...)
 	}
 
-	return result
+	return result, layers
 }
 
 // SetFocusable sets the list of focusable Fiber nodes.
@@ -116,6 +129,12 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 	}
 
 	m.focusable = fibers
+	m.focusableLayer = make([]Layer, len(fibers))
+	for i, fiber := range fibers {
+		if fiber != nil {
+			m.focusableLayer[i] = fiber.Layer
+		}
+	}
 
 	// Try to restore focus by ID and index
 	m.current = -1
@@ -236,7 +255,7 @@ func (m *FiberFocusManager) findNextInLayer(current int, layer Layer) int {
 	// Start from the next item and wrap around
 	for i := 1; i <= len(m.focusable); i++ {
 		idx := (current + i) % len(m.focusable)
-		if m.focusable[idx].Layer == layer {
+		if m.getFocusableLayer(idx) == layer {
 			return idx
 		}
 	}
@@ -255,7 +274,7 @@ func (m *FiberFocusManager) findPrevInLayer(current int, layer Layer) int {
 		if idx < 0 {
 			idx = len(m.focusable) + idx
 		}
-		if m.focusable[idx].Layer == layer {
+		if m.getFocusableLayer(idx) == layer {
 			return idx
 		}
 	}
@@ -269,12 +288,14 @@ func (m *FiberFocusManager) FocusFirst() bool {
 		return false
 	}
 
+	old := m.current
+
 	// If we have an active layer, find first in that layer
 	if m.activeLayer > LayerBase {
 		for i, fiber := range m.focusable {
-			if fiber.Layer == m.activeLayer {
+			if m.getFocusableLayer(i) == m.activeLayer {
 				m.current = i
-				m.applyFocusState(m.current, true)
+				m.updateFocusState(old, m.current)
 				if m.onNavigate != nil {
 					m.onNavigate(nil, fiber)
 				}
@@ -286,7 +307,7 @@ func (m *FiberFocusManager) FocusFirst() bool {
 
 	// Normal: focus first
 	m.current = 0
-	m.applyFocusState(m.current, true)
+	m.updateFocusState(old, m.current)
 
 	if m.onNavigate != nil {
 		m.onNavigate(nil, m.focusable[0])
@@ -302,12 +323,14 @@ func (m *FiberFocusManager) FocusLast() bool {
 		return false
 	}
 
+	old := m.current
+
 	// If we have an active layer, find last in that layer
 	if m.activeLayer > LayerBase {
 		for i := len(m.focusable) - 1; i >= 0; i-- {
-			if m.focusable[i].Layer == m.activeLayer {
+			if m.getFocusableLayer(i) == m.activeLayer {
 				m.current = i
-				m.applyFocusState(m.current, true)
+				m.updateFocusState(old, m.current)
 				if m.onNavigate != nil {
 					m.onNavigate(nil, m.focusable[i])
 				}
@@ -319,7 +342,7 @@ func (m *FiberFocusManager) FocusLast() bool {
 
 	// Normal: focus last
 	m.current = len(m.focusable) - 1
-	m.applyFocusState(m.current, true)
+	m.updateFocusState(old, m.current)
 
 	if m.onNavigate != nil {
 		m.onNavigate(nil, m.focusable[m.current])
@@ -368,6 +391,12 @@ func (m *FiberFocusManager) Count() int {
 // This is used internally when the list needs to be refreshed but the focus index should be preserved.
 func (m *FiberFocusManager) UpdateFocusableList(fibers []*Fiber) {
 	m.focusable = fibers
+	m.focusableLayer = make([]Layer, len(fibers))
+	for i, fiber := range fibers {
+		if fiber != nil {
+			m.focusableLayer[i] = fiber.Layer
+		}
+	}
 }
 
 // GetFocusable returns the list of focusable Fibers.
@@ -484,4 +513,17 @@ func (m *FiberFocusManager) getFiber(index int) *Fiber {
 		return nil
 	}
 	return m.focusable[index]
+}
+
+func (m *FiberFocusManager) getFocusableLayer(index int) Layer {
+	if index < 0 || index >= len(m.focusable) {
+		return LayerBase
+	}
+	if index < len(m.focusableLayer) {
+		return m.focusableLayer[index]
+	}
+	if fiber := m.focusable[index]; fiber != nil {
+		return fiber.Layer
+	}
+	return LayerBase
 }
