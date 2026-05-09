@@ -1,5 +1,7 @@
 # Wrap Component
 
+> Current API note: current public usage should go through `ui.NewWrapBuilder()` or `ui/components/wrap`. Older snippets that call `app.WrapBuilder(...)` are historical and should be translated before reuse.
+
 The `Wrap` component provides automatic wrapping layout for child elements, similar to CSS `flex-wrap: wrap`. It automatically distributes children across multiple rows based on the available width.
 
 ## Overview

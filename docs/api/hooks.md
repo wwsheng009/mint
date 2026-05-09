@@ -1,5 +1,7 @@
 # Hooks API 参考
 
+> 当前状态：本文保留为 Hooks 行为参考和历史 API 对照。示例中的 `ui.Button(...).OnClick(...)` 属于旧交互模型；当前 Button 主路径是 `ui.NewButtonBuilder(...).OnPress(intent.Intent).Build()`，状态更新应通过 `ui.On`、Intent handler 或 Store/Reducer 处理。
+
 本文档介绍 mint UI 框架中所有 Hooks 的 API。
 
 ## 目录
@@ -37,11 +39,15 @@ func UseStateInt(initial int) (current int, setter func(interface{}), getter fun
 func Counter() ui.VNode {
     count, setCount, getCount := ui.UseStateInt(0)
 
+    ui.On(ui.SimpleIncrementIntent{}, func(_ *intent.ActionContext) {
+        setCount(getCount() + 1) // 使用 getter 获取最新值
+    })
+
     return ui.Row(
         ui.Text(fmt.Sprintf("Count: %d", count)),
-        ui.Button("[+]").OnClick(func() {
-            setCount(getCount() + 1) // 使用 getter 获取最新值
-        }),
+        ui.NewButtonBuilder("[+]").
+            OnPress(ui.SimpleIncrementIntent{}).
+            Build(),
     )
 }
 ```
@@ -182,14 +188,13 @@ func UseCallback(callback func(), deps []interface{}) func()
 **示例**:
 
 ```go
-func ButtonComponent() ui.VNode {
-    count, setCount := ui.UseStateInt(0)
-
-    handleClick := ui.UseCallback(func() {
-        setCount(count + 1)
+func ExpensiveFormatter(count int) ui.VNode {
+    logCurrent := ui.UseCallback(func() {
+        fmt.Printf("current count: %d\n", count)
     }, []interface{}{count}) // count 变化时创建新回调
 
-    return ui.Button("Click").OnClick(handleClick)
+    _ = logCurrent // 可传给仍接受回调的非组件集成点
+    return ui.Text(fmt.Sprintf("Count: %d", count))
 }
 ```
 

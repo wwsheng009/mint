@@ -1,5 +1,7 @@
 # Modal 居中实现指南
 
+> 当前 API 提示：Modal 居中和 layer 参考系说明仍有价值；若示例使用旧 `app.*` builder 或 `OnClick(func)`，请按当前 `ui/components/modal`、`ui.NewButtonBuilder(...).OnPress(intent)` 和 Portal/layer 主路径改写。
+
 ## 目录
 
 1. [核心设计](#核心设计)

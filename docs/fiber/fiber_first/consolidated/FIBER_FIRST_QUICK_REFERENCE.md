@@ -1,40 +1,66 @@
 # Fiber-First 快速参考指南
 
-## 核心概念速查
-
-### 三层架构
+## 核心概念
 
 | 层级 | 角色 | 生命周期 | 示例 |
-|------|------|----------|------|
-| VNode | 描述 | 短期（render后丢弃） | `ButtonVNode{label: "Click"}` |
-| Fiber | 结构 | 长期（运行期持久） | `Fiber{Type: ButtonType, Key: "btn1"}` |
-| paint.PaintableBox | 行为+状态 | 长期（运行期持久） | `ButtonInstance{hasFocus: true}` |
+|---|---|---|---|
+| VNode | 声明输入 | 每次 render 创建，用于 reconcile | `ButtonVNode{label: "Save"}` |
+| Fiber | 结构节点 | 跨 render 复用 | `Fiber{DiffKey: "save", NodeID: 42}` |
+| ComponentInstance | 行为和状态 | 跨 render 复用，挂在 `Fiber.Instance` | `ButtonInstance{focused: true}` |
+| PaintableBox | paint tree 节点 | 布局/绘制阶段产物 | `PaintableBox{X,Y,Width,Height,Layer}` |
 
-### 关键原则
+## 当前主路径
 
+```text
+ComponentFunc
+  -> VNode tree
+  -> Fiber reconciler
+  -> Fiber tree + ComponentInstance
+  -> FiberToNodeAdapter
+  -> runtime/layout.Engine
+  -> optional PortalAwareLayoutEngine
+  -> FiberToPaintableConverter
+  -> paint.PaintablePlanes
+  -> PaintEngine
+  -> paint.Buffer
 ```
-❌ Fiber 不持有 VNode 引用
-❌ Fiber 不存储业务回调函数
-❌ Layout 不能访问 VNode
-❌ Event 不能访问 VNode
 
-✅ Fiber 持有 paint.PaintableBox 引用
-✅ Layout 只读 Fiber
-✅ Event 通过 ActionBridge 路由
-✅ VNode 在 commit 后丢弃
+## 关键原则
+
+```text
+VNode 是声明输入。
+Fiber 保存结构、身份、props/style/layer/layout inputs 和运行时 Instance。
+ComponentInstance 保存组件状态和生命周期。
+PaintableBox 是 paint 阶段节点，不是组件实例。
 ```
 
----
+默认 Fiber-first layout/paint 不应依赖 VNode 树；但 VNode 仍是每次 render 的声明输入，legacy render/event fallback 也仍存在。
 
-## 常用代码模式
+## Scheduling 状态
 
-### 创建 Fiber
+Lane 已在 Fiber 类型中定义并作为 metadata 传播，但主 reconciler 当前通过 `workLoopSync()` 同步处理整棵树。默认路径尚未实现：
+
+- lane-based preemption
+- time slicing
+- interruptible/resumable work loop
+
+如需描述这些能力，请标注为目标设计或实验能力。
+
+## DiffKey 规则
+
+当前 diff 使用 `DiffKey`：
+
+- 用户 key 优先: `vnode.Key()`
+- 无用户 key 时使用 fallback: `_idx_<siblingIndex>`
+- `Fiber.Key` 当前可视为 `DiffKey` 的兼容字段
+- `Fiber.Path` / `PathSegment` 主要用于 debug、inspector、hitmap 追踪，不参与 diff
+- 动态列表无稳定用户 key 时会触发检查，避免状态错配
+
+## 创建 Fiber
 
 ```go
 func CreateFiber(vnode VNode) *Fiber {
-    // ... extract props from vnode
-
-    // Create Instance from VNode
+    // Extract props, style, layer, layout inputs and IDs from VNode.
     var instance ComponentInstance
     if factory, ok := vnode.(InstanceFactory); ok {
         instance = factory.CreateInstance()
@@ -43,178 +69,86 @@ func CreateFiber(vnode VNode) *Fiber {
     return &Fiber{
         Props:    props,
         Style:    style,
-        Instance: instance,  // paint.PaintableBox persists
-        // NO VNode reference!
+        Instance: instance,
     }
 }
 ```
 
-### 克隆 Fiber
+`CloneFiber()` 会复用 `Instance`，不会克隆组件实例。
 
-```go
-func CloneFiber(fiber *Fiber) *Fiber {
-    return &Fiber{
-        // ... copy other fields
-        Instance: fiber.Instance,  // REUSE, never clone
-    }
-}
-```
+## Paint 优先级
 
-### 事件分发
+`FiberPaintableNode.Paint()` 当前按以下顺序绘制：
 
-```go
-func (b *ActionBridge) DispatchFromFiber(
-    start *Fiber,
-    actionType action.ActionType,
-    payload interface{},
-) bool {
-    for f := start; f != nil; f = f.Return {
-        if f.ActionTargetID == "" {
-            continue
-        }
-        
-        a := action.NewAction(actionType).
-            WithTarget(f.ActionTargetID).
-            WithPayload(payload)
-        
-        if handled := b.dispatcher.Dispatch(a); handled {
-            return true
-        }
-    }
-    return false
-}
-```
+1. 如果 `Fiber.Instance` 实现 `PaintableInstance`，调用实例绘制。
+2. 否则按 `Fiber.Tag` 查询 PaintRegistry 的 stateless paint fallback。
+3. 没有实现则不输出。
 
-### 绘制
+## Focus 模型
 
-```go
-func (inst *ButtonInstance) Paint(x, y int) []paint.DrawCmd {
-    // Use instance state only
-    // No VNode dependency!
-}
-```
+当前焦点模型是 Fiber-first：
 
----
+- `FiberFocusManager` 收集可聚焦 Fiber。
+- 可聚焦能力来自实例接口或兼容 focus API。
+- 焦点状态写入 `ComponentInstance`，不是写入 VNode。
+- `FocusableVNode` / `FocusableMeta` 属于兼容或历史概念，不是主模型。
 
-## 迁移清单
+## Event 状态
 
-### 从 VNode → Fiber
+当前状态：
 
-- [ ] Type
-- [ ] Key
-- [ ] Props → MemoizedProps
-- [ ] Style
-- [ ] Text → MemoizedState
-- [ ] ActionTargetID
+- `framework.App.processMsg` 是主消息/Action 路径。
+- 鼠标消息通过 HitMap 可带 `TargetID`、`TargetFiber`、`TargetBounds`、`LocalX/Y`。
+- Focus 相关事件由 Fiber focus manager 处理。
+- `DeclarativeNode.HandleEvent()` 仍有 VNode tree fallback，会调用 legacy `frameworkevent.Component.HandleEvent()`。
 
-### 从 Fiber 删除
+目标方向：
 
-- [ ] VNode 引用
-- [ ] LayoutBox（移到 paint.PaintableBox）
-- [ ] 业务回调函数
-
----
-
-## 判断标准
-
-### 成功标准
-
-问自己：
-> 如果我删除 VNode struct，Layout + Render 是否还能运行？
-
-如果答案是 **YES**，你就完成了 Fiber-first。
-
-### 常见错误
-
-1. **Fiber 持有 VNode**
-   ```go
-   fiber.VNode = vnode  // ❌ 错误
-   ```
-
-2. **Layout 访问 VNode**
-   ```go
-   vnode.Props()  // ❌ 错误
-   ```
-
-3. **Event 直接调用回调**
-   ```go
-   fiber.OnClick()  // ❌ 错误
-   ```
-
-4. **Instance 在 Clone 时被复制**
-   ```go
-   wip.Instance = clone(old.Instance)  // ❌ 错误
-   ```
-
----
-
-## 性能优化要点
-
-### 不要过早优化
-
-```
-架构清晰 > 性能极限
-```
-
-### 优化顺序
-
-1. **结构纯化**（现在）
-   - Layout 彻底 Fiber-first
-   - diffChildren 完全 Fiber-only
-   - 删除 VNode 依赖
-
-2. **调度纯化**（之后）
-   - Lane 优先级
-   - 批处理
-   - 时间切片
-
-3. **并发增强**（最后）
-   - Lazy clone
-   - subtree bailout
-   - 内存优化
-
----
+- 使用 HitMap/TargetFiber/ActionBridge 完成事件路由。
+- 避免运行时事件系统遍历 VNode 树。
 
 ## 关键文件位置
 
 | 功能 | 文件 |
-|------|------|
+|---|---|
 | Fiber 定义 | `runtime/ui/fiber.go` |
-| Instance 接口 | `runtime/ui/instance.go` |
+| Fiber 创建/克隆 | `runtime/ui/fiber_util.go` |
+| ComponentInstance 接口 | `runtime/ui/instance.go` |
+| Reconciler 主流程 | `internal/reconciler/reconciler.go` |
+| BeginWork / CompleteWork | `internal/reconciler/begin_work.go`, `internal/reconciler/complete_work.go` |
+| DiffKey / children reconcile | `internal/reconciler/diff.go` |
+| DeclarativeNode Fiber path | `internal/render/declarative_node.go` |
+| Fiber layout adapter | `internal/render/fiber_adapter.go` |
+| Fiber -> Paintable conversion | `internal/render/converter.go` |
+| PaintEngine | `internal/render/paint_engine.go` |
+| Portal-aware layout | `internal/render/portal_layout_adapter.go` |
 | ActionBridge | `runtime/bridge/actionbridge/bridge.go` |
-| Fiber 工具 | `runtime/ui/fiber_util.go` |
-| Button 示例 | `components/button/` |
-
----
+| Button example | `ui/components/button/` |
 
 ## 调试技巧
 
-### 检查 VNode 泄漏
+查找不该持久引用 VNode 的代码：
 
 ```bash
-# 全局搜索 fiber.VNode
-grep -r "fiber\.VNode" --include="*.go"
-
-# 全局搜索 vnode 运行期访问
-grep -r "vnode\." --include="*.go" | grep -v "//.*vnode"
+rg "fiber\\.VNode|VNode.*Fiber|vnode\\." --glob "*.go"
 ```
 
-### 检查 Instance 复用
+查看 Fiber/render 相关日志：
 
-```go
-// 添加日志
-func CloneFiber(fiber *Fiber) *Fiber {
-    if fiber.Instance != nil {
-        log.Printf("Reusing instance: %T", fiber.Instance)
-    }
-    return &Fiber{
-        Instance: fiber.Instance,  // REUSE
-    }
-}
+```bash
+TUI_LOG_OUTPUT=console TUI_DEBUG_FIBER=true TUI_DEBUG_RENDER=true go run ./examples/counter
 ```
 
----
+查看 HitMap 和鼠标目标：
 
-## 一句话总结
+```bash
+TUI_LOG_OUTPUT=console TUI_DEBUG_HITMAP=true TUI_DEBUG_PUMP=true go run ./examples/modal
+```
 
-> **VNode 是"描述"，Instance 是"行为"，Fiber 是"调度结构"，三者必须彻底解耦。**
+## 成功标准
+
+务实标准：
+
+> Reconciliation 完成后，默认 Fiber-first layout/paint 路径不需要保留或遍历 VNode tree；VNode 仍作为下一次 render 的声明输入存在。
+
+这比“删除 VNode struct 后还能运行”更符合当前源码现实。

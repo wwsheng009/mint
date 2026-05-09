@@ -1,223 +1,165 @@
-# Store + Reducer 架构文档
+# Store + Reducer + Intent 文档
 
-**版本**: v0.11  
-**最后更新**: 2026-03-05
+本目录保存 Mint 应用级状态管理相关文档。当前推荐的应用级状态流是：
 
----
-
-## 📂 目录结构
-
-本文档目录按照文档类型进行了分类整理，便于查找和管理。
-
-```
-store/
-├── guides/           # 📖 使用指南 - 如何使用 Store + Reducer
-├── api/              # 📚 API 参考 - 完整的 API 文档
-├── optimization/     # ⚡ 优化指南 - 性能优化相关
-├── migration/        # 🔄 迁移指南 - 从旧 API 迁移
-├── status/           # 📊 状态报告 - 当前进度和状态评估
-├── plans/            # 📋 计划文档 - 废弃计划、重构计划
-├── reviews/          # ✅ 审查报告 - 实现审查和总结
-├── fixes/            # 🔧 问题修复 - Bug 修复文档
-├── issues/           # ❌ 问题文档 - 已知问题
-├── features/         # 🎯 特性文档 - 类型安全、日志等特性
-└── design/           # 🎨 设计文档 - 原始设计方案
+```text
+Component interaction
+  -> runtime/intent.Intent
+  -> intent.Registry / Dispatcher
+  -> runtime/reducer.Reducer[T]
+  -> runtime/store.Store[T]
+  -> ui.UseStoreSelector or runtime/statemachine.AppRuntime[T]
+  -> Fiber update / render
 ```
 
----
+局部组件状态仍可使用 Hooks；跨组件、业务状态和可测试状态流优先使用 Store/Reducer/Intent。
 
-## 📖 快速开始
+## 当前源码入口
 
-### 新手入门
+| 关注点 | 源码 |
+|---|---|
+| Store | `../../../runtime/store/store.go` |
+| Reducer | `../../../runtime/reducer/reducer.go` |
+| Intent runtime | `../../../runtime/intent` |
+| AppRuntime / RunApp | `../../../runtime/statemachine`, `../../../ui/app.go` |
+| Store selector hook | `../../../ui/hooks.go` |
+| 示例 | `../../../examples/store_reducer_demo`, `../../../examples/store_mixed_demo`, `../../../examples/runapp_demo`, `../../../examples/typed_intent_demo`, `../../../examples/typesafe_form_demo_runapp` |
 
-1. **阅读指南**: 从 `guides/README.md` 开始了解 Store + Reducer 架构
-2. **开发指南**: 参考 `guides/DEVELOPMENT_GUIDE.md` 学习如何构建应用
-3. **API 参考**: 查看 `api/API_REFERENCE.md` 了解完整 API
-4. **迁移指南**: 如果有旧代码，参考 `guides/MIGRATION_GUIDE.md` 进行迁移
+## 文档目录
 
-### 进阶学习
+当前实际目录：
 
-- **字段绑定优化**: `optimization/FIELD_BINDING_OPTIMIZATION.md` 
-- **类型安全 Intent**: `features/TYPE_SAFE_INTENT.md`
-- **日志和错误处理**: `features/LOGGING_AND_ERROR_HANDLING_GUIDE.md`
+```text
+docs/ui/store/
+  api/
+  features/
+  fixes/
+  guides/
+  hybrid/
+  issues/
+  migration/
+  optimization/
+```
 
-### 状态和进度
+早期文档中提到的 `status/`、`plans/`、`reviews/`、`design/` 目录当前不在 `docs/ui/store/` 下。若需要历史资料，请在 `docsArchive/` 中查找。
 
-- **当前状态**: `status/CURRENT_STATUS.md` - 架构完善度评估
-- **迁移进度**: `status/MIGRATION_PROGRESS.md` - 示例迁移进度
+## 推荐阅读路径
 
----
+1. [guides/README.md](guides/README.md): Store/Reducer 使用指南入口。
+2. [guides/DEVELOPMENT_GUIDE.md](guides/DEVELOPMENT_GUIDE.md): 开发指南。
+3. [guides/RUNAPP_GUIDE.md](guides/RUNAPP_GUIDE.md): `ui.RunApp` 和 AppRuntime。
+4. [guides/STORE_REDUCER_GUIDE.md](guides/STORE_REDUCER_GUIDE.md): Store + Reducer 模式。
+5. [api/API_REFERENCE.md](api/API_REFERENCE.md): API 参考。
+6. [features/TYPE_SAFE_INTENT.md](features/TYPE_SAFE_INTENT.md): 类型安全 Intent。
+7. [optimization/FIELD_BINDING_OPTIMIZATION.md](optimization/FIELD_BINDING_OPTIMIZATION.md): 字段绑定优化。
 
-## 📖 分类说明
+注意：`guides/HOOK_USAGE_GUIDE.md`、`fixes/`、`migration/`、`optimization/` 下的部分文档包含历史问题复盘和旧 API 对比。凡是看到 `ui.Button(label, func)`、`OnClick(func)`、`OnPress(func)`、`input.ForField("name")` 这类片段，都应按当前 `ui.NewXBuilder` + `intent.Intent` / `intent.BindField` 方式改写。
 
-### guides/ 📖 使用指南
+## 子目录说明
 
-使用指南类文档，帮助开发者理解和使用 Store + Reducer 架构。
+### `guides/`
 
-| 文档 | 说明 |
-|------|------|
-| `README.md` | Store + Reducer 架构概述和快速开始 |
-| `DEVELOPMENT_GUIDE.md` | 完整的开发指南，包含最佳实践 |
-| `STORE_STORE_REDUCER_GUIDE.md` | Store + Reducer 模式详细指南 |
-| `HOOK_USAGE_GUIDE.md` | Hooks 使用指南和最佳实践 |
-| `MIGRATION_GUIDE.md` | 从 UseState 迁移到 Store + Reducer |
-| `RUNAPP_GUIDE.md` | AppRuntime 和 RunApp 使用指南 |
+面向使用者的主要指南。
 
----
+- [README.md](guides/README.md)
+- [DEVELOPMENT_GUIDE.md](guides/DEVELOPMENT_GUIDE.md)
+- [HOOK_USAGE_GUIDE.md](guides/HOOK_USAGE_GUIDE.md)
+- [MIGRATION_GUIDE.md](guides/MIGRATION_GUIDE.md)
+- [RUNAPP_GUIDE.md](guides/RUNAPP_GUIDE.md)
+- [STORE_REDUCER_GUIDE.md](guides/STORE_REDUCER_GUIDE.md)
 
-### api/ 📚 API 参考
+### `api/`
 
-完整的 API 文档，包含所有公开接口的详细说明。
+- [API_REFERENCE.md](api/API_REFERENCE.md)
 
-| 文档 | 说明 |
-|------|------|
-| `API_REFERENCE.md` | Store、Reducer、FieldBinding、Intent 等完整 API |
+### `features/`
 
----
+- [TYPE_SAFE_INTENT.md](features/TYPE_SAFE_INTENT.md)
+- [LOGGING_AND_ERROR_HANDLING_GUIDE.md](features/LOGGING_AND_ERROR_HANDLING_GUIDE.md)
 
-### optimization/ ⚡ 优化指南
+### `optimization/`
 
-性能优化相关文档，帮助提升应用性能。
+- [FIELD_BINDING_OPTIMIZATION.md](optimization/FIELD_BINDING_OPTIMIZATION.md)
+- [SYSTEM_ANALYSIS_OPTIMIZATION.md](optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md)
+- [APPVIEW_TYPE_OPTIMIZATION.md](optimization/APPVIEW_TYPE_OPTIMIZATION.md)
 
-| 文档 | 说明 |
-|------|------|
-| `FIELD_BINDING_OPTIMIZATION.md` | **推荐**: 使用 FieldMap 消除 switch-case 硬编码 |
-| `SYSTEM_ANALYSIS_OPTIMIZATION.md` | Store + Intent 系统分析与优化方案 |
-| `APPVIEW_TYPE_OPTIMIZATION.md` | AppView 类型优化 |
-| `APPVIEW_TYPE_SUMMARY.md` | AppView 类型优化总结 |
+### `migration/`
 
----
+- [FORM_FIELDMAP_MIGRATION.md](migration/FORM_FIELDMAP_MIGRATION.md)
+- [INTENT_HANDLER_MIGRATION.md](migration/INTENT_HANDLER_MIGRATION.md)
 
-### migration/ 🔄 迁移指南
+### `hybrid/`
 
-从旧 API 或其他模式迁移到 Store + Reducer 的指南。
+- [STATE_MANAGEMENT_GUIDE.md](hybrid/STATE_MANAGEMENT_GUIDE.md)
+- [HYBRID_MODE_IMPLEMENTATION.md](hybrid/HYBRID_MODE_IMPLEMENTATION.md)
 
-| 文档 | 说明 |
-|------|------|
-| `INTENT_HANDLER_MIGRATION.md` | Intent Handler 迁移指南 |
-| `FORM_FIELDMAP_MIGRATION.md` | 表单字段映射迁移指南 |
-| `TYPESAFE_FORM_MIGRATION_SUMMARY.md` | 类型安全表单迁移总结 |
+### `fixes/` 和 `issues/`
 
----
+问题记录和修复说明：
 
-### status/ 📊 状态报告
+- [fixes/RUN_VS_RUNAPP.md](fixes/RUN_VS_RUNAPP.md)
+- [fixes/TIMETRAVEL_FIX.md](fixes/TIMETRAVEL_FIX.md)
+- [issues/FMT_PRINT_ISSUE.md](issues/FMT_PRINT_ISSUE.md)
 
-当前架构的完善度评估和迁移进度。
+## 最小模式
 
-| 文档 | 说明 |
-|------|------|
-| `CURRENT_STATUS.md` | Store + Reducer 完善性评估报告 (93%) |
-| `MIGRATION_PROGRESS.md` | Store + Reducer 迁移进度报告 |
-| `STATUS_UPDATE.md` | 状态更新报告 |
+典型结构：
 
----
+```go
+type AppState struct {
+    Count int
+}
 
-### plans/ 📋 计划文档
+type IncrementIntent struct{}
 
-废弃计划和重构计划。
+func (IncrementIntent) IntentType() string { return "Increment" }
 
-| 文档 | 说明 |
-|------|------|
-| `DEPRECATION_PLAN.md` | UseState 废弃计划 |
-| `REFACTOR_PLAN.md` | Mint UI 架构重构完整方案 |
+var appStore = store.NewStore(AppState{})
 
----
+func init() {
+    reducer.NewBuilder[AppState]().
+        On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+            s.Count++
+            return s
+        }).
+        BuildAndRegister(intent.DefaultRegistry(), appStore)
+}
+```
 
-### reviews/ ✅ 审查报告
+在视图中订阅状态切片：
 
-实现审查和总结。
+```go
+count := ui.UseStoreSelector(appStore, func(s AppState) int {
+    return s.Count
+})
+```
 
-| 文档 | 说明 |
-|------|------|
-| `IMPLEMENTATION_SUMMARY.md` | 实现总结 |
-| `IMPLEMENTATION_REVIEW.md` | 实现审查 |
+组件发送 intent：
 
----
+```go
+button.NewBuilder("+1").
+    OnPress(IncrementIntent{}).
+    Build()
+```
 
-### fixes/ 🔧 问题修复
+## 测试建议
 
-已知问题的修复文档。
+```bash
+go test ./runtime/store ./runtime/reducer ./runtime/intent -count=1
+go test ./examples/store_reducer_demo ./examples/store_mixed_demo ./examples/runapp_demo -count=1
+go test ./ui/e2e -run "Button|Form|Input|Select|Tabs" -count=1
+```
 
-| 文档 | 说明 |
-|------|------|
-| `TIMETRAVEL_FIX.md` | 时间旅行 Undo/Redo 修复 |
-| `RUN_VS_RUNAPP.md` | Run vs RunApp 问题 |
+全量：
 
----
+```bash
+go test ./... -count=1
+```
 
-### issues/ ❌ 问题文档
+资源受限环境下，优先用分层命令定位行为问题。
 
-已知问题文档。
+## 维护注意
 
-| 文档 | 说明 |
-|------|------|
-| `FMT_PRINT_ISSUE.md` | Fmt.Print 问题 |
-
----
-
-### features/ 🎯 特性文档
-
-特定功能的详细文档。
-
-| 文档 | 说明 |
-|------|------|
-| `TYPE_SAFE_INTENT.md` | 类型安全 Intent DSL |
-| `LOGGING_AND_ERROR_HANDLING_GUIDE.md` | 日志和错误处理指南 |
-
----
-
-### design/ 🎨 设计文档
-
-原始设计方案和概念文档。
-
-| 文档 | 说明 |
-|------|------|
-| `store.md` | Store 原始设计文档 |
-| `mini_demo.md` | Mini 演示文档 |
-
----
-
-## 🎯 推荐阅读路径
-
-### 路径 1: 新手入门 (完整学习曲线)
-
-1. `guides/README.md` - 了解概述
-2. `guides/DEVELOPMENT_GUIDE.md` - 学习开发
-3. `api/API_REFERENCE.md` - 查阅 API
-4. `optimization/FIELD_BINDING_OPTIMIZATION.md` - 学习优化
-
-### 路径 2: 从 UseState 迁移
-
-1. `guides/MIGRATION_GUIDE.md` - 迁移指南
-2. `status/MIGRATION_PROGRESS.md` - 查看进度
-3. `migration/INTENT_HANDLER_MIGRATION.md` - Intent Handler 迁移
-
-### 路径 3: 深入优化
-
-1. `optimization/FIELD_BINDING_OPTIMIZATION.md` - 字段绑定优化
-2. `features/TYPE_SAFE_INTENT.md` - 类型安全 Intent
-3. `status/CURRENT_STATUS.md` - 理解当前状态
-
----
-
-## 📊 当前状态
-
-- **架构完善度**: 93% ✅
-- **核心功能**: Store[T] ✅ (100%), Reducer[T] ✅ (100%), AppRuntime[T] ⚠️ (90%)
-- **文档完整度**: 100% ✅
-- **示例迁移**: 核心示例已完成 ✅
-
-详细状态参考: `status/CURRENT_STATUS.md`
-
----
-
-## 🔗 相关资源
-
-- **Mint UI 主仓库**: [github.com/wwsheng009/mint](https://github.com/wwsheng009/mint)
-- **示例代码**: `examples/store_reducer_demo/`
-
----
-
-**文档维护**: Mint UI 团队  
-**最后更新**: 2026-03-05  
-**版本**: v0.11
+- 不要把旧目录 `status/`、`plans/`、`reviews/`、`design/` 写成当前存在目录。
+- 不要把 UseState 描述成应用级业务状态首选方案。
+- 新交互组件应优先声明 Intent，状态变更集中到 Reducer 或明确的 instance 状态。

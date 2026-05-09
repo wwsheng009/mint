@@ -2,6 +2,8 @@
 
 **Container Background Rendering System**
 
+> 当前 API 提示：本文的单元格背景、继承和遮挡机制仍可用于理解渲染结果。示例中若使用 `app.*` 组件 builder，请改写为当前 `ui.NewXBuilder` API 和 Fiber-first component instance 模型。
+
 本文档详细说明 Mint TUI 中容器背景渲染的完整机制，包括背景渲染、内容遮挡和背景继承。
 
 ---

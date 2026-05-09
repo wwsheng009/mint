@@ -1,193 +1,134 @@
 # 焦点管理功能文档
 
-本目录包含 Mint TUI 框架焦点管理系统的实现文档和分析报告。
+本目录记录 Mint 当前焦点管理行为、已完成实现和历史问题分析。
 
-## 功能概述
+## 当前能力
 
-焦点管理系统支持多种焦点切换方式：
+- Tab 键导航。
+- Shift+Tab 反向导航。
+- 鼠标点击切换焦点。
+- Modal / Layer 场景下的焦点范围控制。
+- Fiber-first 焦点收集和实例焦点状态写入。
 
-- ✅ **Tab 键导航** - 在可聚焦组件间循环切换焦点
-- ✅ **Shift+Tab** - 反向导航
-- ✅ **鼠标点击** - 点击组件自动切换焦点
-- ✅ **Modal 焦点捕获** - Modal 打开时焦点限制在 Modal 内
+## 当前实现模型
 
-## 文档列表
+当前焦点主模型是 Fiber-first：
 
-### 📋 问题分析
-- [`mouse_click_focus_issue.md`](./mouse_click_focus_issue.md) - 鼠标点击焦点问题分析
-  - 问题描述：Tab 键可以切换焦点，但鼠标点击不能
-  - 根本原因：Button.HandleEvent() 只触发 onClick，不请求焦点
-  - 解决方案：在事件路由层自动处理焦点切换
-
-### 📖 实现文档
-- [`tab_key_focus_implementation.md`](./tab_key_focus_implementation.md) - Tab 键焦点切换实现位置
-  - VNodeFocusManager.HandleEvent() 的实现
-  - 焦点管理器的完整流程
-  - 焦点收集和应用机制
-
-- [`mouse_click_focus_implementation.md`](./mouse_click_focus_implementation.md) - 鼠标点击焦点切换实现
-  - 实现方式：在事件处理流程中插入焦点切换
-  - Hit Testing 机制：使用 bounds 进行命中检测
-  - Modal 焦点捕获：只收集 modal 层的可聚焦节点
-  - 事件处理优先级：Layer → FocusManager → MouseFocus → Component
-
-## 关键代码位置
-
-### 焦点管理器
-- **文件**: `runtime/ui/focus_manager.go`
-- **关键方法**:
-  - `HandleEvent()` - 处理 Tab/Shift+Tab 键 (行 206-212)
-  - `FocusNext()` - 切换到下一个焦点 (行 95-108)
-  - `FocusPrev()` - 切换到上一个焦点 (行 110-123)
-  - `DispatchToFocused()` - 分发事件到焦点元素 (行 217-230)
-
-### 事件处理流程
-- **文件**: `internal/render/declarative_node.go`
-- **关键方法**:
-  - `HandleEvent()` - 主事件处理流程 (行 1039-1100)
-  - `handleMouseFocus()` - 鼠标焦点切换 (行 1154-1193)
-  - `nodeWasClicked()` - Hit Testing (行 1195-1227)
-
-### 组件接口
-- **FocusableVNode**: `runtime/ui/vnode.go`
-  - `IsFocusable() bool` - 是否可聚焦
-  - `SetFocus(bool)` - 设置焦点状态
-  - `GetBounds() (x, y, width, height int)` - 获取边界（用于 hit testing）
-
-## 事件处理流程
-
+```text
+Fiber tree
+  -> FiberFocusManager collects focusable Fibers
+  -> active layer / modal focus scope filtering
+  -> current focused Fiber
+  -> ComponentInstance.SetFocus(bool)
 ```
-用户输入事件
-    ↓
-┌─────────────────────────────────────────┐
-│ 0. Layer 事件处理                       │
-│    - ESC 关闭 modal                     │
-└─────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────┐
-│ 1. 焦点管理器处理                       │
-│    - Tab 键 → FocusNext()               │
-│    - Shift+Tab → FocusPrev()            │
-└─────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────┐
-│ 1.5. 鼠标焦点切换 ✨                    │
-│    - 收集 focusable 节点                │
-│    - Hit testing 找到被点击节点          │
-│    - SetFocusByIndex() 切换焦点          │
-└─────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────┐
-│ 2. 分发事件到焦点元素                   │
-│    - Enter/Space 触发按钮               │
-│    - 字符输入到 Input                   │
-└─────────────────────────────────────────┘
-    ↓
-┌─────────────────────────────────────────┐
-│ 3. 全局事件分发                         │
-│    - 其他未处理的事件                   │
-└─────────────────────────────────────────┘
+
+焦点状态属于运行期实例，而不是 VNode。
+
+## 关键源码位置
+
+| 功能 | 源码 |
+|---|---|
+| Fiber focus manager | `../../../runtime/ui/fiber_focus_manager.go` |
+| Focus manager compatibility helpers | `../../../runtime/ui/focus_manager.go` |
+| DeclarativeNode event/focus handling | `../../../internal/render/declarative_node_event.go` |
+| App key/action routing | `../../../framework/app.go` |
+| Runtime focus package | `../../../runtime/focus` |
+
+重点方法：
+
+- `runtime/ui.FiberFocusManager.HandleEvent`
+- `runtime/ui.CollectFocusable`
+- `runtime/ui.CollectFocusableInLayer`
+- `internal/render.DeclarativeNode.handleMouseFocus`
+- `framework.App.GetFocusManager`
+- `framework.App.SetFocusManagerFromDeclarativeNode`
+
+## 事件处理概览
+
+当前事件路径不是单一旧 `HandleEvent` 路径。简化理解：
+
+```text
+platform input
+  -> runtime/msg
+  -> framework.App.processMsg
+  -> global shortcuts / selection mode
+  -> InputTracker / InteractionContext
+  -> InputProcessor -> Action
+  -> navigation action handled by FocusManager
+  -> mouse action routed by TargetFiber when available
+  -> keyboard action routed to focused Fiber when available
+  -> ActionRouter fallback
 ```
+
+`DeclarativeNode.HandleEvent()` 仍保留兼容路径，处理部分 focus 和 legacy event fallback，但新文档应优先描述 `Msg -> Action -> Fiber/FocusManager` 主路径。
 
 ## 可聚焦组件
 
-以下组件支持焦点管理：
+可聚焦能力由组件实例提供。常见可聚焦组件包括：
 
-- ✅ **Button** - `components/button/button.go`
-- ✅ **Input** - `components/form/input.go`
-- ✅ **Textarea** - `components/form/textarea.go`
-- ✅ **Select** - `components/form/select.go`
-- ✅ **Checkbox** - `components/form/checkbox.go`
+- `ui/components/button`
+- `ui/components/input`
+- `ui/components/textarea`
+- `ui/components/select`
+- `ui/components/checkbox`
+- `ui/components/radio`
+- `ui/components/switch`
+- `ui/components/tabs`
+- `ui/components/menu`
+- `ui/components/list`
+- `ui/components/table`
+- `ui/components/treeview`
 
-## Modal 焦点捕获
+具体以组件 instance 是否实现 focus 相关能力为准。
 
-当 Modal 打开时，焦点管理系统会自动捕获焦点：
+## Modal 和 Layer 焦点
 
-```go
-hasModal := rtui.HasModalInTree(n.root)
+当 Modal / active layer 存在时，FocusManager 会按 layer 范围收集可聚焦 Fiber，避免 Tab 跳到背景内容。
 
-if hasModal {
-    // 只收集 modal 层的 focusable 节点
-    focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-} else {
-    // 收集所有 focusable 节点
-    focusable = rtui.CollectFocusable(n.root)
-}
-```
+相关机制：
 
-**效果**：
-- Tab 键只在 modal 内导航
-- 鼠标点击只能在 modal 内切换焦点
-- Modal 外的组件不受影响
+- Fiber 节点带 layer 信息。
+- Portal-aware layout 和 Layer render path 保留 overlay/modal 结构。
+- FocusManager 按 active layer 做焦点 scope。
 
-## 测试验证
+## 调试
 
-### 功能测试
-
-1. **基本焦点切换**：
-   ```bash
-   cd examples/ui_demos/demo1_full_featured
-   go run main.go
-   # 点击不同按钮，观察焦点切换
-   # 按 Tab 键，观察焦点导航
-   ```
-
-2. **Modal 焦点捕获**：
-   ```bash
-   # 打开 modal
-   # 尝试点击 modal 外的按钮
-   # 验证焦点不切换到外部
-   ```
-
-3. **键盘导航**：
-   ```bash
-   # Tab 键 → 下一个焦点
-   # Shift+Tab → 上一个焦点
-   # Enter/Space → 触发按钮动作
-   ```
-
-### 调试模式
-
-启用调试日志查看详细焦点切换过程：
+启用焦点和 UI 日志：
 
 ```bash
-export TUI_DEBUG_UI=true
-go run examples/ui_demos/demo1_full_featured/main.go
+TUI_LOG_OUTPUT=console TUI_DEBUG_FOCUS=true TUI_DEBUG_UI=true go run ./examples/ui_demos/demo1_full_featured
 ```
 
-**日志输出**：
-```
-FocusNext current=0, len(focusable)=5
-FocusNext: now at index 1
-handleMouseFocus: switching focus from index 0 to 1
-nodeWasClicked: bounds=(2, 7, 11, 1), mouse=(8, 7)
-nodeWasClicked: HIT!
+排查鼠标点击焦点：
+
+```bash
+TUI_LOG_OUTPUT=console TUI_DEBUG_HITMAP=true TUI_DEBUG_PUMP=true go run ./examples/modal
 ```
 
-## 实现亮点
+运行相关测试：
 
-1. **零组件侵入性**
-   - 组件无需修改代码
-   - 只需实现 SetFocus() 和 GetBounds()（已有）
-   - 自动支持所有可聚焦组件
+```bash
+go test ./runtime/focus ./runtime/ui -run Focus -count=1
+go test ./ui/e2e -run Focus -count=1
+go test ./examples/ui_demos/demo1_full_featured -count=1
+```
 
-2. **智能焦点管理**
-   - 自动检测 modal 状态
-   - Modal 打开时捕获焦点
-   - Modal 关闭后恢复全局焦点
+## 文档列表
 
-3. **高效的 Hit Testing**
-   - 使用 bounds 而不是递归遍历
-   - O(n) 复杂度，n 是 focusable 节点数量
-   - 通常 n 很小（< 20），性能可忽略
+- [mouse_click_focus_issue.md](mouse_click_focus_issue.md): 鼠标点击焦点问题分析。
+- [mouse_click_focus_implementation.md](mouse_click_focus_implementation.md): 鼠标点击焦点切换实现记录。
+- [tab_key_focus_implementation.md](tab_key_focus_implementation.md): Tab 键焦点切换实现记录。
 
-4. **事件流清晰**
-   - 优先级明确
-   - 易于理解和调试
-   - 不破坏现有功能
+这些文档包含历史行号和旧路径时，应以当前源码为准。
+
+## 维护注意
+
+- 不要再把 `components/button/button.go` 这类旧路径写作当前实现路径；当前组件在 `ui/components/<name>/`。
+- 不要把 `FocusableVNode` 描述为主模型；当前主模型是 Fiber + ComponentInstance。
+- 若涉及鼠标命中，应同时参考 HitMap / TargetBounds 文档。
 
 ## 相关文档
 
-- [布局系统](../../layout/) - 布局引擎和约束系统
-- [主题系统](../../theme/) - 焦点样式和主题颜色
-- [事件系统](../../sandbox/) - 事件处理和分发机制
+- [../../event/long_term_event_architecture.md](../../event/long_term_event_architecture.md)
+- [../../howto/migrate-to-targetbounds.md](../../howto/migrate-to-targetbounds.md)
+- [../../architecture/README.md](../../architecture/README.md)

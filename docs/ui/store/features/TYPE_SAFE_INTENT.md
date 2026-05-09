@@ -4,6 +4,8 @@
 **创建时间**: 2026-03-04
 **状态**: ✅ 已实现
 
+> 当前 API 提示：`runtime/intent.StateKey[T]` 和 `TypedFieldChange[T]` 仍是源码中的类型安全能力；组件示例需要按当前 Builder 写法使用。字段组件应写成 `ui.NewInputBuilder().ForField(intent.BindField("username"))` 或 `ui.NewInputBuilder().ForField(intent.ForField(Username))`，不要再使用历史伪代码 `input.ForField(...).OnChange(func)`。
+
 ---
 
 ## 概述
@@ -48,18 +50,15 @@ var (
 
 ```go
 func Form(state AppState) ui.VNode {
-    ctx := ui.GetCurrentContext()
-
-    // 保存状态供 handler 访问
-    Username.Set(ctx, state.Username)
-    Email.Set(ctx, state.Email)
-
-    // 类型安全地读取
-    username := Username.Get(ctx, "")
-
     return ui.VStack(
-        input.ForField(Username.String()).Value(state.Username),
-        input.ForField(Email.String()).Value(state.Email),
+        ui.NewInputBuilder().
+            ForField(intent.ForField(Username)).
+            Value(state.Username).
+            Build(),
+        ui.NewInputBuilder().
+            ForField(intent.ForField(Email)).
+            Value(state.Email).
+            Build(),
     )
 }
 ```
@@ -68,15 +67,13 @@ func Form(state AppState) ui.VNode {
 
 ```go
 // 方式 1: 使用 Change 方法
-intent := Username.Change("alice")
+change1 := Username.Change("alice")
 
 // 方式 2: 使用 SetField 函数
-intent := intent.SetField(Username, "alice")
+change2 := intent.SetField(Username, "alice")
 
-// 方式 3: 在组件中使用
-input.ForField(Username.String()).OnChange(func(v string) {
-    dispatcher.Dispatch(Username.Change(v))
-})
+// 方式 3: 直接分发类型安全 Intent
+dispatcher.Dispatch(Username.Change("alice"))
 ```
 
 ### 4. 在 Reducer 中处理
@@ -131,9 +128,8 @@ var Username = intent.NewStateKey[string]("username")
 // 方法
 Username.String()              // "username" - 字符串表示
 Username.Name()                // "username" - 键名
-Username.Get(ctx, "")          // 从 Context 读取
-Username.Set(ctx, "alice")     // 写入 Context
 Username.Change("alice")       // 创建 TypedFieldChange intent
+intent.ForField(Username)      // 转成组件 ForField 可用的 FieldBinding
 ```
 
 ### TypedFieldChange[T]
@@ -218,9 +214,6 @@ func reducer(state AppState, i intent.Intent) AppState {
 
 // 视图
 func Counter(state AppState) ui.VNode {
-    ctx := ui.GetCurrentContext()
-    Count.Set(ctx, state.Count)
-
     return ui.VStack(
         ui.Text(fmt.Sprintf("Count: %d", state.Count)),
         ui.HStack(
@@ -312,14 +305,18 @@ func formReducer(state FormState, i intent.Intent) FormState {
 func Form(state FormState) ui.VNode {
     return ui.VStack(
         ui.Text("注册表单"),
-        input.ForField(Username.String()).
+        ui.NewInputBuilder().
+            ForField(intent.ForField(Username)).
             Placeholder("用户名").
-            Value(state.Username),
-        ui.Text(state.UsernameErr).Color("red"),
-        input.ForField(Email.String()).
+            Value(state.Username).
+            Build(),
+        ui.NewTextBuilder(state.UsernameErr).FgColor("red").Build(),
+        ui.NewInputBuilder().
+            ForField(intent.ForField(Email)).
             Placeholder("邮箱").
-            Value(state.Email),
-        ui.Text(state.EmailErr).Color("red"),
+            Value(state.Email).
+            Build(),
+        ui.NewTextBuilder(state.EmailErr).FgColor("red").Build(),
         ui.HStack(
             ui.NewButtonBuilder("重置").OnPress(ResetIntent{}).Build(),
             ui.NewButtonBuilder("提交").OnPress(SubmitIntent{}).Build(),

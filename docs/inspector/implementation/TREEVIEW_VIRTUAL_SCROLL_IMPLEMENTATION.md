@@ -1,5 +1,7 @@
 # TreeView 虚拟滚动实现完成
 
+> 当前状态：本文是 TreeView 虚拟滚动的历史实现记录。旧路径 `components/display/treeview.go` 和 `app.NewTextBuilder` 示例不再代表当前公共入口；当前 TreeView 位于 `ui/components/treeview`，对外优先使用 `ui.NewTreeViewBuilder()`。
+
 ## ✅ 已实现
 
 TreeView组件现在实现了**真正的虚拟滚动**，只渲染可见范围内的行，而不是所有行。

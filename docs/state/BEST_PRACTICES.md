@@ -1,5 +1,7 @@
 # Fiber-first 状态管理最佳实践
 
+> 当前 API 提示：本文保留 Fiber-first 状态管理原则。旧示例中如果出现 `OnClick(func)`、`ui.Button(label, func)` 或闭包式按钮处理，应改为 `ui.NewButtonBuilder(...).OnPress(intent.Intent)`，并把跨组件状态更新放到 Intent handler / Reducer / Store 中。
+
 本文档提供 Mint Fiber-first 模式下状态管理的最佳实践指南。
 
 ## 目录

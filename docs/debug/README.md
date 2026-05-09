@@ -1,196 +1,134 @@
-# TUI Debug 工具使用手册
+# Mint 调试指南
 
-Mint TUI 提供了一套强大的调试工具，帮助开发者快速定位和解决 UI 渲染问题。
+本目录记录当前 Mint 调试入口和环境变量。旧版 `TUI_UI_DEBUG_*` 文档曾用于早期 demo/runtime internals 调试；当前框架源码的通用日志系统以 `internal/log` 为准，主要使用 `TUI_DEBUG*` 和 `TUI_LOG_*`。
 
-## 📚 文档导航
+## 快速入口
 
-| 文档 | 说明 | 适用场景 |
-|------|------|---------|
-| [quick_start.md](quick_start.md) | 快速入门指南 | 第一次使用、常用命令 |
-| [environment_variables.md](environment_variables.md) | 环境变量参考 | 查询所有调试选项 |
-| [/docsArchive/layout_api.md](/docsArchive/layout_api.md) | 布局调试 API（已归档） | 编程方式使用调试功能 |
-| [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md) | 渲染调试详解（已归档） | 深入理解 Paint 过程 |
+| 场景 | 推荐变量 |
+|---|---|
+| 打开全部调试日志 | `TUI_DEBUG_ALL=true` |
+| 打开所有默认 logger | `TUI_DEBUG=true` |
+| 只看渲染 | `TUI_DEBUG_RENDER=true` |
+| 只看事件/输入泵 | `TUI_DEBUG_EVENTS=true`, `TUI_DEBUG_PUMP=true` |
+| 只看 HitMap 命中 | `TUI_DEBUG_HITMAP=true` |
+| 只看 UI 层日志 | `TUI_DEBUG_UI=true` |
+| 日志输出到控制台 | `TUI_LOG_OUTPUT=console` |
+| 日志同时写文件和控制台 | `TUI_LOG_OUTPUT=both` |
+| 禁用异步渲染以便排查顺序问题 | `MINT_ASYNC_RENDER=false` |
+| 保留屏幕输出，便于复制 | `MINT_NO_ALTERNATE_SCREEN=true` |
 
-## 🎯 三种调试模式
+完整变量清单见 [environment_variables.md](environment_variables.md)。
 
-### 1. Layout Debug - 布局结构调试
+## 基本用法
 
-**用途**: 查看组件树、位置、尺寸、flex 属性
-
-**启用**:
-```bash
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe
-```
-
-**查看详细用法**: [quick_start.md#1-布局调试](quick_start.md)
-
-### 2. Paint Debug - 渲染过程调试
-
-**用途**: 查看 Paint 方法、文本对齐、DrawCmd
-
-**启用**:
-```bash
-TUI_UI_DEBUG_PAINT=true ./demo2.exe
-```
-
-**查看详细用法**: [quick_start.md#2-渲染调试](quick_start.md)
-
-### 3. Engine Debug - 布局引擎调试
-
-**用途**: 查看测量、计算、缓存等内部细节
-
-**启用**:
-```bash
-TUI_UI_DEBUG_ENGINE=true ./demo2.exe
-```
-
-**查看详细用法**: [quick_start.md#3-引擎调试](quick_start.md)
-
-## 🚀 快速开始
-
-### 启用所有调试
+默认日志输出到 `./logs/application.log`：
 
 ```bash
-TUI_UI_DEBUG_ALL=true ./demo2.exe
+TUI_DEBUG_RENDER=true go run ./examples/counter
 ```
 
-### 保存调试输出
+输出到控制台：
 
 ```bash
-# 保存到文件
-TUI_UI_DEBUG_ALL=true ./demo2.exe > debug.txt 2>&1
-
-# 同时查看和保存
-TUI_UI_DEBUG_ALL=true ./demo2.exe 2>&1 | tee debug.txt
+TUI_LOG_OUTPUT=console TUI_DEBUG_RENDER=true go run ./examples/counter
 ```
 
-### 过滤特定信息
+同时输出到文件和控制台：
 
 ```bash
-# 只看按钮信息
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "按钮"
-
-# 只看 Paint debug
-TUI_UI_DEBUG_PAINT=true ./demo2.exe 2>&1 | grep "DEBUG-PAINT"
+TUI_LOG_OUTPUT=both TUI_DEBUG_EVENTS=true TUI_DEBUG_PUMP=true go run ./examples/menu_demo
 ```
 
-## 🔍 常见问题快速定位
-
-### 问题: 按钮没有均匀分布
+排查鼠标命中、Portal、Overlay 和 Modal 点击问题：
 
 ```bash
-# Step 1: 检查布局结构
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep -A 5 "按钮分布"
-
-# Step 2: 检查 Flex 值
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "Flex:"
-
-# Step 3: 检查实际宽度
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "尺寸:"
+TUI_LOG_OUTPUT=console TUI_DEBUG_HITMAP=true TUI_DEBUG_RENDER=true go run ./examples/modal
 ```
 
-**详细调试方法**: [quick_start.md#用例-1-验证-flex-布局](quick_start.md)
-
-### 问题: 文本没有居中
+排查 Action 主路径：
 
 ```bash
-# 检查文本对齐计算
-TUI_UI_DEBUG_PAINT=true ./demo2.exe 2>&1 | grep "DEBUG-ALIGN"
-
-# 查看 buttonText 最终长度
-TUI_UI_DEBUG_PAINT=true ./demo2.exe 2>&1 | grep "buttonText len="
+TUI_LOG_OUTPUT=console TUI_DEBUG_ACTION=true TUI_DEBUG_INTENT=true go run ./examples/store_reducer_demo
 ```
 
-**详细调试方法**: [/docsArchive/paint_debug.md#实际调试案例](/docsArchive/paint_debug.md)
+## 当前日志系统
 
-### 问题: Wrap 没有换行
+当前通用日志系统实现位于：
+
+- `../../internal/log/logger.go`: logger 分类和 `TUI_DEBUG*` 开关。
+- `../../internal/log/file.go`: `TUI_LOG_OUTPUT` 和默认日志文件。
+- `../../internal/log/rotation.go`: 日志轮转配置。
+
+支持的布尔真值包括 `true`、`1`、`yes`、`on`，大小写不敏感。
+
+## 常用分类
+
+`internal/log` 当前定义了以下常用 logger：
+
+- `TUI_DEBUG_FOCUS`
+- `TUI_DEBUG_RENDER`
+- `TUI_DEBUG_KEY`
+- `TUI_DEBUG_EVENT`
+- `TUI_DEBUG_WIN`
+- `TUI_DEBUG_LINUX`
+- `TUI_DEBUG_INSPECTOR`
+- `TUI_DEBUG_LAYOUT`
+- `TUI_DEBUG_LAYER`
+- `TUI_DEBUG_ENGINE`
+- `TUI_DEBUG_UI`
+- `TUI_DEBUG_MESSAGE`
+- `TUI_DEBUG_FIBER`
+- `TUI_DEBUG_BUTTON`
+- `TUI_DEBUG_HITMAP`
+- `TUI_DEBUG_BORDER`
+- `TUI_DEBUG_PIPELINE`
+- `TUI_DEBUG_PAINT`
+- `TUI_DEBUG_WRAP`
+- `TUI_DEBUG_PUMP`
+- `TUI_DEBUG_FORM`
+- `TUI_DEBUG_CURSOR`
+- `TUI_DEBUG_INPUT`
+- `TUI_DEBUG_RENDERING`
+- `TUI_DEBUG_VALIDATION`
+- `TUI_DEBUG_ACTION`
+- `TUI_DEBUG_INTENT`
+- `TUI_DEBUG_PLATFORM`
+- `TUI_DEBUG_TEMP`
+
+注意：部分历史文档或旧代码可能写作 `TUI_DEBUG_EVENTS`、`TUI_DEBUG_KEYS`、`TUI_RENDER_DEBUG`、`TUI_UI_DEBUG_*`。更新文档时应以当前源码读取的变量为准。
+
+## 渲染与运行时变量
+
+框架运行时还读取若干 `MINT_*` 变量：
+
+- `MINT_ASYNC_RENDER`: 异步渲染开关，默认开启；`false`、`0`、`no`、`off` 表示关闭。
+- `MINT_ASYNC_FPS`: 异步渲染 FPS，默认约 60。
+- `MINT_NO_ALTERNATE_SCREEN`: 保留终端输出，避免退出时清屏。
+- `MINT_PORTAL_LAYOUT`: Portal-aware layout 开关，默认开启；`false` 或 `0` 可关闭。
+- `MINT_GRAPHICS`: 图形输出模式，支持 `auto`、`off`/none、`kitty`、`sixel`、`inline-image` 等源码支持值。
+- `MINT_CELL_PIXELS`: 终端 cell 像素尺寸，格式 `<width>x<height>`。
+- `MINT_GRAPHICS_STRICT`
+- `MINT_GRAPHICS_ALLOW_TERMINAL_FRAME`
+- `MINT_GRAPHICS_ALLOW_UNVERIFIED_INLINE_IMAGE`
+- `MINT_DEBUG_GRID`, `MINT_LOG_LEVEL`: Grid 组件调试相关。
+
+## `cmd/mint-debugger`
+
+`cmd/mint-debugger` 是独立 CLI，默认读取 `~/.mint/devtools/logs/session_*.log` 这类 DevTools JSONL 事件日志。它不是 `internal/log` 的 `./logs/application.log` 文本日志查看器。
+
+常用参数：
 
 ```bash
-# 查看 HStack 数量（每个 HStack 是一行）
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "找到.*个 HStack"
-
-# 查看每个 HStack 的子组件数量
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep -A 3 "子组件:"
+go run ./cmd/mint-debugger -analyze-only
+go run ./cmd/mint-debugger -watch
+go run ./cmd/mint-debugger -log path/to/session.jsonl -report report.md
 ```
 
-**详细调试方法**: [quick_start.md#用例-2-调试-wrap-组件换行](quick_start.md)
+如果没有 DevTools session 日志，`mint-debugger` 不能直接分析普通 `TUI_DEBUG_*` 文本日志。
 
-## 📊 环境变量速查
+## 相关文档
 
-| 变量 | 作用 |
-|------|------|
-| `TUI_UI_DEBUG_LAYOUT` | 布局结构调试 |
-| `TUI_UI_DEBUG_PAINT` | 渲染过程调试 |
-| `TUI_UI_DEBUG_ENGINE` | 引擎计算调试 |
-| `TUI_UI_DEBUG_ALL` | 启用所有调试 |
-| `TUI_UI_DEBUG_COLOR` | 控制颜色输出 |
-
-**完整参考**: [environment_variables.md](environment_variables.md)
-
-## 💡 使用技巧
-
-### 保存输出便于分析
-
-```bash
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe > output.txt 2>&1
-```
-
-### 清理 ANSI 颜色代码
-
-```bash
-TUI_UI_DEBUG_COLOR=false TUI_UI_DEBUG_LAYOUT=true ./demo2.exe
-```
-
-### 只看关键信息
-
-```bash
-TUI_UI_DEBUG_LAYOUT=true ./demo2.exe 2>&1 | grep "✅"
-```
-
-**更多技巧**: [quick_start.md#过滤技巧](quick_start.md)
-
-## 🎓 学习路径
-
-### 新手入门
-
-1. 阅读 [quick_start.md](quick_start.md) - 了解基本用法
-2. 尝试常见场景的调试示例
-3. 学会使用 grep 过滤输出
-
-### 进阶使用
-
-1. 阅读 [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md) - 理解渲染原理
-2. 学习 [/docsArchive/layout_api.md](/docsArchive/layout_api.md) - 编程方式使用
-3. 查看 [environment_variables.md](environment_variables.md) - 所有选项
-
-### 专家模式
-
-1. 添加自定义 debug 输出
-2. 编写调试脚本
-3. 性能分析和优化
-
-## 🔄 环境变量命名规则
-
-所有调试环境变量都使用 `TUI_UI_DEBUG_*` 前缀：
-
-- ✅ `TUI_UI_DEBUG_LAYOUT` - 新命名（推荐）
-- ⚠️ `TUI_LAYOUT_DEBUG` - 旧命名（仍可用）
-
-**迁移指南**: [/docsArchive/MIGRATION.md](/docsArchive/MIGRATION.md)
-
-## 📖 扩展阅读
-
-- [渲染流程说明](/docsArchive/rendering_flow_explained.md) - 理解两阶段渲染（已归档）
-- [Demo2 按钮布局分析](/docsArchive/demo2_button_layout_analysis.md) - 实战案例分析（已归档）
-- [布局调试 API 详解](/docsArchive/layout_api.md) - 完整 API 参考
-
----
-
-**需要帮助?**
-- 快速问题: 查看 [quick_start.md](quick_start.md)
-- 参数查询: 查看 [environment_variables.md](environment_variables.md)
-- 深入学习: 查看 [/docsArchive/paint_debug.md](/docsArchive/paint_debug.md)
-
-**版本**: v1.0
-**最后更新**: 2025-02-08
-**维护者**: Claude Sonnet 4.5
+- [environment_variables.md](environment_variables.md)
+- [../log/LOGGER_ENV_VAR_STANDARD.md](../log/LOGGER_ENV_VAR_STANDARD.md)
+- [../debugging/DEBUG_ENVIRONMENT_VARIABLES.md](../debugging/DEBUG_ENVIRONMENT_VARIABLES.md)
+- [../sandbox/SANDBOX_DEBUG_GUIDE.md](../sandbox/SANDBOX_DEBUG_GUIDE.md)

@@ -4,6 +4,8 @@
 **版本**: v1.0
 **状态**: 📋 草稿
 
+> 当前状态：本文是历史优化分析和问题记录。涉及 `ui.On(func)`、`input.ForField("name")` 的片段应按当前源码改写为 typed handler、`ui.NewInputBuilder().ForField(intent.BindField(...))` 或 `intent.ForField(StateKey)`。
+
 ---
 
 ## 📋 目录

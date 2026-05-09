@@ -1,5 +1,7 @@
 # Fiber 问题复现与 Sandbox 测试指南
 
+> 当前状态：本文是一次历史问题复现记录。示例中的 `OnClick(func)` 表示当时的旧交互模型；当前 Button 主路径是 `OnPress(intent.Intent)` 并由 Intent handler / reducer 处理状态更新。
+
 ## 问题确认
 
 通过运行 `examples/fiber_counter`，我们已确认了 Fiber 集成问题：

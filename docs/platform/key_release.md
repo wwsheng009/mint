@@ -1,5 +1,7 @@
 你这个问题本质上不是“能不能监听 release”，而是 **TUI 输入模型本身就不保证有 release 语义** ——这点和 GUI 完全不同。
 
+> 当前状态：本文是按键/鼠标 release 语义的架构讨论稿。文中的 `OnClick`、`Props.OnClick` 等命名来自旧交互模型；当前源码中鼠标目标由 HitMap 填入 `runtime/msg.MouseMsg.TargetFiber` / `TargetBounds`，交互最终通过 `runtime/action`、FocusManager 和 Intent 主链路处理。
+
 先把结论说清楚：
 
 👉 **大多数 Go TUI 库（比如 `tcell` / `bubbletea`）确实“弱化甚至没有可靠的 mouse release 事件”**

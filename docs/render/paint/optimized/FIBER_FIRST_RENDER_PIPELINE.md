@@ -1,5 +1,11 @@
 # Fiber-First 优化渲染管线设计
 
+> 当前状态说明（2026-05）：本文最初是优化设计文档。源码中已经落地了 Fiber-first 主链路，但不是所有早期设计项都按本文旧写法实现。当前真实路径是：
+>
+> `VNode -> Fiber/Reconciler -> ComponentInstance -> FiberToNodeAdapter -> LayoutBox -> FiberToPaintableConverter -> paint.PaintableBox / PaintablePlanes -> PaintEngine -> Buffer`
+>
+> 关键术语不要混用：`ComponentInstance` 是挂在 Fiber 上的持久运行时实例；`paint.PaintableBox` 是 layout 之后生成的 paint-stage 数据结构，不是组件实例。当前 `internal/reconciler` 主循环仍是同步 `workLoopSync()` 路径，lane metadata 已存在，但不能把当前实现描述成已支持时间切片、可中断渲染或 lane 抢占。
+
 ## 目录
 
 1. [当前系统问题分析](#当前系统问题分析)
@@ -96,7 +102,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 
 > **Fiber 是唯一的运行时实体**
 > **VNode 只在 Reconcile 阶段存在**
-> **paint.PaintableBox 是渲染单元**
+> **ComponentInstance 是组件运行期实体，paint.PaintableBox 是绘制阶段数据**
 
 ### 优化目标
 
@@ -110,10 +116,10 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
    - 减少数据转换
    - 提高性能
 
-3. **支持并发特性**
-   - 可中断渲染
-   - 可时间切片
-   - 可 Suspense
+3. **为并发特性保留扩展点**
+   - 当前源码保留 lane 等调度元数据
+   - 当前主路径仍是同步 work loop
+   - 可中断渲染、时间切片和 Suspense 仍属于长期方向，不应写作已默认支持
 
 ---
 
@@ -132,11 +138,11 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 │                           ↓                                 │
 │                   Fiber 树 (持久化)                         │
 │                    ↓         ↓                              │
-│              Instance    Instance  → paint.PaintableBox     │
+│              ComponentInstance（持久运行时实例）              │
 │                           ↓                                 │
 │                   Layout Engine                             │
 │                           ↓                                 │
-│              paint.PaintableBox (布局结果)                  │
+│              LayoutBox → paint.PaintableBox                 │
 │                           ↓                                 │
 │                   Paint Engine                              │
 │                           ↓                                 │
@@ -159,7 +165,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 │ │     ↓                                                       │  │
 │ │ Diff + 更新 Fiber 树                                        │  │
 │ │     ↓                                                       │  │
-│ │ 创建/复用 paint.PaintableBox                               │  │
+│ │ 创建/复用 ComponentInstance                                │  │
 │ │     ↓                                                       │  │
 │ │ Commit (VNode 被丢弃)                                       │  │
 │ └────────────────────────────────────────────────────────────┘  │
@@ -170,9 +176,9 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 │ │     ↓                                                       │  │
 │ │ 遍历 Fiber 树 (只读)                                        │  │
 │ │     ↓                                                       │  │
-│ │ 计算 paint.PaintableBox 布局                               │  │
+│ │ 通过 FiberToNodeAdapter 计算 LayoutBox 布局                 │  │
 │ │     ↓                                                       │  │
-│ │ 返回 LayoutResult (paint.PaintableBox 树)                  │  │
+│ │ 返回 LayoutResult (LayoutBox 树)                           │  │
 │ └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │ Phase 3: Paint (绘制阶段)                                        │
@@ -207,12 +213,17 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
        │ 持有
        ▼
 ┌─────────────────────┐
-│ paint.PaintableBox  │ ← 持久化，组件实例
+│ ComponentInstance   │ ← Fiber 持有，持久化运行时实例
 └──────┬──────────────┘
-       │ Layout
+       │ FiberToNodeAdapter + Layout
        ▼
 ┌─────────────────────┐
-│ LayoutResult        │ ← paint.PaintableBox + 布局信息
+│ LayoutResult        │ ← LayoutBox + 布局信息
+└──────┬──────────────┘
+       │ FiberToPaintableConverter
+       ▼
+┌─────────────────────┐
+│ paint.PaintableBox  │ ← paint-stage 数据结构
 └──────┬──────────────┘
        │ Paint
        ▼
@@ -299,7 +310,7 @@ Fiber 通过适配器模式与 runtime/layout 解耦集成：
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │              Fiber (运行时实体)                          │   │
 │  │  - Style (布局输入)                                      │   │
-│  │  - Instance (paint.PaintableBox)                        │   │
+│  │  - Instance (runtime/ui.ComponentInstance)              │   │
 │  │  - Props, State                                         │   │
 │  └────────────────────────┬────────────────────────────────┘   │
 │                           │                                     │
@@ -336,7 +347,7 @@ Fiber 通过适配器模式与 runtime/layout 解耦集成：
 | fiber.ActionTargetID / fiber.Key | Node.ID() | 节点唯一标识 |
 | fiber.Style.Layer | Layered.GetLayer() | 渲染层 |
 | fiber.Style.ZIndex | Layered.GetZIndex() | 层内排序 |
-| fiber.Instance.GetSize() | Measurable.Measure() | 尺寸计算 |
+| fiber.Instance.Measure(...) / fiber.Style / fiber.Props | Measurable.Measure() | 尺寸计算 |
 | fiber.Flags & FlagLayoutDirty | Dirtyable.IsLayoutDirty() | 增量布局 |
 
 ---
@@ -370,7 +381,7 @@ type Fiber struct {
     Alternate *Fiber
     
     // Runtime Entity
-    Instance  paint.PaintableBox  // ✅ 持有运行时实例
+    Instance  rtui.ComponentInstance  // ✅ 持有运行时实例
     
     // Layout Input (只读)
     Style     Style               // ✅ 从 VNode 提取的样式
@@ -411,7 +422,7 @@ func (e *LayoutEngine) layoutFiberNode(fiber *Fiber, constraints Constraints) *L
     // 2. 布局当前节点
     layoutNode := &LayoutNode{
         Fiber:    fiber,
-        Instance: fiber.Instance,  // paint.PaintableBox
+        Instance: fiber.Instance,  // ComponentInstance
         Box:      e.calculateBox(style, constraints),
     }
     
@@ -444,33 +455,11 @@ func (e *PaintEngine) Paint(vnode VNode, computedBox ComputedBox, buf *Buffer) {
 
 #### 新实现
 ```go
-// ✅ 纯 paint.PaintableBox 驱动
-func (e *PaintEngine) PaintLayout(layoutResult *LayoutResult, buf *paint.Buffer) {
-    e.paintLayoutNode(layoutResult.Root, buf)
-}
-
-func (e *PaintEngine) paintLayoutNode(node *LayoutNode, buf *paint.Buffer) {
-    if node.Instance == nil {
-        // 递归子节点
-        for _, child := range node.Children {
-            e.paintLayoutNode(child, buf)
-        }
-        return
-    }
-    
-    // 调用 paint.PaintableBox.Paint()
-    drawCommands := node.Instance.Paint(node.Box.X, node.Box.Y)
-    
-    // 执行绘制命令
-    for _, cmd := range drawCommands {
-        e.executeDrawCommand(cmd, buf)
-    }
-    
-    // 递归绘制子节点
-    for _, child := range node.Children {
-        e.paintLayoutNode(child, buf)
-    }
-}
+// ✅ 当前主路径：LayoutBox 先转换为 paint.PaintableBox，再交给 PaintEngine
+layoutResult := layoutEngine.Layout(rootAdapter, constraints)
+converter := render.NewFiberToPaintableConverter(fiberRoot)
+paintableRoot := converter.Convert(layoutResult.Root, nil)
+paintEngine.Paint(paintableRoot, buf)
 ```
 
 ### 4. 渲染管线变更
@@ -493,11 +482,12 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
     n.reconciler.Reconcile(n.renderFn)
     // VNode 在这里被丢弃
     
-    // Phase 2: Fiber-based Layout
-    layoutResult := n.layoutEngine.LayoutFiber(n.fiberRoot, ctx.Constraints)
+    // Phase 2: Fiber-based Layout via FiberToNodeAdapter
+    layoutResult := n.layoutEngine.Layout(rootAdapter, ctx.Constraints)
     
-    // Phase 3: Paint PaintableBox
-    n.paintEngine.PaintLayout(layoutResult, buf)
+    // Phase 3: LayoutBox -> PaintableBox -> PaintEngine
+    paintableRoot := n.converter.Convert(layoutResult.Root, nil)
+    n.paintEngine.Paint(paintableRoot, buf)
 }
 ```
 
@@ -516,7 +506,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 
 2. **添加 Fiber.Instance 字段**
    ```go
-   Instance paint.PaintableBox
+   Instance rtui.ComponentInstance
    ```
 
 3. **添加 Fiber.Style 字段**
@@ -546,13 +536,13 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 2. **实现 LayoutFiber 方法**
    - 替换 `Layout(vnode VNode, ...)`
    - 只读 Fiber 树
-   - 返回 LayoutResult (paint.PaintableBox + Box)
+   - 返回 LayoutResult (LayoutBox tree)
 
 3. **创建 LayoutNode 结构**
    ```go
    type LayoutNode struct {
        Fiber    *Fiber
-       Instance paint.PaintableBox
+       Instance rtui.ComponentInstance
        Box      Box
        Children []*LayoutNode
    }
@@ -566,7 +556,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 #### 验证
 - [ ] Layout 不访问 VNode
 - [ ] Layout 只读 Fiber
-- [ ] LayoutResult 包含 paint.PaintableBox
+- [ ] LayoutResult 包含 LayoutBox，之后由 converter 生成 paint.PaintableBox
 
 ### Phase 3: Paint 引擎优化 (3-5天)
 
@@ -582,9 +572,10 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
    - 调用 `instance.Paint(x, y)`
    - 执行 DrawCommand
 
-3. **优化 paint.PaintableBox 接口**
+3. **使用 runtime/ui.PaintableInstance 作为组件绘制能力**
    ```go
-   type PaintableBox interface {
+   type PaintableInstance interface {
+       ComponentInstance
        Paint(x, y int) []paint.DrawCmd
    }
    ```
@@ -595,8 +586,8 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 
 #### 验证
 - [ ] Paint 不访问 VNode
-- [ ] Paint 只用 paint.PaintableBox
-- [ ] 所有组件实现 PaintableBox
+- [ ] PaintEngine 输入 paint.PaintableBox
+- [ ] 需要自绘的组件实例实现 runtime/ui.PaintableInstance
 
 ### Phase 4: 渲染管线集成 (5-7天)
 
@@ -657,7 +648,7 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 - `components/*/instance.go`
 
 #### 验证
-- [ ] 所有组件实现 paint.PaintableBox
+- [ ] 需要自绘的组件实例实现 runtime/ui.PaintableInstance
 - [ ] 所有组件测试通过
 - [ ] 示例应用正常运行
 
@@ -694,15 +685,15 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 
 | 指标 | 旧架构 | 新架构 | 提升 |
 |------|--------|--------|------|
-| 内存占用 | VNode + Fiber + ComputedBox | Fiber + paint.PaintableBox | ~30% ↓ |
+| 内存占用 | VNode + Fiber + ComputedBox | Fiber + ComponentInstance + LayoutBox/PaintableBox | 需基准验证 |
 | 渲染时间 | VNode 创建 + Layout + Paint | Layout + Paint | ~20% ↓ |
 | GC 压力 | 每帧创建 VNode | 仅更新 Fiber | ~40% ↓ |
-| 并发能力 | ❌ | ✅ | ∞ |
+| 并发能力 | 弱 | 保留 lane 元数据，主路径仍同步 | 长期方向 |
 
 ### 风险控制
 
 #### 高风险点
-1. **组件迁移** - 需要所有组件实现 paint.PaintableBox
+1. **组件迁移** - 需要自绘组件实现 runtime/ui.PaintableInstance，并由 converter 生成 paint.PaintableBox
 2. **布局兼容性** - 确保新 Layout 引擎结果一致
 3. **性能回退** - 密切监控性能指标
 
@@ -719,8 +710,8 @@ func (n *DeclarativeNode) Paint(ctx PaintContext, buf *Buffer) {
 ### 技术标准
 - [ ] VNode 在 commit 后被完全丢弃
 - [ ] Layout 只读 Fiber
-- [ ] Paint 只用 paint.PaintableBox
-- [ ] 所有组件实现 paint.PaintableBox
+- [ ] PaintEngine 输入 paint.PaintableBox
+- [ ] 需要自绘的组件实例实现 runtime/ui.PaintableInstance
 - [ ] 性能提升 > 15%
 
 ### 功能标准

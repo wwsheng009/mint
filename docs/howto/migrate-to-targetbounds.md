@@ -1,139 +1,62 @@
-# Migrate Components to MouseEvent.TargetBounds
+# Migrate Components To `TargetBounds`
 
-## Overview
+This guide explains how to migrate mouse-aware components away from stale local bounds checks and toward HitMap-derived target bounds.
 
-This guide explains how to migrate components to use `MouseEvent.TargetBounds` for accurate hit testing, fixing issues where components don't respond to clicks after layout transforms (e.g., modal centering).
+## Current Event Model
 
-### The Problem
+Current mouse targeting is primarily carried by `runtime/msg.MouseMsg`.
 
-Components previously used internal `bounds` state for hit testing, which could become stale after layout transforms like modal centering:
+The event pump fills mouse target data from the latest HitMap:
+
+- `TargetID`
+- `TargetFiber`
+- `LocalX`
+- `LocalY`
+- `TargetBounds`
+
+Compatibility `framework/event.MouseEvent` also has `TargetBounds`, but new code should prefer the runtime `msg` / action path where possible.
+
+Relevant source:
+
+- `../../framework/event/pump.go`: fills mouse target fields from HitMap.
+- `../../framework/event/event.go`: legacy `MouseEvent.TargetBounds`.
+- `../../runtime/msg/mouse_msg.go`: current `MouseMsg` target fields.
+- `../../runtime/event/hitmap.go`: HitMap construction and hit testing.
+- `../../internal/render/declarative_node.go`: stores/returns render HitMap.
+
+## Problem
+
+Local component bounds can become stale after transforms such as modal centering, Portal positioning, overlay clamping, or layer-specific layout.
+
+Old style:
 
 ```go
-// OLD: Uses internal bounds (can be stale)
-if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == framewarkevent.MouseLeft {
+if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) &&
+    mouseEvent.Button == frameworkevent.MouseLeft {
     // Handle click...
 }
 ```
 
-### The Solution
+This can fail when the component's internal bounds do not match the final rendered position.
 
-Use `MouseEvent.TargetBounds` which contains the final rendered position from the HitMap:
+## Preferred Pattern
 
-```go
-// NEW: Uses TargetBounds (always accurate)
-if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-    inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
-        mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
-        mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
-        mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
-
-    if inBounds && mouseEvent.Button == framewarkevent.MouseLeft {
-        // Handle click...
-    }
-}
-```
-
-## When to Migrate
-
-Migrate components that:
-
-1. ✅ **Handle mouse clicks** (`EventMousePress`, `EventClick`)
-2. ✅ **Have bounds-based hit testing** (use `ContainsPoint()` or similar)
-3. ✅ **Are used inside modals/overlays** (where centering transforms happen)
-
-### Components That Need Migration
-
-Based on codebase analysis:
-
-| Component | Has HandleEvent | Mouse Events | Priority |
-|-----------|----------------|--------------|----------|
-| Button ✅ | ✅ | EventMousePress, EventMouseRelease | ✅ Done |
-| Checkbox | ✅ | EventMousePress, EventClick | High |
-| Modal | ✅ | EventMousePress (click-outside) | High |
-| Input | ✅ | EventMousePress (focus handling) | Medium |
-| Select | ✅ | EventMousePress (dropdown toggle) | Medium |
-| Textarea | ✅ | EventMousePress (focus handling) | Medium |
-| TreeView | ✅ | EventMousePress (node selection) | Medium |
-| Tabs | ✅ | EventMousePress (tab selection) | Low |
-| Panel | ✅ | EventMousePress (forwarding only) | Low |
-
-## Step-by-Step Migration
-
-### Phase 1: Identify the Pattern
-
-Look for code like this in your component's `HandleEvent` method:
+Use target bounds from the HitMap-populated event/message when available:
 
 ```go
-case frameworkevent.EventMousePress:
-    // OLD: Uses internal bounds
-    if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
-        // Handle click...
-    }
-```
-
-### Phase 2: Apply the TargetBounds Pattern
-
-Replace with:
-
-```go
-case frameworkevent.EventMousePress:
-    // Phase 3: Use TargetBounds from event for accurate hit testing
-    // TargetBounds contains the final rendered position after all transforms (modal centering, etc.)
-    if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-        // NEW: Use TargetBounds for hit testing (post-transform position from HitMap)
-        inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
-            mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
-            mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
-            mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
-
-        if inBounds && mouseEvent.Button == frameworkevent.MouseLeft {
-            // Handle click...
-        }
-    } else {
-        // FALLBACK: Use internal bounds if TargetBounds not available (legacy path)
-        // This should only happen if HitMap is not properly populated
-        log.UILogger.Debug("Component EventMousePress: TargetBounds empty, using legacy bounds check")
-        if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
-            // Handle click...
-        }
-    }
-```
-
-### Phase 3: Remove Old Helper Methods (Optional)
-
-If your component has a `ContainsPoint` or `containsPoint` method that's no longer needed:
-
-```go
-// OLD: Can be removed if no longer used
-func (c *Component) ContainsPoint(x, y int) bool {
-    if c.bounds[2] <= 0 || c.bounds[3] <= 0 {
+func containsTargetBounds(x, y int, bounds types.Rect) bool {
+    if bounds.Width <= 0 || bounds.Height <= 0 {
         return false
     }
-    return x >= c.bounds[0] && x < c.bounds[0]+c.bounds[2] &&
-        y >= c.bounds[1] && y < c.bounds[1]+c.bounds[3]
+    return x >= bounds.X &&
+        x < bounds.X+bounds.Width &&
+        y >= bounds.Y &&
+        y < bounds.Y+bounds.Height
 }
 ```
 
-**Note:** Keep the method if it's still used elsewhere in the component.
+For legacy `frameworkevent.MouseEvent`:
 
-## Component-Specific Patterns
-
-### Pattern 1: Click Targets (Button, Checkbox, Input)
-
-These components respond to clicks on their own bounds.
-
-**Before (Button):**
-```go
-case frameworkevent.EventMousePress:
-    if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == frameworkevent.MouseLeft {
-        if b.onClick != nil {
-            b.onClick()
-        }
-        return true
-    }
-```
-
-**After:**
 ```go
 case frameworkevent.EventMousePress:
     if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
@@ -143,194 +66,105 @@ case frameworkevent.EventMousePress:
             mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
 
         if inBounds && mouseEvent.Button == frameworkevent.MouseLeft {
-            if b.onClick != nil {
-                b.onClick()
-            }
-            return true
+            return c.handleClick()
         }
-    } else {
-        // Fallback...
-    }
-```
-
-### Pattern 2: Click-Outside Detection (Modal)
-
-These components detect clicks outside their bounds (e.g., modal close on click-outside).
-
-**Before (Modal):**
-```go
-case frameworkevent.EventMousePress:
-    // Check if click is outside modal bounds
-    if !m.containsPoint(mouseEvent.X, mouseEvent.Y) {
-        m.isOpen = false
-        if m.onClose != nil {
-            m.onClose()
-        }
-        return true
-    }
-```
-
-**After:**
-```go
-case frameworkevent.EventMousePress:
-    // Check if click is outside modal bounds
-    if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-        // NEW: Use TargetBounds for hit testing
-        inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
-            mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
-            mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
-            mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
-
-        if !inBounds {
-            m.isOpen = false
-            if m.onClose != nil {
-                m.onClose()
-            }
-            return true
-        }
-    } else {
-        // Fallback: Use legacy bounds check
-        if !m.containsPoint(mouseEvent.X, mouseEvent.Y) {
-            m.isOpen = false
-            if m.onClose != nil {
-                m.onClose()
-            }
-            return true
-        }
-    }
-```
-
-### Pattern 3: Container Components (Panel)
-
-These components forward events to children. They typically don't need bounds checking.
-
-**No migration needed:**
-```go
-func (p *Panel) HandleEvent(ev frameworkevent.Event) bool {
-    // Only forward mouse events
-    if ev.Type() != frameworkevent.EventMousePress {
         return false
     }
 
-    // Forward to child component
-    if contentComponent, ok := p.content.(frameworkevent.Component); ok {
-        return contentComponent.HandleEvent(ev)
+    // Compatibility fallback for paths where HitMap is unavailable.
+    if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) &&
+        mouseEvent.Button == frameworkevent.MouseLeft {
+        return c.handleClick()
     }
-
-    return false
-}
 ```
+
+For current `runtime/msg.MouseMsg` / Action payloads, prefer using the payload's `TargetBounds` and `TargetFiber` instead of converting back to framework events.
+
+## When To Migrate
+
+Prioritize components that:
+
+- Handle mouse press/release/click/wheel.
+- Perform `ContainsPoint`, `containsPoint`, or manual bounds checks.
+- Render inside Modal, Popover, Popconfirm, Tooltip, Drawer, Select popup, Menu popup or Portal.
+- Need correct click-outside behavior.
+
+Do not migrate a component purely because it forwards events to children and does not own hit testing.
+
+## Component Status
+
+This document is a migration guide, not an authoritative status matrix. The codebase has evolved, and several components still intentionally use local geometry for component-internal subregions.
+
+Before updating a status table, inspect the actual component:
+
+```bash
+rg "ContainsPoint|containsPoint|TargetBounds|TargetFiber|LocalX|LocalY" ui/components/<component>
+```
+
+Known areas that deserve careful review:
+
+- `ui/components/button`
+- `ui/components/modal`
+- `ui/components/select`
+- `ui/components/popover`
+- `ui/components/popconfirm`
+- `ui/components/menu`
+- `ui/components/input`
+- `ui/components/textarea`
+- `ui/components/treeview`
+- `ui/components/tabs`
+
+## Click-Outside Components
+
+Click-outside logic must distinguish the overlay content target from backdrop or outside targets. For overlay components, do not blindly treat the current event target bounds as the modal content bounds unless the HitMap target is known to be the modal content.
+
+Safer approach:
+
+- Use `TargetFiber` / target metadata when available.
+- Keep local content rectangle checks when they refer to computed overlay content bounds.
+- Add E2E coverage for centered modal, edge-clamped popup, and nested overlay cases.
 
 ## Testing Checklist
 
 After migration, verify:
 
-- [ ] Component responds to clicks in normal layout
-- [ ] Component responds to clicks inside modal (if applicable)
-- [ ] Component responds to clicks after window resize
-- [ ] Hover states work correctly
-- [ ] Focus handling still works
-- [ ] No regression in keyboard interaction
-- [ ] Fallback path logs warning (check logs with `TUI_DEBUG_UI=true`)
+- Component responds to clicks in normal layout.
+- Component responds to clicks inside Modal / Portal.
+- Click-outside behavior still works.
+- Hover and focus behavior still works.
+- Keyboard interaction is unchanged.
+- HitMap debug logs show the expected target.
 
-### Test Case: Modal Button Click
+Useful commands:
 
 ```bash
-# Enable debug logging
-export TUI_DEBUG_UI=true
-
-# Run the app with modal buttons
-go run ./examples/modal
-
-# Click on modal buttons and verify:
-# 1. No "legacy bounds" warnings in logs
-# 2. TargetBounds logs show correct coordinates
-# 3. Buttons respond to clicks
+TUI_LOG_OUTPUT=console TUI_DEBUG_HITMAP=true TUI_DEBUG_PUMP=true go run ./examples/modal
+go test ./ui/e2e -run Modal -count=1
+go test ./ui/e2e -run Overlay -count=1
+go test ./ui/components/button ./ui/components/modal ./ui/components/select -count=1
 ```
 
 ## Common Pitfalls
 
-### ❌ Don't Use Internal Bounds After Layout Transforms
+### Do Not Trust Stale Bounds After Layout Transforms
 
 ```go
-// WRONG: This will fail after modal centering
-if mouseEvent.X >= b.bounds[0] && mouseEvent.X < b.bounds[0]+b.bounds[2] {
-    // Handle click...
+// Avoid using stale local geometry as the only source of truth.
+if mouseEvent.X >= c.bounds[0] && mouseEvent.X < c.bounds[0]+c.bounds[2] {
+    // ...
 }
 ```
 
-### ❌ Don't Forget the Fallback Path
+### Keep A Fallback For Legacy Paths
 
-```go
-// INCOMPLETE: No fallback if TargetBounds is empty
-if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-    // Handle with TargetBounds...
-}
-// Missing: What if TargetBounds is empty?
-```
+Some tests or compatibility event paths may not have a populated HitMap. Keep the fallback until the component is fully moved to the current Action/Msg path.
 
-### ✅ Always Include Fallback
+### Do Not Use The Wrong Target
 
-```go
-if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-    // NEW: Use TargetBounds
-} else {
-    // FALLBACK: Use legacy bounds
-    log.UILogger.Debug("TargetBounds empty, using legacy check")
-    // Legacy handling...
-}
-```
+For overlay click-outside behavior, the HitMap target may be a child component, backdrop, trigger, popup, or unrelated content. Confirm target semantics before replacing existing geometry logic.
 
-## Migration Status
+## Related Docs
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Button | ✅ Complete | Uses TargetBounds with fallback |
-| Checkbox | ⏳ Pending | High priority - commonly used in forms |
-| Modal | ⏳ Pending | High priority - click-outside detection |
-| Input | ⏳ Pending | Medium priority - focus handling |
-| Select | ⏳ Pending | Medium priority - dropdown toggle |
-| Textarea | ⏳ Pending | Medium priority - focus handling |
-| TreeView | ⏳ Pending | Medium priority - node selection |
-| Tabs | ⏳ Pending | Low priority - mostly keyboard nav |
-| Panel | ✅ No migration needed | Container, forwards events only |
-
-## Related Documentation
-
-- **Investigation:** `docsArchive/issue/modal-button-click-investigation.md`
-- **Architecture:** Runtime event system, HitMap-based routing
-- **Implementation:**
-  - `framework/event/event.go` - MouseEvent.TargetBounds definition
-  - `framework/event/pump.go` - TargetBounds population from HitMap
-  - `components/button/button.go` - Reference implementation
-
-## Summary
-
-**Key Points:**
-
-1. **TargetBounds is authoritative** - Contains final rendered position from HitMap
-2. **Always include fallback** - For cases where HitMap isn't populated
-3. **Log debug info** - Helps troubleshoot if issues arise
-4. **Test with modals** - That's where the bug manifests
-
-**Migration Formula:**
-
-```go
-// Replace this:
-if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) {
-
-// With this:
-if mouseEvent.TargetBounds.Width > 0 && mouseEvent.TargetBounds.Height > 0 {
-    inBounds := mouseEvent.X >= mouseEvent.TargetBounds.X &&
-        mouseEvent.X < mouseEvent.TargetBounds.X+mouseEvent.TargetBounds.Width &&
-        mouseEvent.Y >= mouseEvent.TargetBounds.Y &&
-        mouseEvent.Y < mouseEvent.TargetBounds.Y+mouseEvent.TargetBounds.Height
-    if inBounds {
-
-// Plus fallback:
-} else {
-    log.UILogger.Debug("TargetBounds empty, using legacy")
-    if c.ContainsPoint(mouseEvent.X, mouseEvent.Y) {
-```
-
-Questions? Refer to the Button implementation in `components/button/button.go:537` as a reference.
+- [../event/long_term_event_architecture.md](../event/long_term_event_architecture.md)
+- [../event/PRESSED_STATE_COMPLETE_SOLUTION.md](../event/PRESSED_STATE_COMPLETE_SOLUTION.md)
+- [../features/focus/README.md](../features/focus/README.md)

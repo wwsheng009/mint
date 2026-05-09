@@ -22,10 +22,10 @@
    - **优先使用 BoxModel 接口**（类型安全）
    - 回退到 props（向后兼容）
 
-4. **Button 组件集成** (`components/button/button.go`)
+4. **Button 组件集成** (`ui/components/button/`)
    - 嵌入 `rtui.BoxModelMixin`
-   - `Measure()` 使用 `b.Padding()` 计算尺寸
-   - `Paint()` 使用 `b.Padding()` 和 `b.TextAlign()` 渲染
+   - `VNode` 通过 `BoxModelMixin` 暴露 padding / margin / text align
+   - `Instance.Measure()` 和 `Instance.Paint()` 使用 props 中同步来的 box model 数据
 
 ---
 
@@ -34,7 +34,7 @@
 ### ✅ 测试 1: Padding 正确设置
 
 ```go
-btn := app.ButtonBuilder("Test").PaddingAll(2).Build()
+btn := ui.NewButtonBuilder("Test").PaddingAll(2).Build()
 // btn.Padding() → [2, 2, 2, 2] ✅
 ```
 
@@ -45,7 +45,7 @@ btn := app.ButtonBuilder("Test").PaddingAll(2).Build()
 ### ✅ 测试 2: Margin 正确设置
 
 ```go
-btn := app.ButtonBuilder("Test").MarginAll(1).Build()
+btn := ui.NewButtonBuilder("Test").MarginAll(1).Build()
 // btn.Margin() → [1, 1, 1, 1] ✅
 ```
 
@@ -54,7 +54,7 @@ btn := app.ButtonBuilder("Test").MarginAll(1).Build()
 ### ✅ 测试 3: TextAlign 正确设置
 
 ```go
-btn := app.ButtonBuilder("Test").SetTextAlign(rtui.AlignCenter).Build()
+btn := ui.NewButtonBuilder("Test").TextAlign(rtui.AlignCenter).Build()
 // btn.TextAlign() → 1 (AlignCenter) ✅
 ```
 
@@ -64,9 +64,9 @@ btn := app.ButtonBuilder("Test").SetTextAlign(rtui.AlignCenter).Build()
 
 ```go
 hstack := ui.HStackBuilder(
-    app.ButtonBuilder("Left").Flex(1).Build(),
-    app.ButtonBuilder("Center").Flex(1).Build(),
-    app.ButtonBuilder("Right").Flex(1).Build(),
+    ui.NewButtonBuilder("Left").Flex(1).Build(),
+    ui.NewButtonBuilder("Center").Flex(1).Build(),
+    ui.NewButtonBuilder("Right").Flex(1).Build(),
 ).Gap(1).Build()
 ```
 
@@ -78,10 +78,10 @@ hstack := ui.HStackBuilder(
 ### ✅ 测试 5: 组合功能
 
 ```go
-btn := app.ButtonBuilder("Test").
+btn := ui.NewButtonBuilder("Test").
     PaddingAll(2).      // [2,2,2,2]
     MarginAll(1).       // [1,1,1,1]
-    SetTextAlign(Center). // AlignCenter
+    TextAlign(rtui.AlignCenter). // AlignCenter
     Flex(1).            // flex=1
     Build()
 ```
@@ -123,9 +123,9 @@ func setPadding(vnode VNode, top, right, bottom, left int) {
 ### Button with Padding and Alignment
 
 ```go
-app.ButtonBuilder("Click Me").
+ui.NewButtonBuilder("Click Me").
     PaddingAll(2).              // 内边距
-    SetTextAlign(rtui.AlignCenter). // 文字居中
+    TextAlign(rtui.AlignCenter). // 文字居中
     Flex(1).                    // 填充可用宽度
     Build()
 ```
@@ -134,20 +134,20 @@ app.ButtonBuilder("Click Me").
 
 ```go
 ui.HStackBuilder(
-    app.ButtonBuilder("Left").
+    ui.NewButtonBuilder("Left").
         PaddingH(1, 2).
         Flex(1).
-        SetTextAlign(rtui.AlignStart).
+        TextAlign(rtui.AlignStart).
         Build(),
-    app.ButtonBuilder("Center").
+    ui.NewButtonBuilder("Center").
         PaddingH(1, 1).
         Flex(1).
-        SetTextAlign(rtui.AlignCenter).
+        TextAlign(rtui.AlignCenter).
         Build(),
-    app.ButtonBuilder("Right").
+    ui.NewButtonBuilder("Right").
         PaddingH(2, 1).
         Flex(1).
-        SetTextAlign(rtui.AlignEnd).
+        TextAlign(rtui.AlignEnd).
         Build(),
 ).
     Gap(1).

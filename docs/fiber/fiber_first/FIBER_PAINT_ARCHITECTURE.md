@@ -183,15 +183,19 @@ func CloneFiber(fiber *Fiber) *Fiber {
 2. **Instance 状态持久** - 跨渲染保持 focus, hover 等状态
 3. **无 VNode 运行期依赖** - Fiber 只持有 Instance
 4. **并发安全** - WIP 树和 current 树共享 Instance
-5. **支持 time-slicing** - Instance 不受重渲染影响
-6. **符合文档设计** - 严格按照 fiber_paint.md 实现
+5. **为后续调度优化打基础** - Instance 不受重渲染影响
+6. **符合 Fiber-first paint 目标** - Layout/Paint 使用 Fiber 与 Instance，不依赖 VNode 运行期状态
+
+> 注意：主 reconciler 当前仍是同步 `workLoopSync()`，不要把本文的 Instance 持久化解读为默认路径已经具备 time-slicing 或 lane preemption。
 
 ## Files Changed
 
-- `runtime/ui/instance.go` - ComponentInstance interface and BaseComponentInstance
-- `runtime/ui/fiber.go` - Added Instance field
+- `runtime/ui/instance.go` - ComponentInstance, PaintableInstance, FocusableInstance and related capabilities
+- `runtime/ui/fiber.go` - Fiber fields including Instance
 - `runtime/ui/fiber_util.go` - CreateFiber creates Instance, CloneFiber reuses Instance
-- `runtime/compute/adapter_fiber.go` - Uses Instance.Paint()
-- `components/button/button_instance.go` - ButtonInstance implementation
-- `components/button/button.go` - ButtonVNode.CreateInstance()
-
+- `internal/reconciler/*` - Fiber reconciliation lifecycle
+- `internal/render/fiber_adapter.go` - Fiber to layout.Node adapter
+- `internal/render/converter.go` - Fiber to paint.PaintableBox conversion
+- `internal/render/paint_engine.go` - PaintablePlanes rendering
+- `ui/components/button/instance.go` - ButtonInstance implementation
+- `ui/components/button/vnode.go` - Button VNode CreateInstance implementation

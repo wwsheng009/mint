@@ -1,344 +1,124 @@
-# 鼠标点击切换焦点功能实现
+# 鼠标点击切换焦点实现
 
-## 功能描述
+本文记录当前源码中的鼠标点击焦点切换实现。早期实现文档曾聚焦 `DeclarativeNode.HandleEvent()` 中的 legacy event fallback；当前主实现已经迁移到 `framework.App.processMsg` 的 Fiber-first action 路径。
 
-现在鼠标点击可聚焦组件（Button、Input 等）时，会自动切换焦点到该组件，就像 Tab 键导航一样。
+## 当前主实现
 
----
+鼠标点击从终端输入到焦点切换的流程：
 
-## 实现方式
+```text
+RawInput(mouse)
+  -> framework/event.Pump.convertToMouseMsg
+  -> HitMap.HitTest
+  -> MouseMsg.TargetFiber / TargetBounds / LocalX / LocalY
+  -> framework.App.processMsg
+  -> InputProcessor: MouseActionPress + MouseLeft -> ActionClick
+  -> nearestFocusableFiber(TargetFiber)
+  -> FiberFocusManager.SetFocusByID(NodeID)
+  -> ActionBridge.DispatchFromFiber(TargetFiber, ActionClick, MouseMsg)
+```
 
-### 修改文件：`internal/render/declarative_node.go`
+## 关键实现点
 
-### 1. 在事件处理流程中插入鼠标焦点切换
+### 1. Pump 填充 TargetFiber
 
-**位置**: `DeclarativeNode.HandleEvent()` 行 1073-1097
+`framework/event/pump.go` 在转换鼠标输入时，会使用当前 HitMap 做命中测试，并把命中结果写入 `MouseMsg`：
+
+```text
+MouseMsg.TargetID
+MouseMsg.TargetFiber
+MouseMsg.TargetBounds
+MouseMsg.LocalX / LocalY
+```
+
+这一步让后续 action 路由不需要重新遍历 VNode 树。
+
+### 2. InputProcessor 生成语义 Action
+
+`runtime/action/processor.go` 将左键 press 映射为 `ActionClick`：
+
+```text
+MouseActionPress + MouseLeft -> ActionClick
+MouseActionRelease + MouseLeft -> ActionMouseRelease
+MouseActionWheel -> ActionScroll
+MouseActionMove -> ActionHover
+```
+
+### 3. App 处理焦点转移
+
+`framework.App.processMsg` 在鼠标目标路由阶段：
+
+- 对 press 建立 mouse capture。
+- 对 release 应用并清理 capture。
+- 当 action 是 `ActionClick` 时，查找 `TargetFiber` 最近的可聚焦 Fiber。
+- 调用 `FiberFocusManager.SetFocusByID` 写入焦点状态。
+- 继续通过 `ActionBridge.DispatchFromFiber` 把 action 分发给目标。
+
+焦点切换和组件点击处理因此在同一条 action 路径中完成。
+
+### 4. 组件实例接收焦点状态
+
+可聚焦组件通过运行期实例实现 `rtui.FocusableInstance`：
 
 ```go
-// 1.5. Handle mouse clicks - switch focus before dispatching event
-// This ensures that clicking a button focuses it before triggering its action
-if ev.Type().IsMouse() {
-    if mouseEv, ok := ev.(*frameworkevent.MouseEvent); ok {
-        // Handle mouse press and click events
-        if ev.Type() == frameworkevent.EventMousePress || ev.Type() == frameworkevent.EventClick {
-            if n.handleMouseFocus(mouseEv) {
-                // Focus was switched, trigger re-render
-                if useFiber && reconciler != nil {
-                    if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
-                        r.r.ScheduleUpdate(rtui.LaneSyncLane)
-                    }
-                } else {
-                    if fwApp := n.getFrameworkApp(); fwApp != nil {
-                        fwApp.MarkDirty()
-                    }
-                }
-                // Continue to dispatch the event to the newly focused element
-            }
-        }
-    }
+type FocusableInstance interface {
+    ComponentInstance
+    SetFocus(bool)
+    HasFocus() bool
+    IsDisabled() bool
 }
 ```
 
-**关键点**：
-- 在焦点管理器处理 Tab 键之后（行 1039-1072）
-- 在分发事件到组件之前（行 1100）
-- 这样确保鼠标点击先切换焦点，再触发按钮的 onClick
+Button 的当前实现位于 `ui/components/button/instance.go`。`SetFocus(true)` 会更新 `control.InteractionState.Focused` 并标记 dirty，后续 paint 使用该状态绘制焦点样式。
 
----
+## legacy fallback
 
-### 2. 实现鼠标焦点切换逻辑
+`internal/render/declarative_node_event.go` 仍包含：
 
-**新增方法**: `handleMouseFocus()` 行 1154-1193
+- `DeclarativeNode.HandleEvent`
+- `handleMouseFocus`
+- `nodeWasClicked`
 
-```go
-func (n *DeclarativeNode) handleMouseFocus(mouseEv *frameworkevent.MouseEvent) bool {
-    // 1. 收集所有可聚焦节点
-    var focusable []rtui.FocusableVNode
-    hasModal := rtui.HasModalInTree(n.root)
+这些用于旧 framework event 路径。它们的存在不代表当前主输入路径仍依赖 VNode focusable 遍历。维护文档时应优先描述 `MouseMsg.TargetFiber -> App.processMsg -> FiberFocusManager`。
 
-    if hasModal {
-        // Modal 打开：只考虑 modal 层的节点
-        focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-    } else {
-        // 普通：考虑所有可聚焦节点
-        focusable = rtui.CollectFocusable(n.root)
-    }
+## 行为保证
 
-    // 2. 找到被点击的节点
-    for i, node := range focusable {
-        if n.nodeWasClicked(node, mouseEv.X, mouseEv.Y) {
-            currentIndex := n.focusMgr.CurrentIndex()
-            if i == currentIndex {
-                return false  // 已经是焦点，无需切换
-            }
+当前实现目标：
 
-            // 3. 切换焦点
-            n.focusMgr.SetFocusByIndex(i)
-            return true  // 焦点已切换
-        }
-    }
+- 鼠标点击可聚焦组件时焦点跟随目标。
+- 点击非可聚焦子节点时，可向上找到最近可聚焦祖先。
+- Modal / layer 场景下仍由 FocusManager 的 active layer 约束控制 Tab 范围。
+- action 分发仍以实际命中的 `TargetFiber` 为目标，不因焦点转移而丢失鼠标目标。
 
-    return false  // 没有点中任何 focusable 节点
-}
-```
-
----
-
-### 3. 实现点击检测（Hit Testing）
-
-**新增方法**: `nodeWasClicked()` 行 1195-1227
-
-```go
-func (n *DeclarativeNode) nodeWasClicked(node rtui.VNode, x, y int) bool {
-    // 方式 1: 使用 bounds（从 Paint 时设置的）
-    if boundsAware, ok := node.(interface{ GetBounds() (x, y, width, height int) }); ok {
-        bx, by, bw, bh := boundsAware.GetBounds()
-        // 检查鼠标坐标是否在边界内
-        if x >= bx && x < bx+bw && y >= by && y < by+bh {
-            return true  // 命中！
-        }
-        return false
-    }
-
-    // 方式 2: 回退到 ContainsPoint 方法
-    if hasContainsPoint, ok := node.(interface{ ContainsPoint(x, y int) bool }); ok {
-        return hasContainsPoint.ContainsPoint(x, y)
-    }
-
-    return false
-}
-```
-
-**Hit Testing 机制**：
-- 使用组件在 Paint 时设置的 bounds（x, y, width, height）
-- bounds 是组件在屏幕上的绝对位置
-- 鼠标坐标与 bounds 对比，判断是否命中
-
----
-
-## 完整的事件处理流程
-
-```
-鼠标点击按钮
-
-1. framework/app.go:handleEvent()
-   ↓
-2. DeclarativeNode.HandleEvent(ev)
-   ├→ 0. 处理 ESC 关闭 modal
-   ├→ 1. 焦点管理器处理 Tab/Shift+Tab
-   │
-   ├→ 1.5. 【新增】处理鼠标点击切换焦点
-   │   ├→ handleMouseFocus(mouseEv)
-   │   │   ├→ CollectFocusable(root) - 收集所有可聚焦节点
-   │   │   ├→ nodeWasClicked(node, x, y) - 遍历节点检查命中
-   │   │   ├─ 命中！
-   │   │   ├─ SetFocusByIndex(i) - 切换焦点到被点击节点
-   │   │   └─ requestRender() - 重新渲染显示新焦点
-   │   └─ 继续处理事件
-   │
-   ├→ 2. 分发事件到焦点元素
-   │   └─ Button.HandleEvent(ev)
-   │       └→ onClick() - 触发按钮动作
-   │
-   └→ 3. 全局事件分发（如果前面都没处理）
-```
-
----
-
-## 关键设计决策
-
-### 1. 事件处理优先级
-
-| 优先级 | 处理器 | 处理的事件 |
-|--------|--------|----------|
-| 0 | Layer 事件处理器 | ESC 关闭 modal |
-| 1 | **焦点管理器** | **Tab/Shift+Tab 导航** |
-| 1.5 | **鼠标焦点切换** | **鼠标点击切换焦点** ✨ 新增 |
-| 2 | 焦点元素分发 | Enter/Space/方向键 |
-| 3 | 全局事件分发 | 其他事件 |
-
-### 2. Modal 焦点捕获
-
-当 modal 打开时，只有 modal 内的 focusable 节点可以接收焦点：
-
-```go
-if hasModal {
-    focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-}
-```
-
-这确保了：
-- Tab 键只在 modal 内导航
-- 鼠标点击只能在 modal 内切换焦点
-- Modal 外的组件不受影响
-
-### 3. Hit Testing 机制
-
-使用组件在 Paint 时设置的 bounds：
-
-```go
-// PaintVNode() 中设置 bounds
-if boundsAware, ok := vnode.(interface{ SetBounds(x, y, width, height int) }); ok {
-    // 获取组件的测量大小
-    size := measurable.Measure(runtime.BoxConstraints{})
-    width = size.Width
-    height = size.Height
-
-    // 设置边界用于 hit testing
-    boundsAware.SetBounds(x, y, width, height)
-}
-```
-
-**优势**：
-- 准确的命中检测
-- 不依赖组件实现 ContainsPoint()
-- 支持不规则形状的组件（如果有）
-
----
-
-## 测试验证
-
-### 功能测试
-
-1. **基本焦点切换**：
-   - 点击按钮 A → 焦点切换到按钮 A
-   - 点击按钮 B → 焦点切换到按钮 B
-   - 点击 Input → 焦点切换到 Input
-
-2. **Modal 焦点捕获**：
-   - 打开 modal → 焦点进入 modal
-   - 点击 modal 外按钮 → 焦点不切换（被 modal 捕获）
-   - 关闭 modal → 焦点返回主界面
-
-3. **Tab 键协同**：
-   - Tab 导航 → 焦点切换
-   - 鼠标点击 → 焦点切换
-   - 两种方式应该一致
-
-4. **重复点击**：
-   - 点击当前焦点按钮 → 焦点保持不变（不重新渲染）
-
-### 编译测试
+## 调试
 
 ```bash
-✅ go build ./internal/render/...
-✅ go build ./examples/ui_demos/demo1_full_featured/...
+TUI_LOG_OUTPUT=console \
+TUI_DEBUG_HITMAP=true \
+TUI_DEBUG_PUMP=true \
+TUI_DEBUG_FOCUS=true \
+TUI_DEBUG_RENDER=true \
+go run ./examples/modal
 ```
 
----
+重点观察：
 
-## 与现有功能的集成
+- HitTest 是否命中正确 bounds。
+- `MouseMsg.TargetFiber` 是否存在。
+- `ActionClick` 是否进入鼠标目标阶段。
+- `FiberFocusManager.SetFocusByID` 是否成功。
+- 目标组件的 `SetFocus(true)` 是否使实例 dirty。
 
-### 兼容性
-
-✅ **完全向后兼容**：
-- Tab 键导航继续工作
-- 焦点状态管理不变
-- 组件的 HandleEvent() 不受影响
-- 只是在鼠标点击前增加了焦点切换步骤
-
-### 代码改动
-
-| 文件 | 改动 | 说明 |
-|------|------|------|
-| `internal/render/declarative_node.go` | +110 行 | 新增鼠标焦点切换 |
-| `runtime/ui/focus_manager.go` | 0 行 | 无需修改 |
-| 组件文件 | 0 行 | 无需修改 |
-
----
-
-## 用户体验改进
-
-### 之前
-```
-用户操作：
-1. 点击 "Add Count" 按钮
-2. onClick 触发，count +1
-3. 焦点仍然在上一个按钮上
-4. 用户需要按 Tab 键才能切换焦点
-
-问题：焦点不跟随用户操作
-```
-
-### 之后
-```
-用户操作：
-1. 点击 "Add Count" 按钮
-2. 焦点立即切换到该按钮
-3. onClick 触发，count +1
-4. 焦点现在在当前操作的按钮上
-
-改进：焦点跟随用户操作，更直观！
-```
-
----
-
-## 技术亮点
-
-1. **智能焦点管理**
-   - 自动检测 modal 状态
-   - Modal 打开时捕获焦点
-   - Modal 关闭后恢复全局焦点
-
-2. **高效的 Hit Testing**
-   - 使用 bounds 而不是递归遍历
-   - O(n) 复杂度，n 是 focusable 节点数量
-   - 通常 n 很小（< 20），性能可忽略
-
-3. **事件流清晰**
-   - 优先级明确
-   - 易于理解和调试
-   - 不破坏现有功能
-
-4. **零侵入性**
-   - 组件无需修改
-   - 只需实现 SetBounds()（已有）
-   - 自动支持所有组件
-
----
-
-## 调试支持
-
-启用调试模式查看详细日志：
+## 测试建议
 
 ```bash
-export TUI_DEBUG_UI=true
-go run examples/ui_demos/demo1_full_featured/main.go
+go test ./framework -run Mouse -count=1
+go test ./ui/e2e -run Focus -count=1
+go test ./ui/e2e -run Button -count=1
 ```
 
-**日志输出**：
-```
-DeclarativeNode.HandleEvent: event type=3
-handleMouseFocus: switching focus from index 0 to 1
-nodeWasClicked: bounds=(2, 7, 11, 1), mouse=(8, 7)
-nodeWasClicked: HIT!
-DeclarativeNode.HandleEvent: mouse click switched focus
-```
+## 维护约束
 
----
-
-## 总结
-
-### 实现成果
-
-✅ **鼠标点击自动切换焦点**
-✅ **与 Tab 键导航一致**
-✅ **支持 Modal 焦点捕获**
-✅ **完全向后兼容**
-✅ **零组件侵入性**
-
-### 关键代码
-
-- **修改文件**: `internal/render/declarative_node.go`
-- **新增方法**: `handleMouseFocus()`, `nodeWasClicked()`
-- **修改行数**: +110 行
-
-### 用户体验提升
-
-| 场景 | 之前 | 之后 |
-|------|------|------|
-| 点击按钮 | 触发动作，焦点不跟随 | 触发动作 + 焦点切换 ✨ |
-| 连续点击不同按钮 | 每次都要按 Tab | 点击即可切换焦点 ✨ |
-| Modal 内按钮 | 需要手动导航 | 自动焦点捕获 ✨ |
-
-鼠标点击焦点切换功能现已完全实现！
+- 新增组件若要参与焦点，应实现 `rtui.FocusableInstance`，而不是只在 VNode 上保存焦点字段。
+- 鼠标目标应依赖 HitMap / `TargetFiber` / `TargetBounds`，不要在组件中复制一套全局命中路由。
+- 历史 `DeclarativeNode.HandleEvent()` 文档只能作为兼容说明，不应作为当前架构主路径。

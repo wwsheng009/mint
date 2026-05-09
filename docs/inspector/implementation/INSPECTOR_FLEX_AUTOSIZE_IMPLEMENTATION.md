@@ -1,238 +1,88 @@
-# Inspector Flex-like Auto-Sizing Implementation
+# Inspector TreeView Auto-Sizing
 
-## Summary
+本文记录 Inspector TreeView 自动尺寸与滚动的当前状态。早期实现说明曾把 TreeView 包在 ScrollView 中，让 ScrollView 提供固定 viewport；当前源码已经以 `ui/components/treeview` 自身的测量、绘制和 action 状态为主。
 
-Implemented flex-like auto-sizing behavior for the Inspector TreeView component, where the TreeView automatically expands to fit its content while a ScrollView provides fixed-height constraints and handles scrolling.
+## 当前结论
 
-## Problem Statement
+- Inspector overlay 本身仍是固定尺寸面板。
+- Elements tab 使用 `VStackBuilder` 组合 header、selected info、TreeView、instructions。
+- 父容器通过 `.Width(...)`、`.Height(...)` 和 `.Flex(1)` 向子树传递布局约束。
+- TreeView 当前由 `componenttreeview.NewBuilder().FromLines(...).Build()` 创建。
+- TreeView instance 自己维护滚动偏移、选中项、可见范围和滚动条。
 
-User request:
-> "探测器可以有一个固定的高度，比如屏幕的80%，但是treeview不能直接设置高度，他的高度受容器的高度约束比如flex一样，内容超过了这个高度，进行滚动"
+## 当前源码关系
 
-Translation:
-- Inspector should have a fixed height (e.g., 80% of screen)
-- TreeView should auto-size to parent container (like flexbox)
-- Scroll only when content exceeds available height
-
-## Solution Architecture
-
-### Before: Fixed Viewport Height
-```go
-// OLD: TreeView with fixed viewportHeight
-treeViewComponent.SetViewportHeight(treeViewHeight)
-treeViewComponent.SetScrollOffset(scrollOffset)
-```
-- TreeView rendered only visible lines (virtual scrolling)
-- Fixed height constraint on TreeView itself
-- Problem: TreeView didn't auto-size to content
-
-### After: Flex-like Auto-Sizing
-```go
-// NEW: TreeView auto-sizes, ScrollView provides constraint
-scrollContainer := layout.NewScrollView(treePreview).
-    Height(treeViewHeight).
-    Width(si.overlayWidth - 4).
-    ScrollOffset(si.treeScrollOffset).
-    Build()
-```
-- TreeView auto-sizes to full content (no viewportHeight constraint)
-- ScrollView provides fixed-height viewport (flex-like container)
-- ScrollView handles clipping and scrolling
-
-## Implementation Details
-
-### Files Modified
-
-#### 1. `internal/inspector/standalone_inspector.go`
-
-**Import added** (line 27):
-```go
-import (
-    // ...
-    "github.com/wwsheng009/mint/components/layout"
-)
+```text
+internal/inspector/standalone_inspector.go
+  -> componenttreeview.NewBuilder().FromLines(si.treeLines)
+  -> ui/components/treeview.VNode
+  -> ui/components/treeview.Instance
+  -> Measure(layout.Constraints)
+  -> Paint(x, y)
 ```
 
-**ScrollView wrapper added** (lines 602-614):
+`ui/components/scrollview` 仍存在，但不是当前 Inspector Elements tab 的主 wrapper。
+
+## 当前代码形态
+
 ```go
-// Wrap tree preview in ScrollView for flex-like auto-sizing with scrolling
-// TreeView auto-sizes to content, ScrollView provides fixed viewport constraint
-scrollContainer := layout.NewScrollView(treePreview).
-    Height(treeViewHeight).
-    Width(si.overlayWidth - 4).
-    ScrollOffset(si.treeScrollOffset).
+treePreview := componenttreeview.NewBuilder().
+    FromLines(si.treeLines).
+    ExpandLevel(-1).
+    ShowIcons(true).
+    Compact(false).
     Build()
 
-// Combine status line with scrollable tree
-var treeWithStatus ui.VNode
-if len(statusLines) > 0 {
-    treeWithStatus = ui.VStackBuilder(append(statusLines, scrollContainer)...).Build()
-} else {
-    treeWithStatus = scrollContainer
-}
+return ui.VStackBuilder(
+    header,
+    selectedInfo,
+    treePreview,
+    instructions,
+).
+    Width(si.overlayWidth - 4).
+    Height(si.overlayHeight - 4).
+    Flex(1).
+    Build()
 ```
 
-**Removed** (previously at lines 528, 1320, 1322):
-```go
-// REMOVED: No longer set fixed viewportHeight on TreeView
-// treeViewComponent.SetViewportHeight(treeViewHeight)
-```
+## TreeView 滚动来源
 
-### 2. `components/layout/scroll_view.go` (Existing component)
+TreeView 组件 props / state 中包含：
 
-The ScrollView component already existed and provides:
-- Fixed-height container that clips overflow content
-- Virtual scrolling (only renders visible lines)
-- Scroll position indicator (▼ ▲ ↕)
-- Content extraction from various VNode types
+| 字段 | 说明 |
+|---|---|
+| `scrollOffset` | 当前滚动偏移 |
+| `scrollOffsetControlled` | 是否由外部控制滚动偏移 |
+| `selectedIndex` | 当前选中行 |
+| `viewportHeight` | 可见高度 |
+| `showScrollbar` | 是否绘制滚动条 |
+| `allowScroll` | 是否允许滚动 action |
 
-## Behavior Comparison
+运行期 `Instance` 会根据这些值和布局 bounds 绘制可见行，并处理导航、选择、展开折叠等 action。
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| **TreeView Height** | Fixed (viewportHeight) | Auto-sizes to content |
-| **Scrolling** | TreeView virtual scroll | ScrollView virtual scroll |
-| **Clipping** | TreeView clips content | ScrollView clips content |
-| **Flex behavior** | ❌ No | ✅ Yes (auto-expand) |
-| **Scroll indicator** | ❌ No | ✅ Yes (▼ ▲ ↕) |
+## 与 ScrollView 的边界
 
-## Component Architecture
+| 场景 | 当前推荐 |
+|---|---|
+| Inspector Elements 树 | `ui/components/treeview` |
+| 通用长文本、日志、代码片段 | `ui/components/scrollview` |
+| 大量字符串项列表 | `ui/components/virtuallist` |
+| 富列表行、选择模式、搜索和 checkbox | `ui/components/list` |
 
-```
-Inspector Overlay (fixed 80% screen height)
-└── buildElementsTabContent()
-    ├── header (fixed)
-    ├── selectedInfo (fixed)
-    ├── ScrollView (fixed height = overlayHeight - 14) ← NEW!
-    │   └── treePreview (auto-sizes to full content)
-    │       └── TreeView (no viewportHeight constraint)
-    │           └── All tree lines (full content)
-    └── instructions (fixed)
-```
+不要再把 TreeView 的主滚动行为描述为 `components/layout/scroll_view.go`。如果需要通用 ScrollView，请使用 `ui.NewScrollViewBuilder()` 或 `ui.ScrollBordered(...)`。
 
-### Flex-like Behavior
+## 验证
 
-- **Fixed elements**: Header, status, instructions stay at fixed positions
-- **Scrollable area**: TreeView inside ScrollView expands to fit content
-- **Viewport constraint**: ScrollView clips to available height
-- **Overflow handling**: ScrollView provides scrolling when content > viewport
-
-## Verification
-
-### Test 1: ScrollView Wrapper Exists
 ```bash
-cd internal/inspector
-go test -v -run TestInspectorFlexAutoSizing
-```
-**Result**: ✅ PASS
-```
-✅ Found LayoutNode (likely ScrollView) at child #2, grandchild #1
-✅ ScrollView has 1 children (should be 1 text node)
-✅ Flex-like auto-sizing is implemented
+go test ./internal/inspector -run "TreeView|Inspector|Flex|Scroll" -count=1
+go test ./ui/components/treeview -count=1
+go test ./ui/components/scrollview -count=1
 ```
 
-### Test 2: TreeView Unchanged
-```bash
-cd internal/inspector
-go test -v -run TestTreeViewWithScrollView
-```
-**Result**: ✅ PASS
-```
-✅ Tree has 23 nodes (>= 20 content items)
-✅ Tree content unchanged after ScrollView wrapping
-```
+这些测试分别覆盖 Inspector 集成、TreeView 自身行为，以及通用 ScrollView 组件。
 
-### Test 3: Basic Rendering
-```bash
-cd internal/inspector
-go test -v -run TestInspectorBasicRendering
-```
-**Result**: ✅ PASS
-```
-✅ TreeViewComponent has 33 lines
-✅ Render has 33 children
-```
+## 维护约束
 
-## Key Design Decisions
-
-### 1. Why ScrollView instead of modifying TreeView?
-
-**Reason**: Separation of concerns
-- TreeView: Data visualization (tree structure, expand/collapse)
-- ScrollView: Viewport management (clipping, scrolling)
-
-**Benefit**: TreeView can be used elsewhere without ScrollView dependency
-
-### 2. Why remove SetViewportHeight() calls?
-
-**Reason**: Enable auto-sizing
-- TreeView with viewportHeight only renders visible lines
-- TreeView without viewportHeight renders full content
-- ScrollView then provides the viewport constraint
-
-**Benefit**: Flex-like behavior - content determines size, not container
-
-### 3. Why wrap treePreview instead of treeViewComponent?
-
-**Reason**: treePreview is the rendered output
-- treeViewComponent is the component instance
-- treePreview = treeViewComponent.GetRender() (latest render state)
-- Wrapping rendered output ensures correct display
-
-## Usage Example
-
-```go
-// Create Inspector
-inspector := NewStandaloneInspector()
-inspector.Enable()
-inspector.SetOverlaySize(80, 25)  // 80x25 overlay (80% screen)
-
-// Attach large tree
-var children []VNode
-for i := 0; i < 100; i++ {
-    children = append(children, Text(fmt.Sprintf("Node %d", i)))
-}
-inspector.AttachToApp(VStack(children...))
-
-// Result:
-// - Inspector has fixed height (25 lines)
-// - TreeView auto-sizes to 100 lines
-// - ScrollView shows ~11 lines (25 - 14 for header/footer)
-// - User can scroll through all 100 lines
-// - Status line stays fixed above scroll area
-```
-
-## Related Files
-
-### Tests Created
-- `internal/inspector/flex_autosize_test.go` - Verifies ScrollView wrapper exists
-- `internal/inspector/scrollview_test.go` - Tests ScrollView component
-- `internal/inspector/tree_scrollview_integration_test.go` - Verifies TreeView unchanged
-
-### Implementation Files
-- `internal/inspector/standalone_inspector.go` - ScrollView wrapper added
-- `components/layout/scroll_view.go` - ScrollView component (existing)
-
-## Future Enhancements
-
-### Potential Improvements
-1. **Horizontal scrolling**: Currently ScrollView only supports vertical scrolling
-2. **Scroll position indicator**: Could show percentage (e.g., "45%")
-3. **Smooth scrolling**: Animate scroll position changes
-4. **Scroll preservation**: Remember scroll position across tab switches
-
-### Limitations
-1. **Text-based**: ScrollView extracts text, loses VNode structure
-2. **No keyboard handling**: ScrollView doesn't capture scroll keys (handled by Inspector)
-3. **Static height**: Height calculated once, doesn't respond to resize
-
-## Conclusion
-
-The flex-like auto-sizing implementation successfully achieves:
-- ✅ TreeView auto-sizes to content
-- ✅ ScrollView provides fixed viewport constraint
-- ✅ ScrollView handles clipping and scrolling
-- ✅ No breaking changes to existing tests
-- ✅ Clear separation of concerns (TreeView vs ScrollView)
-
-This matches the user's requirement for flexbox-like behavior where content determines size, and the container provides constraints.
+- 文档中的 Inspector TreeView 示例应引用 `componenttreeview.NewBuilder()` 或 `ui/components/treeview`。
+- 不要再引用 `components/layout/scroll_view.go`。
+- 不要把历史 line number 当作当前源码位置；应以当前文件搜索结果为准。

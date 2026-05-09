@@ -2,6 +2,8 @@
 
 Mint UI 提供了两种应用启动方式，各有不同的使用场景和优势。
 
+> 当前 API 提示：本文的架构对比仍有参考价值，但部分示例使用旧 `ui.Button(label, func)` 写法。当前按钮交互应使用 `ui.NewButtonBuilder(label).OnPress(intent).Build()` 或 `ui.ButtonWithIntent(label, intent)`。
+
 ---
 
 ## 快速对比表
@@ -30,13 +32,17 @@ Mint UI 提供了两种应用启动方式，各有不同的使用场景和优势
 // 组件自己管理状态或从全局 Store 读取
 
 func App() ui.VNode {
-    count := useInt(0)  // 使用 Hooks
+    count, setCount, _ := ui.UseStateInt(0)
+
+    ui.On(ui.SimpleIncrementIntent{}, func(_ *intent.ActionContext) {
+        setCount(func(old int) int { return old + 1 })
+    })
 
     return ui.VStack(
         ui.Text(fmt.Sprintf("Count: %d", count)),
-        ui.Button("Increment", func() {
-            count++  // 修改状态
-        }),
+        ui.NewButtonBuilder("Increment").
+            OnPress(ui.SimpleIncrementIntent{}).
+            Build(),
     )
 }
 
@@ -57,7 +63,9 @@ type AppState struct {
 func AppView(state AppState) any {
     return ui.VStack(
         ui.Text(fmt.Sprintf("Count: %d", state.Count)),
-        ui.Button("Increment", IncrementIntent{}),
+        ui.NewButtonBuilder("Increment").
+            OnPress(IncrementIntent{}).
+            Build(),
     )
 }
 

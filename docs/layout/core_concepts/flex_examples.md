@@ -1,3 +1,7 @@
+# Flex Layout Examples
+
+> Current API note: these examples predate the current `ui/components` shortcuts. Replace `app.NewTextBuilder(...)` with `ui.NewTextBuilder(...)`, and use `ui.NewButtonBuilder(...).OnPress(intent)` for interactive buttons in new code.
+
 ```go
 
 // Mint TUI Flex Examples

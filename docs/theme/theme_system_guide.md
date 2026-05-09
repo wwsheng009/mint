@@ -620,8 +620,9 @@ func MyNewColor() style.Color {
 #### 1. 启用渲染调试
 
 ```bash
-export TUI_RENDER_DEBUG=1
-export TUI_PAINT_DEBUG=1
+export TUI_DEBUG_RENDER=true
+export TUI_DEBUG_PAINT=true
+export TUI_LOG_OUTPUT=console
 go run main.go
 ```
 

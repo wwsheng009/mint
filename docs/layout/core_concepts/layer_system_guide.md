@@ -1,5 +1,7 @@
 # Layer 系统完整指南
 
+> 当前 API 提示：Layer 概念仍有参考价值，但部分示例使用旧组件 builder 和回调式处理器。当前交互组件应通过 `OnPress`、`ForField` 或组件专用 Intent builder 方法发出 `intent.Intent`。
+
 ## 目录
 
 1. [概述](#一概述)

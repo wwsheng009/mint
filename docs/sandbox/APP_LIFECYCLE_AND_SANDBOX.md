@@ -4,6 +4,8 @@
 >
 > 版本: 1.1
 > 更新日期: 2026-02-01
+>
+> 当前状态：本文保留为生命周期和 Sandbox 设计资料。组件示例中若出现 `ui.ButtonBuilder(...).OnClick(func)` 或旧事件对象，请按当前源码改用 `ui.NewButtonBuilder(...).OnPress(intent.Intent)`、`framework/event.Pump`、`runtime/msg` 与 `runtime/action` 主链路。
 
 ---
 

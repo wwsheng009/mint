@@ -71,3 +71,35 @@
 - 样式级断言
 - selector/locator
 - 交互回放与追踪
+
+## 组件覆盖说明
+
+`ui/e2e` 是交互式端到端测试入口，不等同于 `ui/components` 的逐包单元测试。当前组件库约 60 个顶层组件/支撑目录，E2E 中有大量直接同名测试和聚合测试，但并非每个目录都有一一对应的 `<component>_e2e_test.go`。
+
+建议维护覆盖矩阵时使用四类状态：
+
+| 状态 | 含义 |
+|---|---|
+| Direct E2E | 有直接同名或清晰对应的 E2E 文件。 |
+| Aggregate E2E | 在 `mvp_components_demo`、`new_controls`、`overlay_consistency`、charts gallery 等聚合套件中覆盖。 |
+| Unit Only | 主要依赖 `ui/components/<name>` 包内测试。 |
+| Infrastructure | 支撑模块，不一定需要独立 E2E。 |
+
+当前需要在覆盖矩阵中显式标注的目录：
+
+- `control`: 基础交互支撑，更适合单元测试和被使用方覆盖。
+- `drawer`: 用户组件，应确认 direct 或 aggregate E2E。
+- `form`: 用户组件，应确认 form/field binding 场景覆盖。
+- `notification`: 用户组件，应确认 manager/runtime 交互覆盖。
+- `optiongroup`: 用户组件，应确认 single/multiple/field binding 覆盖。
+- `toast`: 用户反馈组件，应确认 manager/runtime 覆盖。
+- `validation`: 支撑模块，更适合单元测试。
+- `virtuallist`: 用户组件，应确认大数据滚动和 selection 覆盖。
+
+推荐验证命令：
+
+```bash
+go test ./ui/e2e/... -count=1
+go test ./ui/components/... -count=1
+go test ./ui/e2e -run "Overlay|Modal|Select|Form|List|Table|Charts" -count=1
+```

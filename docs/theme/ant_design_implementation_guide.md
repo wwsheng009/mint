@@ -1,6 +1,8 @@
 # Ant Design 在 Mint TUI 中的实施指南
 
 > 基于 `docs/theme/design/ant_design.md` 的实践指南
+>
+> 当前状态：本文保留为 Ant Design 主题映射和视觉规则资料。部分代码片段来自旧 `app.*`、`OnClick(func)` API 时代；当前源码中的组件创建入口以 `ui.NewXBuilder`、`ui.X(...)` 为准，按钮交互使用 `OnPress(intent.Intent)`。当前可执行 API 请优先参考 [theme_system_guide.md](theme_system_guide.md) 和 [../components/README.md](../components/README.md)。
 
 ## 📋 目录
 

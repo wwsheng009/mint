@@ -2,6 +2,8 @@
 
 Welcome to the Mint TUI Layout System documentation. This directory contains comprehensive documentation about the layout system, organized by purpose and audience.
 
+> Current source note: the layout engine is now reached from the Fiber-first render path through `internal/render.FiberToNodeAdapter` and `runtime/layout`. Many older layout notes still contain pre-`ui/components` snippets such as `app.WrapBuilder(...)` or `app.NewTextBuilder(...)`; treat those snippets as historical unless the page explicitly says it was updated for the current `ui.NewXBuilder` API.
+
 ## 📚 Directory Structure
 
 ### [user_guide/](./user_guide/)

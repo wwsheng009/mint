@@ -1,5 +1,7 @@
 # Mint TUI 布局系统 vs CSS Flexbox
 
+> 当前 API 提示：本文重点是布局概念对比。代码片段中如果使用旧 `app.*` builder，请改写为当前 `ui.NewTextBuilder`、`ui.NewButtonBuilder` 及相关 `ui/components` builder。
+
 本文档对比 Mint TUI 的布局系统与 CSS Flexbox，帮助前端开发者快速理解和使用。
 
 ## 快速对照表

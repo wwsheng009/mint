@@ -148,22 +148,25 @@ t.Setenv("MINT_USE_FIBER", "true")
 
 ```go
 func MyCounter() ui.VNode {
-    count, setCount := ui.UseStateInt(0)
+    count, setCount, _ := ui.UseStateInt(0)
 
     // 调试：打印当前值
     if os.Getenv("TUI_DEBUG_UI") == "true" {
         fmt.Fprintf(os.Stderr, "[MyCounter] Render: count=%d\n", count)
     }
 
+    ui.On(ui.SimpleIncrementIntent{}, func(ctx *intent.ActionContext) {
+        if os.Getenv("TUI_DEBUG_UI") == "true" {
+            fmt.Fprintf(os.Stderr, "[MyCounter] intent: incrementing\n")
+        }
+        setCount(func(old int) int { return old + 1 })
+    })
+
     return ui.VStack(
         ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).Build(),
-        ui.ButtonBuilder("+").OnClick(func() {
-            // 调试：打印 onClick
-            if os.Getenv("TUI_DEBUG_UI") == "true" {
-                fmt.Fprintf(os.Stderr, "[MyCounter] onClick: incrementing\n")
-            }
-            setCount(count + 1)
-        }).Build(),
+        ui.NewButtonBuilder("+").
+            OnPress(ui.SimpleIncrementIntent{}).
+            Build(),
     )
 }
 ```
@@ -172,7 +175,7 @@ func MyCounter() ui.VNode {
 
 ```go
 func MyComponent() ui.VNode {
-    value, _ := ui.UseStateInt(0)
+    value, _, _ := ui.UseStateInt(0)
 
     // 创建带追踪的 VNode
     textNode := ui.NewTextBuilder(fmt.Sprintf("Value: %d", value)).Build()

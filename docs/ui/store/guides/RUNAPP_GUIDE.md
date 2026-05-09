@@ -260,6 +260,10 @@ appReducerBuilder.RegisterToGlobal(rt.GetStore())
 ### 1. 时间旅行调试
 
 ```go
+type UndoIntent struct{}
+
+func (UndoIntent) IntentType() string { return "Undo" }
+
 rt := statemachine.NewAppRuntime(
 	AppState{},
 	AppView,
@@ -267,10 +271,20 @@ rt := statemachine.NewAppRuntime(
 	statemachine.WithMaxHistory(100), // 记录最近 100 个状态
 )
 
-// 在 UI 中提供撤销功能
-ui.NewButtonBuilder("Undo").OnPress(func() {
-	rt.Undo()
-})
+ui.RunApp(rt,
+	ui.WithInit(func() {
+		intent.RegisterTypedGlobally(func(ctx *intent.ActionContext, i UndoIntent) intent.IntentResult {
+			_ = rt.Undo()
+			return intent.HandledResult()
+		})
+	}),
+)
+```
+
+在 UI 中提供撤销按钮时，按钮仍然只声明 Intent：
+
+```go
+ui.NewButtonBuilder("Undo").OnPress(UndoIntent{}).Build()
 ```
 
 ### 2. 调试 Intent 流程

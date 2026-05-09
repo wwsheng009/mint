@@ -2,6 +2,8 @@
 
 **Layout System Documentation Index**
 
+> 当前 API 提示：本目录有部分页面写于当前 `ui/components` API 收敛之前。如果片段使用 `app.WrapBuilder`、`app.ButtonBuilder` 或 `app.NewTextBuilder`，请分别改写为 `ui.NewWrapBuilder().Children(...).Build()`、`ui.NewButtonBuilder(...)` 和 `ui.NewTextBuilder(...)`。Button 行为应通过 `OnPress(intent.Intent)` 声明。
+
 欢迎来到 Mint TUI 布局系统文档中心！
 
 ---

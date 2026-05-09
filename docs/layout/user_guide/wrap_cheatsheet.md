@@ -1,5 +1,7 @@
 # Wrap Component - Quick Reference
 
+> Current API note: examples in this cheatsheet use the historical `app.WrapBuilder(...)` style. The current component entry point is `ui.NewWrapBuilder().Children(children...).Width(...).Build()` or shortcuts from `ui/components/wrap`.
+
 ## Import
 
 ```go

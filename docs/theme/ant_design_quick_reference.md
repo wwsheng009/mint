@@ -1,6 +1,8 @@
 # Ant Design 快速参考指南 - Mint TUI
 
 > 快速查找 Ant Design 组件在 Mint TUI 中的实现方法
+>
+> 当前状态：本文主要保留颜色、尺寸和组件映射速查。代码片段中出现的 `app.ButtonBuilder`、`app.InputBuilder`、`OnClick(func)` 是历史 API 写法；当前组件入口使用 `ui.NewButtonBuilder`、`ui.NewInputBuilder` 等，行为通过 `OnPress(intent.Intent)` 或字段绑定 Intent 表达。
 
 ## 🎨 颜色映射速查表
 

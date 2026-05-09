@@ -1,7 +1,9 @@
 # Mint UI Store + Reducer 架构
 
-**版本**: v0.10  
+**版本**: v0.10
 **状态**: 稳定可用 ✅
+
+> 当前 API 提示：本文档组中有一部分页面是历史迁移和问题复盘资料。当前 Button 不再接受闭包回调，推荐 `ui.NewButtonBuilder("...").OnPress(SomeIntent{}).Build()`；当前字段组件推荐 `ui.NewInputBuilder().ForField(intent.BindField("field"))` 或 `intent.ForField(StateKey)`。旧 `ui.Button(label, func)`、`OnClick(func)`、`OnPress(func)` 只应作为迁移对照阅读。
 
 ---
 

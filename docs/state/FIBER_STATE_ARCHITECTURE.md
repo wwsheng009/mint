@@ -1,5 +1,7 @@
 # Fiber-first 状态管理架构
 
+> 当前 API 提示：本文描述的分层思路仍可参考。若示例中出现旧 `OnClick` 或闭包式 Button API，请按当前 `ui.NewXBuilder` + `intent.Intent` 模型理解；当前渲染链路是 VNode -> Fiber/Reconciler -> ComponentInstance -> layout -> paint。
+
 本文档描述 Mint Fiber-first 模式下的状态管理机制。
 
 ## 目录

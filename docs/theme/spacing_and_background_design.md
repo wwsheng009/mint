@@ -1,5 +1,7 @@
 # Demo1 间隔与背景色设计分析
 
+> 当前状态：本文是对早期 Demo 的渲染现象分析，关于“空格单元也需要显式前景/背景色”的结论仍有参考价值。示例中的 `app.NewTextBuilder`、`app.ButtonBuilder` 属于旧组件入口；当前源码请使用 `ui.NewTextBuilder`、`ui.NewButtonBuilder` 和 `OnPress(intent.Intent)`。
+
 ## 📊 问题：为什么间隔会有背景色？
 
 在 demo1 中，您看到的这个效果：

@@ -1,120 +1,72 @@
 # Fiber-First 文档整理说明
 
-## 整理概述
+本目录保存 Fiber-first 相关的合并文档和快速参考。当前源码已经采用 Fiber-first 作为 `ui.Run` 的默认声明式渲染路径，但部分早期设计目标仍未完全落地，因此阅读这些文档时需要区分“当前实现”和“目标设计”。
 
-本目录包含从原始 Fiber-first 文档整理后的统一架构文档。
+## 当前源码事实
 
-### 原始文档列表
+默认声明式路径是：
 
-以下13个文档已被整合：
+```text
+VNode declaration
+  -> internal/reconciler Fiber tree
+  -> persistent runtime/ui.ComponentInstance
+  -> runtime/layout via FiberToNodeAdapter
+  -> LayoutBox
+  -> FiberToPaintableConverter
+  -> paint.PaintableBox / PaintablePlanes
+  -> PaintEngine
+  -> paint.Buffer / terminal output
+```
 
-1. `fiber_first.md` - 整体架构和数据流
-2. `fiber_action.md` - Action系统整合
-3. `fiber_action_payload.md` - 参数传递模型
-4. `fiber_button.md` - Button组件设计
-5. `fiber_checklist.md` - 统一Action Runtime重构
-6. `fiber_confict.md` - 架构冲突解决
-7. `fiber_event.md` - 事件架构设计
-8. `fiber_intent.md` - 声明式Intent API
-9. `fiber_paint.md` - Paint架构
-10. `FIBER_PAINT_ARCHITECTURE.md` - Paint架构详细设计
-11. `fiber_vs_vnode.md` - Fiber与VNode对比
-12. `fiber优化.md` - 性能优化指南
-13. `REFACTOR_PLAN.md` - 重构计划
+关键术语：
 
-### 整理后文档
+- `VNode`: 用户声明层输入，每次 render 重新创建，用于 reconcile。
+- `Fiber`: 持久结构节点，保存 tree links、props、style、layer、NodeID、DiffKey、layout inputs 和 `Instance`。
+- `ComponentInstance`: 持久运行时实例，挂在 `Fiber.Instance`，保存组件状态和生命周期。
+- `PaintableInstance`: `ComponentInstance` 可选能力，提供组件绘制逻辑。
+- `paint.PaintableBox`: layout 后生成的 paint tree 节点，包含坐标、尺寸、layer、zIndex 和 `PaintableNode`，不是组件运行时实例。
 
-1. **FIBER_FIRST_ARCHITECTURE.md** - 统一架构文档
-   - 整合所有核心架构概念
-   - 包含完整的数据流图
-   - 详细的实施指南
+## 重要更正
 
-2. **FIBER_FIRST_QUICK_REFERENCE.md** - 快速参考指南
-   - 核心概念速查
-   - 常用代码模式
-   - 调试技巧
+早期合并文档曾把 `Instance` 和 `paint.PaintableBox` 混用，这是不准确的。当前应使用：
 
-## 主要变更
+```text
+Fiber.Instance = runtime/ui.ComponentInstance
+PaintableBox = transient paint-stage layout result node
+```
 
-### 术语统一
+也就是说，`ComponentInstance` 是长期存在的组件状态实体；`paint.PaintableBox` 是每次布局/绘制阶段生成或更新的绘制树节点。
 
-- `computeBox` → `paint.PaintableBox`
-- 所有布局结果树节点统称为 `paint.PaintableBox`
-- Instance/ComponentInstance 统一使用 `paint.PaintableBox` 接口
+## 已实现与未实现
 
-### 结构重组
+已在主路径落地：
 
-原始文档按主题分散，整理后按架构层次组织：
+- VNode 到 Fiber 的 reconcile。
+- Fiber alternate / clone / NodeID / DiffKey。
+- 组件实例持久化与复用。
+- Fiber-first layout adapter。
+- Portal-aware two-phase layout。
+- Fiber 到 paintable tree 转换。
+- PaintEngine 绘制 `PaintablePlanes`。
+- FiberFocusManager 将焦点写入实例。
 
-1. **架构概览** - 三层职责分离
-2. **核心角色** - VNode/Fiber/Instance 对比
-3. **数据流图** - 完整的数据流和事件流
-4. **实施指南** - 详细的迁移步骤和检查清单
-5. **代码示例** - 关键代码模式
+仍属于目标或部分实现：
 
-### 内容优化
+- 主 reconciler 的可中断渲染。
+- 主 reconciler 的时间切片。
+- lane-based preemption。
+- 完全移除 VNode event fallback。
 
-1. **去重** - 合并重复的架构描述
-2. **补充** - 添加缺失的代码示例
-3. **标准化** - 统一术语和格式
-4. **索引** - 添加目录和快速参考
+`runtime/ui/fiber_scheduler.go` 有独立调度器实现，但 `internal/reconciler.Reconciler` 当前默认主路径仍通过 `workLoopSync()` 同步处理整棵树。
 
-## 使用建议
+## 本目录文档
 
-### 新手入门
+- [FIBER_FIRST_ARCHITECTURE.md](FIBER_FIRST_ARCHITECTURE.md): 当前 Fiber-first 架构和目标边界。
+- [FIBER_FIRST_QUICK_REFERENCE.md](FIBER_FIRST_QUICK_REFERENCE.md): 术语、规则、文件位置和调试参考。
 
-1. 先阅读 `FIBER_FIRST_ARCHITECTURE.md` 了解整体架构
-2. 使用 `FIBER_FIRST_QUICK_REFERENCE.md` 作为日常参考
-3. 遇到具体问题时查阅原始文档
+## 维护原则
 
-### 日常开发
-
-- 使用 `FIBER_FIRST_QUICK_REFERENCE.md` 查找代码模式
-- 遇到架构问题时参考 `FIBER_FIRST_ARCHITECTURE.md`
-- 实施重构时参考 Checklist 部分
-
-### 架构演进
-
-- 重构计划在 `FIBER_FIRST_ARCHITECTURE.md` 的"重构计划"章节
-- 性能优化建议在快速参考指南中
-- 保留原始文档供深入理解设计决策
-
-## 文档维护
-
-### 更新原则
-
-1. **主文档优先** - 重大更新先更新架构文档
-2. **保持同步** - 代码变更后更新快速参考
-3. **向后兼容** - 保留原始文档供参考
-
-### 贡献指南
-
-1. 新增内容先讨论位置（架构 vs 快速参考）
-2. 代码示例必须可运行
-3. 保持术语一致性
-
-## 注意事项
-
-### computeBox → paint.PaintableBox 替换
-
-所有原始文档中的 `computeBox` 或 `ComputedBox` 已替换为 `paint.PaintableBox`，包括：
-
-- 数据流图中的节点名称
-- 代码示例中的类型引用
-- 接口定义
-- 文字描述
-
-### 架构演进
-
-Fiber-first 架构仍在演进中，文档可能存在：
-
-- 未完成的TODO
-- 计划中的功能
-- 待优化的部分
-
-请参考最新的代码实现。
-
----
-
-**最后更新**: 2024年
-**维护者**: Fiber-first 架构团队
+- 修改 Fiber 或 render pipeline 后，优先更新本目录入口和快速参考。
+- 不要把 `ComponentInstance` 写成 `paint.PaintableBox`。
+- 不要把 lane metadata 描述成默认路径已具备抢占/时间切片，除非 `internal/reconciler` 主路径完成接入。
+- 若描述目标设计，显式标注“目标”或“计划中”。

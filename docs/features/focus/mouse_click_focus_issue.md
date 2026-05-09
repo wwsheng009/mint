@@ -1,421 +1,101 @@
-# 鼠标点击与焦点管理关系分析报告
+# 鼠标点击与焦点管理
 
-## 问题描述
+本文记录鼠标点击焦点问题的当前状态。早期问题是“点击按钮触发动作，但焦点不跟随鼠标目标”。当前源码已经在 Fiber-first action 路径中处理该问题。
 
-**现象**：
-- ✅ Tab 键可以切换焦点
-- ❌ 鼠标点击按钮时，焦点不会切换到该按钮
+## 当前结论
 
-## 根本原因
+- 鼠标点击可聚焦组件时，App 会尝试把焦点切到命中的 `TargetFiber` 或其最近的可聚焦祖先。
+- Button 不再依赖旧 `onClick func()` 或 VNode 内部 `hasFocus` 字段；当前 Button 运行期实现位于 `ui/components/button/instance.go`，通过 `control.FocusableBehavior`、`control.PressableBehavior` 和 `intent` 处理状态与动作。
+- 当前主路径不要求组件自己在鼠标点击时调用 `RequestFocus()`。
 
-### 1. Button 组件的 HandleEvent 实现
+## 当前主路径
 
-**文件**: `components/button/button.go:318-417`
-
-```go
-func (b *ButtonVNode) HandleEvent(e event.Event) bool {
-    // 键盘事件处理 - 只有在获得焦点时才响应
-    if keyEvent, ok := e.(*event.KeyEvent); ok {
-        if !b.hasFocus {
-            return false  // ❌ 没有焦点时不处理键盘事件
-        }
-        // 处理 Enter/Space 键...
-    }
-
-    // 鼠标事件处理
-    switch mouseEvent.Type() {
-    case event.EventMousePress:
-        if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == event.MouseLeft {
-            // ❌ 只调用 onClick，没有设置焦点
-            if b.onClick != nil {
-                b.onClick()
-            }
-            return true
-        }
-
-    case event.EventClick:
-        if b.isHovered && mouseEvent.Button == event.MouseLeft {
-            // ❌ 只调用 onClick，没有设置焦点
-            if b.onClick != nil {
-                b.onClick()
-            }
-            return true
-        }
-    }
-}
+```text
+terminal mouse input
+  -> framework/event.Pump
+  -> HitMap lookup
+  -> runtime/msg.MouseMsg{
+       TargetID,
+       TargetFiber,
+       TargetBounds,
+       LocalX,
+       LocalY,
+     }
+  -> framework.App.processMsg
+  -> runtime/action.InputProcessor
+  -> ActionClick
+  -> nearestFocusableFiber(TargetFiber)
+  -> FiberFocusManager.SetFocusByID(...)
+  -> ActionBridge.DispatchFromFiber(...)
 ```
 
-**问题**：鼠标点击时，Button 组件只触发 `onClick()` 回调，**没有请求焦点**。
+## 关键源码
 
----
+| 功能 | 当前源码 |
+|---|---|
+| MouseMsg 结构 | `runtime/msg/mouse_msg.go` |
+| HitMap 命中与 TargetFiber 填充 | `framework/event/pump.go`、`internal/render/layout_switcher.go` |
+| MouseMsg 到 ActionClick | `runtime/action/processor.go` |
+| 鼠标焦点切换 | `framework/app.go` 的 `processMsg` |
+| 最近可聚焦 Fiber 查找 | `framework/app.go` 的 `nearestFocusableFiber` 相关逻辑 |
+| Button 运行期焦点状态 | `ui/components/button/instance.go` |
+| Button 声明 props | `ui/components/button/vnode.go` |
 
-### 2. VNodeFocusManager 有焦点切换方法，但没被使用
+## 焦点切换位置
 
-**文件**: `runtime/ui/focus_manager.go:95-132`
+在 `framework.App.processMsg` 的鼠标目标路由阶段，当前源码会先处理鼠标捕获，再根据命中的 Fiber 转移焦点：
 
-```go
-// FocusNext moves focus to the next focusable node
-func (m *VNodeFocusManager) FocusNext() bool {
-    if len(m.focusable) == 0 {
-        return false
-    }
-
-    // Clear current focus
-    if m.current >= 0 && m.current < len(m.focusable) {
-        m.focusable[m.current].SetFocus(false)
-    }
-
-    // Move to next
-    m.current = (m.current + 1) % len(m.focusable)
-    m.focusable[m.current].SetFocus(true)
-
-    // Trigger callback
-    if m.onNavigate != nil {
-        m.onNavigate(m.focusable[(m.current-1+len(m.focusable))%len(m.focusable)], m.focusable[m.current])
-    }
-
-    return true
-}
+```text
+if MouseMsg has TargetFiber:
+  if action is ActionClick:
+    focusFiber := nearestFocusableFiber(targetFiber)
+    focusManager.SetFocusByID(focusFiber.NodeID)
+  dispatch action to target fiber
 ```
 
-**问题**：`FocusNext()` / `FocusPrev()` 方法存在，但是：
-- ❌ 没有键盘事件处理器调用它们
-- ❌ 鼠标点击时也不会调用它们
-- ❌ Tab 键可能是在组件级别手动处理的（而不是通过焦点管理器）
+这样焦点跟随鼠标点击，同时 action 仍然分发给被命中的组件。
 
----
+## 与 TargetBounds 的关系
 
-### 3. Tab 键切换的真相
+鼠标命中依赖 HitMap，而不是组件本地估算 bounds：
 
-**Tab 键可能工作**的原因：
+- `TargetID` 标识命中的节点。
+- `TargetFiber` 让 ActionBridge 可以直接从 Fiber 目标分发。
+- `TargetBounds` 是经过布局和变换后的最终屏幕边界。
+- `LocalX` / `LocalY` 是相对目标组件的坐标。
 
-1. **可能在 app 层有默认的键盘映射**
-   ```go
-   // framework/app.go 可能注册了 Tab 键的默认处理
-   ```
+因此 Modal、Portal、绝对定位、层级覆盖等场景应优先依赖 HitMap / TargetBounds，而不是在组件中手写 `ContainsPoint`。
 
-2. **或者在 DeclarativeNode 层有处理**
-   ```go
-   // internal/render/declarative_node.go 可能有 Tab 键处理
-   ```
+## 兼容路径
 
-3. **或者根本没实现 Tab 导航**
-   - 用户看到的 Tab 切换可能只是**单个组件内部**的焦点切换
-   - 而不是**跨组件**的焦点切换
+`internal/render/declarative_node_event.go` 中仍保留 `handleMouseFocus()`，用于 framework event 兼容路径。它会遍历 legacy focusable 节点并根据 bounds 切换焦点。
 
-让我验证一下...
+这不是当前主路径。新问题排查应优先看 `framework.App.processMsg`、`MouseMsg.TargetFiber` 和 HitMap。
 
----
+## 排查步骤
 
-## 验证实验
+1. 确认 `MouseMsg.TargetFiber` 不为空。
+2. 确认目标 Fiber 或其祖先的 `Instance` 实现 `rtui.FocusableInstance`。
+3. 确认实例未 disabled。
+4. 确认 `FiberFocusManager.SetFocusByID` 能找到对应 NodeID。
+5. 确认 action 没有被 middleware 提前 stop。
 
-### 实验 1：查找 Tab 键处理器
+调试命令：
 
 ```bash
-grep -rn "KeyTab" --include="*.go" | grep -i "focus"
+TUI_LOG_OUTPUT=console TUI_DEBUG_HITMAP=true TUI_DEBUG_PUMP=true TUI_DEBUG_FOCUS=true TUI_DEBUG_RENDER=true go run ./examples/modal
 ```
 
-**预期结果**：
-- 如果找到：说明 Tab 键调用了焦点管理器
-- 如果没找到：说明 Tab 键切换没有实现，或者是在组件级别处理的
+## 测试建议
 
----
-
-### 实验 2：查看 demo1 的焦点切换
-
-**测试步骤**：
-1. 启动 demo1
-2. 按 Tab 键多次
-3. 观察焦点是否在多个按钮间切换
-
-**预期结果**：
-- 如果焦点只在 modal 内的按钮间切换：说明 modal 有自己的焦点管理
-- 如果焦点在整个应用的按钮间切换：说明有全局焦点管理
-- 如果焦点不切换：说明 Tab 键处理根本没实现
-
----
-
-## 解决方案
-
-### 方案 1：在 Button 组件中添加焦点请求（推荐）
-
-**修改**: `components/button/button.go`
-
-```go
-func (b *ButtonVNode) HandleEvent(e event.Event) bool {
-    // ... 现有代码 ...
-
-    switch mouseEvent.Type() {
-    case event.EventMousePress:
-        if b.ContainsPoint(mouseEvent.X, mouseEvent.Y) && mouseEvent.Button == event.MouseLeft {
-            // ✅ 添加：请求焦点
-            if !b.hasFocus {
-                b.RequestFocus()
-            }
-
-            // 触发点击事件
-            if b.onClick != nil {
-                b.onClick()
-            }
-            return true
-        }
-
-    case event.EventClick:
-        if b.isHovered && mouseEvent.Button == event.MouseLeft {
-            // ✅ 添加：请求焦点
-            if !b.hasFocus {
-                b.RequestFocus()
-            }
-
-            // 触发点击事件
-            if b.onClick != nil {
-                b.onClick()
-            }
-            return true
-        }
-    }
-}
+```bash
+go test ./framework -run Mouse -count=1
+go test ./ui/e2e -run Focus -count=1
+go test ./ui/e2e -run Button -count=1
 ```
 
-**需要实现**：`RequestFocus()` 方法
+## 维护约束
 
-```go
-// RequestFocus requests focus for this button
-func (b *ButtonVNode) RequestFocus() bool {
-    // 通过 FocusManager 请求焦点
-    // 这需要访问到 VNodeFocusManager
-}
-```
-
----
-
-### 方案 2：在事件路由层自动处理焦点切换
-
-**修改**: `internal/render/declarative_node.go`
-
-```go
-func (n *DeclarativeNode) HandleEvent(ev event.Event) bool {
-    // ... 现有代码 ...
-
-    // ✅ 添加：鼠标点击时自动切换焦点
-    if ev.Type() == event.EventMousePress || ev.Type() == event.EventClick {
-        if mouseEv, ok := ev.(*event.MouseEvent); ok {
-            // 通过 hit testing 找到被点击的节点
-            target := n.hitTest(mouseEv.X, mouseEv.Y)
-
-            // 如果目标节点是 focusable，切换焦点到它
-            if focusable, ok := target.(rtui.FocusableVNode); ok {
-                n.focusMgr.SetFocusByID(focusable.GetFocusID())
-                return true
-            }
-        }
-    }
-
-    // ... 其他代码 ...
-}
-```
-
----
-
-### 方案 3：实现全局键盘导航处理
-
-**现有实现**: `runtime/focus/manager.go`
-
-```go
-package render
-
-import (
-    "github.com/wwsheng009/mint/framework/event"
-)
-
-// setupKeyboardNavigation 注册全局键盘导航快捷键
-func (n *DeclarativeNode) setupKeyboardNavigation() {
-    // Tab 键：下一个焦点
-    n.router.Register(event.EventKeyPress, event.EventHandlerFunc(func(ev event.Event) bool {
-        if keyEv, ok := ev.(*event.KeyEvent); ok && keyEv.Special == event.KeyTab {
-            // Shift+Tab：上一个焦点，Tab：下一个焦点
-            if keyEv.Modifiers&event.ModShift != 0 {
-                return n.focusMgr.FocusPrev()
-            }
-            return n.focusMgr.FocusNext()
-        }
-        return false
-    }))
-}
-```
-
----
-
-## 当前架构问题
-
-### 问题 1：焦点管理不统一
-
-```
-┌─────────────────────────────────────┐
-│ App Layer (framework/app.go)        │
-│ - 处理事件路由                        │
-│ - ❌ 没有全局焦点管理                 │
-└─────────────────────────────────────┘
-           ↓
-┌─────────────────────────────────────┐
-│ DeclarativeNode                     │
-│ - 有 VNodeFocusManager               │
-│ - ❌ 没有注册 Tab 键处理              │
-└─────────────────────────────────────┘
-           ↓
-┌─────────────────────────────────────┐
-│ Components (Button, Input, etc.)    │
-│ - 有 SetFocus() 方法                 │
-│ - ❌ 没有请求焦点的方法                │
-│ - ❌ 鼠标点击时不请求焦点             │
-└─────────────────────────────────────┘
-```
-
-### 问题 2：事件流向
-
-```
-鼠标点击流程：
-
-1. 鼠标点击 → framework/app.go:handleEvent()
-2. handleEvent() → root.HandleEvent(ev)
-3. root.HandleEvent() → DeclarativeNode.HandleEvent()
-4. DeclarativeNode.HandleEvent() → 分发到子组件
-5. Button.HandleEvent() → onClick() ❌ 没有请求焦点
-
-Tab 键流程（未知）：
-
-1. Tab 键 → framework/app.go:handleEvent()
-2. handleEvent() → keyMap.Lookup()
-3. ❌ 没有找到 Tab 键的默认处理
-4. handleEvent() → root.HandleEvent(ev)
-5. ❌ DeclarativeNode 可能没有处理 Tab
-6. Button.HandleEvent() → 忽略（因为不是 Enter/Space）
-```
-
----
-
-## 推荐实现步骤
-
-### 阶段 1：添加 RequestFocus 支持
-
-1. **VNodeFocusManager 添加公共方法**：
-   ```go
-   func (m *VNodeFocusManager) RequestFocus(id string) bool {
-       for i, node := range m.focusable {
-           if node.GetFocusID() == id {
-               return m.SetFocusByIndex(i)
-           }
-       }
-       return false
-   }
-   ```
-
-2. **DeclarativeNode 暴露焦点管理器**：
-   ```go
-   func (n *DeclarativeNode) GetFocusManager() *rtui.VNodeFocusManager {
-       return n.focusMgr
-   }
-   ```
-
-3. **Button 组件请求焦点**：
-   ```go
-   func (b *ButtonVNode) requestFocusThroughParent() {
-       // 通过某种方式访问父节点的焦点管理器
-   }
-   ```
-
-### 阶段 2：实现全局键盘导航
-
-1. **在 DeclarativeNode.Init() 中注册 Tab 键处理**：
-   ```go
-   func (n *DeclarativeNode) Init() error {
-       // ... 现有代码 ...
-
-       // 注册全局导航快捷键
-       n.registerNavigationShortcuts()
-
-       return nil
-   }
-   ```
-
-2. **实现 registerNavigationShortcuts()**：
-   ```go
-   func (n *DeclarativeNode) registerNavigationShortcuts() {
-       n.keyMap.Register(event.KeyEvent{
-           Special: event.KeyTab,
-       }, event.HandlerFunc{
-           F: func(ev event.Event) bool {
-               return n.focusMgr.FocusNext()
-           },
-       })
-   }
-   ```
-
-### 阶段 3：鼠标点击自动切换焦点
-
-1. **在 DeclarativeNode.HandleEvent() 中拦截鼠标事件**：
-   ```go
-   func (n *DeclarativeNode) HandleEvent(ev event.Event) bool {
-       // 鼠标点击事件：先切换焦点，再分发到子组件
-       if ev.Type() == event.EventMousePress || ev.Type() == event.EventClick {
-           if mouseEv, ok := ev.(*event.MouseEvent); ok {
-               if n.handleMouseFocus(mouseEv) {
-                   // 焦点已切换，继续处理事件
-               }
-           }
-       }
-
-       // 继续正常的事件分发
-       return n.handleEventDefault(ev)
-   }
-   ```
-
-2. **实现 handleMouseFocus()**：
-   ```go
-   func (n *DeclarativeNode) handleMouseFocus(ev *event.MouseEvent) bool {
-       // Hit testing 找到被点击的焦点节点
-       target := n.hitTest(ev.X, ev.Y)
-
-       // 如果是 focusable 节点，切换焦点
-       if focusable, ok := target.(rtui.FocusableVNode); ok {
-           return n.focusMgr.SetFocusByID(focusable.GetFocusID())
-       }
-
-       return false
-   }
-   ```
-
----
-
-## 总结
-
-### 当前状态
-
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| VNodeFocusManager | ✅ 已实现 | 有 FocusNext/FocusPrev 方法 |
-| 焦点列表收集 | ✅ 已实现 | CollectFocusable() 正常工作 |
-| 焦点状态应用 | ✅ 已实现 | SetFocus() 正常工作 |
-| Tab 键导航 | ❓ 未知 | 可能没有全局实现 |
-| 鼠标点击焦点 | ❌ 未实现 | Button 不请求焦点 |
-
-### 为什么鼠标点击没有焦点切换？
-
-1. **Button 组件不请求焦点**：
-   - 鼠标点击时只调用 `onClick()`
-   - 没有调用焦点管理器的 `SetFocusByID()`
-
-2. **没有自动焦点切换机制**：
-   - DeclarativeNode 层没有拦截鼠标点击事件
-   - 事件直接分发到子组件，不经过焦点管理
-
-3. **Tab 键可能也没正确实现**：
-   - 没有找到 Tab 键调用 FocusNext() 的代码
-   - 可能用户看到的 Tab 切换是单个组件内部行为
-
-### 下一步
-
-需要实现：
-1. ✅ Button 组件在鼠标点击时请求焦点
-2. ✅ 全局 Tab 键导航处理
-3. ✅ DeclarativeNode 拦截鼠标事件自动切换焦点
+- 不要再建议修改历史路径 `components/button/button.go`。
+- 不要把旧 `ButtonVNode.HandleEvent`、`onClick func()`、`b.hasFocus` 写作当前 Button 模型。
+- 不要把 `RequestFocus()` 作为当前推荐方案；当前推荐是在 App action 路由层根据 `TargetFiber` 做焦点转移。

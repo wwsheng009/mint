@@ -1,86 +1,43 @@
 # Debug Environment Variables
 
-This document lists all environment variables used to control debug output in the Mint TUI Framework.
+This page is a compatibility entry for older links. The current source-of-truth debug variable reference is:
 
-## General Debug Control
+- [../debug/environment_variables.md](../debug/environment_variables.md)
+- [../debug/README.md](../debug/README.md)
+- [../log/LOGGER_ENV_VAR_STANDARD.md](../log/LOGGER_ENV_VAR_STANDARD.md)
 
-| Environment Variable | Description | Default | Files Using It |
-|-------------------|-------------|----------|-----------------|
-| `TUI_DEBUG` | Enable general debug mode in framework app | `false` | `framework/app.go` |
-| `TUI_DEBUG_LOG` | Path to debug log file | `""` | `framework/app.go` |
+## Current Summary
 
-## Output Control
+Mint's general logging system is implemented by `internal/log` and uses:
 
-| Environment Variable | Description | Values | Files Using It |
-|-------------------|-------------|----------|-----------------|
-| `TUI_OUTPUT_MODE` | Output mode for rendering | `direct`, `diff`, `debug` | `framework/app.go` |
-| `TUI_OUTPUT_DEBUG` | Enable detailed output debug information | `1` | `framework/app.go`, `runtime/paint/renderer.go`, `runtime/paint/dirty.go` |
+- `TUI_DEBUG_ALL`
+- `TUI_DEBUG`
+- `TUI_DEBUG_<CATEGORY>`
+- `TUI_LOG_OUTPUT`
+- `TUI_LOG_MAX_SIZE`
+- `TUI_LOG_MAX_FILES`
+- `TUI_LOG_COMPRESS`
 
-## Platform-Specific Debug
+Common runtime and render variables include:
 
-| Environment Variable | Description | Default | Files Using It |
-|-------------------|-------------|----------|-----------------|
-| `TUI_DEBUG_WINDOWS` | Enable Windows platform debug output | `false` | `runtime/platform/input_windows.go` |
-| `TUI_DEBUG_EVENTS` | Enable raw input event debug output | `false` | `runtime/platform/input_windows.go` |
-| `TUI_DEBUG_MOUSE` | Enable mouse event debug output | `false` | `runtime/platform/input_windows.go` |
+- `MINT_ASYNC_RENDER`
+- `MINT_ASYNC_FPS`
+- `MINT_NO_ALTERNATE_SCREEN`
+- `MINT_PORTAL_LAYOUT`
+- `MINT_GRAPHICS`
+- `MINT_CELL_PIXELS`
+- `MINT_GRAPHICS_STRICT`
+- `MINT_GRAPHICS_ALLOW_TERMINAL_FRAME`
+- `MINT_GRAPHICS_ALLOW_UNVERIFIED_INLINE_IMAGE`
 
-## Component-Specific Debug
+## Important Migration Notes
 
-| Environment Variable | Description | Default | Files Using It |
-|-------------------|-------------|----------|-----------------|
-| `TUI_DEBUG_PUMP` | Enable event pump debug output | `false` | `framework/event/pump.go` |
-| `TUI_DEBUG_UI` | Enable UI framework debug output | `false` | `ui/app.go` |
-| `TUI_RENDER_DEBUG` | Enable rendering debug output | `false` | `runtime/paint/renderer.go`, `runtime/paint/dirty.go` |
-| `TUI_FORM_DEBUG` | Enable form component debug output | `false` | `ui/components/form/instance.go` |
-| `TUI_CURSOR_DEBUG` | Enable cursor component debug output | `false` | `ui/components/cursor/instance.go` |
-| `TUI_INPUT_DEBUG` | Enable input component debug output | `false` | `ui/components/input/instance.go` |
-| `TUI_INPUT_DEBUG_FILE` | Path to input debug log file | `""` | `ui/components/input/instance.go` |
+Older docs in this repository may mention variables such as `TUI_UI_DEBUG_*`, `TUI_RENDER_DEBUG`, `TUI_OUTPUT_DEBUG`, or `TUI_DEBUG_LOG`. Those are not the current general framework logging contract.
 
-## Usage Examples
+When in doubt, check:
 
-### Enable general debug mode
-```bash
-export TUI_DEBUG=true
-./your-app
-```
-
-### Enable Windows platform debug
-```bash
-export TUI_DEBUG_WINDOWS=true
-./your-app
-```
-
-### Enable rendering debug
-```bash
-export TUI_RENDER_DEBUG=1
-./your-app
-```
-
-### Enable detailed output debug
-```bash
-export TUI_OUTPUT_MODE=debug
-export TUI_OUTPUT_DEBUG=1
-./your-app
-```
-
-### Enable mouse event debug
-```bash
-export TUI_DEBUG_MOUSE=true
-./your-app
-```
-
-### Multiple debug flags
-```bash
-export TUI_DEBUG=true
-export TUI_DEBUG_WINDOWS=true
-export TUI_RENDER_DEBUG=1
-export TUI_OUTPUT_DEBUG=1
-./your-app
-```
-
-## Notes
-
-- Most debug variables use `"true"` or `"1"` as the enabled value
-- Debug output goes to `stderr` to avoid interfering with the TUI display
-- Some debug outputs (like `TUI_INPUT_DEBUG`) write to separate log files
-- Check individual component documentation for specific debug information
+- `../../internal/log/logger.go`
+- `../../internal/log/file.go`
+- `../../internal/log/rotation.go`
+- `../../framework/app.go`
+- `../../runtime/platform/graphics_env.go`

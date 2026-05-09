@@ -1,92 +1,120 @@
-# 长期事件架构优化方案（Mint TUI）
+# 事件架构现状与长期优化方案
 
-## 背景与痛点
-- **命中分散**：鼠标命中依赖各组件手写 `SetBounds/ContainsPoint`，遗漏即丢事件。Inspector、Tabs 曾因未写或接口不一致导致点击/hover 失效。
-- **阶段缺失**：事件只有“谁先处理谁截断”，没有捕获/目标/冒泡语义，拦截与合成（如全局快捷键 vs 局部控件）难以推理。
-- **输入转译不统一**：RawInput → Event → 组件的分发路径与 Inspector 特例混杂，Wheel 缺 delta，Move 高频无节流。
-- **测试脆弱**：测试用例需写绝对坐标，布局变化即失效；缺少按节点路径/ID 注入的能力。
-- **异步散乱**：Tick/IO/goroutine 分布在组件里，缺少集中 Cmd 管理，难测难回收。
+本文档记录 Mint 当前事件/输入路径，以及仍未完成的长期目标。早期版本把很多内容写成未来计划；截至当前源码，Msg、HitMap、TargetFiber、Wheel Delta、MouseMove 合并等能力已经部分落地，但完整捕获/目标/冒泡和 Cmd 体系仍是目标。
 
-## 借鉴 Bubble Tea 的原则
-- **消息单一化**：一切输入/异步产出皆 Msg。
-- **纯函数 Update**：状态演进在 `Update(Msg)`，输出 Cmd 副作用。
-- **渲染分离**：渲染只读 Model（VNode 树）。
-- **可组合 Cmd**：异步、定时、IO 均以 Cmd 表达，便于测试与回收。
+## 当前已落地的主路径
 
-## 目标状态（适配 Mint）
-1) **统一 Msg 层**  
-   - 定义 `Msg`：`KeyMsg{Rune,Special,Mod}`、`MouseMsg{X,Y,Button,Action,Delta,TargetID,LocalX,LocalY}`、`ResizeMsg{W,H}`、`TickMsg`、`CustomMsg any`。  
-   - Pump 直接输出 Msg（保留兼容桥接到旧 Event）。
+当前主路径更接近：
 
-2) **集中 HitTest 与路径**  
-   - 布局阶段生成 `HitMap`：节点 ID → 绝对 bounds，保留 Z 序。  
-   - 提供 `HitTest(x,y)` 返回 `TargetID`、`localXY`、路径（root→target）。  
-   - MouseMsg 在 Pump 阶段即带 TargetID/localXY，组件不再手写命中。
+```text
+platform.RawInput
+  -> framework/event.Pump
+  -> runtime/msg.Msg
+  -> framework.App.processMsg
+  -> runtime/input.InputTracker
+  -> runtime/interaction.InteractionContext
+  -> runtime/action.InputProcessor
+  -> runtime/action.Router / ActionBridge / ScopeDispatcher
+  -> Fiber target instance or global handler
+  -> Intent / Store / component state update
+  -> schedule update / render
+```
 
-3) **阶段化分发**  
-   - 捕获 → 目标 → 冒泡，允许 `StopPropagation/PreventDefault`。  
-   - 支持监听优先级（如全局快捷键、Inspector overlay）。
+关键源码入口：
 
-4) **组件 Update API**  
-   - `Update(Msg) (Cmd, bool)`；bool=consumed。  
-   - DeclarativeNode 按路径（有 targetID 时定向）或按层次分发；旧 `HandleEvent` 由适配器桥接。
+- `../../framework/event/pump.go`: 从平台输入读取 `platform.RawInput` 并转换为 `runtime/msg.Msg`。
+- `../../framework/app.go`: 主循环、事件 drain、mouse move coalescing、`processMsg`。
+- `../../framework/app_interaction.go`: `Msg` 到 `InputSnapshot`、HitMap 命中和 InteractionContext 集成。
+- `../../runtime/msg`: Key/Mouse/Resize 等消息类型。
+- `../../runtime/input`: 输入快照、tracker、keymap、mouse tracker。
+- `../../runtime/action`: Action、InputProcessor、Router、ScopeDispatcher、middleware。
+- `../../runtime/intent`: 语义 Intent 和类型化 dispatch。
 
-5) **Cmd 体系**  
-   - 标准 Cmd：`After(d)`, `Tick(d)`, `Batch`, `IO`（占位）。  
-   - App 主循环统一执行 Cmd → Msg，组件不再自起 goroutine。
+## 当前已完成能力
 
-6) **测试与工具**  
-   - `TestableApp.InjectMsg`，`InjectMouseByID(nodeID, action)` 利用 HitMap 自动定位坐标。  
-   - Debug: 渲染 HitMap/命中路径（TUI_DEBUG_UI），快速诊断丢事件。
+### Msg 层
 
-## 分阶段落地计划
+`framework/event.Pump` 当前输出 `runtime/msg.Msg`，而不是直接输出旧 `framework/event.Event`。旧 Event 适配桥仍存在，见 `framework/event/msg_adapter.go`。
 
-### Phase 1：命中与 Wheel 增强（低风险，立即收益）
-- Render 后生成 `HitMap`（由 Renderer/compute 导出最新布局）。  
-- Pump 填充 MouseMsg 的 `TargetID/localXY`；向旧 MouseEvent 也补充这些字段。  
-- 扩展 MouseWheel：增加 `Delta`（+1/-1）；TreeView/ScrollView 支持 delta 滚动。  
-- 加入 Move/Wheel 节流（scheduler/mouse.go）：默认 120Hz→60Hz，或按像素阈值。
+### HitMap 命中
 
-### Phase 2：Msg 适配层（兼容过渡）
-- 在 App loop：Event → Msg；若组件未实现 Update，桥接到旧 HandleEvent。  
-- DeclarativeNode 优先用 target 路径定向 Update；无 target 时走层次递归。  
-- Inspector overlay 改为普通节点消费 MouseMsg/KeyMsg，不再手写坐标解析。
+Render 后 `framework.App` 会从 root 的 `GetHitMap()` 取得命中图，并传给 `Pump`。鼠标消息可带：
 
-### Phase 3：Cmd/异步统一
-- 提供 Cmd 工具包；Pump 接收 Cmd 产出的 Msg。  
-- 重构 Tick/定时逻辑（文本光标闪烁、性能采样等）为 Cmd；删除分散 goroutine。
+- `TargetID`
+- `TargetFiber`
+- `LocalX`
+- `LocalY`
+- `TargetBounds`
 
-### Phase 4：阶段化 & 优先级
-- 引入捕获/冒泡模型：路径由 HitMap 提供。  
-- 注册监听可带优先级（如全局快捷键>overlay>应用控件）。  
-- 为 Debug 提供事件轨迹日志。
+这让很多鼠标交互不再依赖组件自己维护的旧 bounds。
 
-### Phase 5：测试与可视化
-- TestableApp 支持按节点 ID 注入；提供 `AssertHit(nodeID)`、`DumpHitMap()`。  
-- TUI_DEBUG_UI：可视化命中框、最近处理路径。
+### Wheel Delta
 
-## 当前合理性评估
-- **合理**：单线程 loop + Pump 渠道模式简单可靠；Hook/Inspector 已可工作。  
-- **不足**：命中分散、阶段缺失、滚轮方向缺失、测试坐标脆弱、异步分散。  
-- **优先级排序**：HitMap & WheelDelta > Msg 适配 > Cmd 统一 > 阶段化。
+`MouseMsg` 已包含滚轮方向 delta。上滚和下滚可以在组件侧按 delta 处理。
 
-## 预期收益
-- 点击/hover 稳定性显著提升（命中不再依赖每个控件手写 bounds）。  
-- 事件行为可预测（捕获/冒泡 + 优先级）。  
-- 测试可维护性提升（按节点 ID 注入）。  
-- Inspector/Overlay 去特例化；滚轮与高频鼠标性能改善。  
-- 统一的 Cmd/Msg 便于追踪和回收异步，降低内存与并发风险。
+### MouseMove 合并
 
-## 风险与缓解
-- **改动面大**：用适配层保留旧 HandleEvent，逐步迁移。  
-- **性能**：HitMap 构建需高效（可复用布局树，O(n)）；Move/Wheel 节流减负。  
-- **API 变更**：为 Update 引入但不强制；文档、示例、测试同步更新。
+`framework.App` 主循环 drain pending events 时会合并高频 mouse move，只保留最后一个 move，同时保留 press/release/wheel 和 key events。
 
-## 近期待办（第一波）
-1. Render 阶段导出 `HitMap`；MouseEvent/MouseMsg 写入 Target/local。  
-2. MouseWheel 增加 Delta；TreeView/ScrollView 接入 delta。  
-3. Move/Wheel 简单节流（60Hz）。  
-4. 添加注入辅助：`InjectMouseByID(nodeID, action)`（TestableApp）。
+### Action 主路径
 
-完成后再推进 Msg/Update/Cmd 适配层。以上步骤不破坏现有 API，风险可控。 
+当前 `processMsg` 优先走 `InputProcessor -> Action` 路径。鼠标 Action 可通过 `TargetFiber` 分发；键盘 Action 优先发给当前 focus Fiber；否则进入 `ActionRouter`。
 
+### InteractionContext
+
+`App` 已内置 `InputTracker` 与 `InteractionContext`，用于 pressed/click/cancel/reset 等输入状态推断和实例注册。
+
+## 当前仍是兼容或历史路径的部分
+
+- `framework/event.Event` 和 `MouseEvent` 仍存在，主要用于兼容旧组件和旧事件处理。
+- `DeclarativeNode.HandleEvent()` 仍保留 VNode tree fallback，会调用旧式 `frameworkevent.Component.HandleEvent()`。
+- `MsgToEvent` 是迁移期适配器，不应作为新架构主路径。
+
+## 尚未完成的长期目标
+
+### 阶段化分发
+
+目标仍包括捕获、目标、冒泡三阶段，并支持：
+
+- `StopPropagation`
+- `PreventDefault`
+- listener priority
+- overlay/inspector/global shortcut 明确优先级
+
+当前源码里还没有完整 DOM-style 阶段模型。
+
+### 组件 Update API
+
+目标中的 `Update(Msg) (Cmd, bool)` 尚不是当前组件主接口。当前组件运行期主接口是 `HandleAction(*action.Action) bool` 和各类 instance capability。
+
+### Cmd 体系
+
+标准化 Cmd，例如 `After(d)`、`Tick(d)`、`Batch`、`IO`，仍是长期目标。当前 tick、异步和组件内部行为仍由现有 runtime/app/instance 机制处理。
+
+### 测试按节点注入
+
+E2E 已具备 locator、hit assertion、trace 等能力，但 `InjectMouseByID(nodeID, action)` 这类统一 API 仍不应在文档里写成已完成，除非源码已提供同名能力。
+
+## 长期目标形态
+
+理想状态：
+
+```text
+Raw input / async result
+  -> Msg
+  -> HitMap path resolution
+  -> capture phase
+  -> target phase
+  -> bubble phase
+  -> Action / Intent / Update
+  -> Cmd batch
+  -> render scheduling
+```
+
+## 后续建议
+
+1. 继续减少 VNode event fallback，把鼠标和键盘交互统一到 HitMap/TargetFiber/ActionBridge。
+2. 给 `runtime/action` 和 `framework/event` 的边界补充更清晰的开发指南。
+3. 为 E2E 提供稳定的按 component id / target id 注入辅助。
+4. 若引入 Cmd，先从 tick/timeout/async task 这类易验证场景开始。
+5. 将旧 `frameworkevent.Component.HandleEvent()` 文档明确标注为兼容路径。

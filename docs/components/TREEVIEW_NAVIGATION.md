@@ -1,5 +1,7 @@
 # TreeView Navigation Support
 
+> Current API note: this is an early TreeView navigation and Inspector integration note. Current public construction should use `ui.NewTreeViewBuilder()` / `ui/components/treeview`; snippets that mention `display.TreeView` or `app.NewTextBuilder` are historical implementation notes.
+
 ## Overview
 
 The TreeView component now supports full keyboard navigation for browsing and interacting with tree structures. This enables users to navigate through hierarchical data (like the Inspector's layout tree) using intuitive keyboard shortcuts.

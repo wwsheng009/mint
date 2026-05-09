@@ -1,5 +1,7 @@
 # Hooks 使用指南
 
+> 当前状态：本文保留为 Hooks 概念和常见陷阱说明。代码示例来自旧 VNode/闭包按钮 API 时代；当前交互组件应通过 `ui.NewButtonBuilder(...).OnPress(intent.Intent)` 发出 Intent，局部状态示例需要配合 `ui.On` 或 Store/Reducer 改写。
+
 ## 概述
 
 Mint UI 的 Hooks 系统借鉴了 React Hooks 的设计理念，提供了一种在函数式组件中管理状态和副作用的方式。本文档介绍如何正确使用 Hooks 以及避免常见的陷阱。

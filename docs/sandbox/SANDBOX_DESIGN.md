@@ -1,5 +1,7 @@
 # Sandbox机制设计方案
 
+> 当前状态：本文是 Sandbox 机制的历史设计说明。当前可执行测试入口优先使用 `ui.RunTest(...)`、`ui.RunTestWithSandbox(...)` 和 `sandbox/testing`；旧示例里的 `OnClick(func)`、`ui.ButtonBuilder` 需要按当前 Intent API 改写。
+
 ## 1. 核心概念
 
 ### 设计原则

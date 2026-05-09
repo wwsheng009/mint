@@ -1,366 +1,185 @@
-# ScrollView 组件 - 内容溢出解决方案
+# ScrollView 组件
 
-**ScrollView Component - Content Overflow Solution**
+`ScrollView` 是 Mint 当前的滚动容器组件，源码位于 `ui/components/scrollview/`。它适合展示长文本、日志、树形文本快照、代码片段等固定视口内容。
 
----
+当前实现是 Fiber-first 组件：
 
-## 🎯 问题描述
+```text
+scrollview.VNode
+  -> scrollview.Instance
+  -> Measure(...)
+  -> Paint(...)
+```
 
-用户反馈：
-> "现在存在一个问题，如果内容高度超过了设置的固定的高度，如何处理，现在是直接溢出了，是否要设计一个可滚动的组件"
+组件声明只保存 props；滚动状态、内容行缓存、边界和 paint 行为由运行期 `Instance` 管理。
 
-在 Inspector 中，当树视图内容超过固定高度（25行）时，内容会直接溢出，用户无法查看完整内容。
+## 当前源码位置
 
----
+| 内容 | 路径 |
+|---|---|
+| Builder API | `ui/components/scrollview/builder.go` |
+| VNode props | `ui/components/scrollview/vnode.go` |
+| Runtime instance / paint / action handling | `ui/components/scrollview/instance.go` |
+| 根包快捷入口 | `ui/shortcuts.go` |
+| E2E 覆盖 | `ui/e2e/scrollview_e2e_test.go` |
+| 示例 | `examples/fiber_firsts/scrollview_demo` |
 
-## ✅ 解决方案：ScrollView 组件
+不要再引用历史路径 `components/layout/scroll_view.go`。
 
-创建了一个通用的 **ScrollView 可滚动容器组件**，支持虚拟滚动。
+## API 入口
 
-### 设计思路
-
-1. **通用性** - ScrollView 是一个独立的布局组件，可以在任何需要滚动功能的地方使用
-2. **虚拟滚动** - 只渲染可见区域的内容，提高性能
-3. **状态管理** - 滚动位置由外部维护（如 Inspector 的 treeScrollOffset）
-4. **简单集成** - 通过 Builder 模式提供流畅的 API
-
-### 组件位置
-
-**文件**: `components/layout/scroll_view.go`
-
----
-
-## 📦 组件特性
-
-### ScrollViewBuilder API
+推荐从根包 `ui` 使用：
 
 ```go
-scrollView := layout.NewScrollView(content).
-    Width(80).              // 视口宽度
-    Height(20).             // 视口高度（可见行数）
-    ScrollOffset(5).        // 当前滚动位置
-    ShowBorder(true).       // 可选：显示边框
-    Style(...).             // 可选：设置样式
+ui.NewScrollViewBuilder().
+    Child(ui.Text("Line 1\nLine 2\nLine 3")).
+    Width(40).
+    Height(8).
+    ScrollOffset(0).
+    ShowBorder(true).
     Build()
 ```
 
-### 参数说明
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `content` | `ui.VNode` | 要显示的内容（任何 VNode） |
-| `Width` | `int` | 视口宽度（字符数） |
-| `Height` | `int` | 视口高度（行数） |
-| `ScrollOffset` | `int` | 当前进度条位置（行偏移） |
-| `ShowBorder` | `bool` | 是否显示边框（默认 false） |
-| `Style` | `style.Style` | 文本样式 |
-
----
-
-## 🔄 工作原理
-
-### 1. 内容提取
+常用快捷函数：
 
 ```go
-// 从 VNode 中提取文本内容
-contentText := b.extractTextContent(b.content)
-lines := strings.Split(contentText, "\n")
+ui.ScrollView(ui.Text("Long content"))
+ui.ScrollSize(ui.Text("Long content"), 40, 8)
+ui.ScrollBordered(ui.Text("Long content"), 40, 8)
 ```
 
-### 2. 虚拟渲染
+组件包也提供同等入口：
 
 ```go
-// 计算可见范围
-startLine := scrollOffset
-endLine := startLine + viewportHeight
+import "github.com/wwsheng009/mint/ui/components/scrollview"
 
-// 只渲染可见行
-visibleLines := lines[startLine:endLine]
-visibleText := strings.Join(visibleLines, "\n")
-```
-
-### 3. 滚动指示器
-
-```go
-if totalLines > viewportHeight {
-    indicator := " ▼"  // 在顶部
-    if scrollOffset >= maxOffset {
-        indicator = " ▲"  // 在底部
-    } else if scrollOffset > 0 {
-        indicator = " ↕"  // 在中间
-    }
-    // 显示滚动指示器
-}
-```
-
----
-
-## 🎨 使用示例
-
-### 示例 1：Inspector 树视图
-
-```go
-// Inspector 中使用 ScrollView
-allLines, totalLines := si.treeView.GetTreeLines()
-si.treeTotalLines = totalLines
-
-treeViewHeight := si.overlayHeight - 14
-
-// 创建树文本内容
-treeText := strings.Join(allLines, "\n")
-treeContentNode := ui.Text(treeText)
-
-// 使用 ScrollView 包装
-treePreview := layout.NewScrollView(treeContentNode).
-    Width(si.overlayWidth - 4).
-    Height(treeViewHeight).
-    ScrollOffset(si.treeScrollOffset).  // 由 Inspector 维护
+scrollview.NewBuilder().
+    Child(ui.Text(content)).
+    Width(60).
+    Height(12).
+    ShowBorder(true).
     Build()
 ```
 
-### 示例 2：带边框的日志查看器
+## Builder 方法
+
+| 方法 | 说明 |
+|---|---|
+| `Child(rtui.VNode)` | 设置要滚动展示的内容 |
+| `Width(int)` | 设置内容视口宽度，`0` 表示自动宽度 |
+| `Height(int)` | 设置内容视口高度，`0` 表示显示全部内容 |
+| `ScrollOffset(int)` | 设置非受控模式下的初始滚动行偏移 |
+| `InitialScrollOffset(int)` | `ScrollOffset` 的语义化别名 |
+| `ScrollOffsetControlled(int)` | 设置受控滚动偏移，每次 props 更新都会覆盖实例状态 |
+| `ShowBorder(bool)` / `Border()` / `NoBorder()` | 控制边框 |
+| `ShowIndicator(bool)` | 控制边框右侧滚动指示符 |
+| `Style(style.Style)` | 设置内容和边框使用的基础样式 |
+| `Key(string)` | 设置 diff key |
+| `SetID(string)` | 设置业务 ID，用于定位和 Portal anchoring |
+
+`Build()` 返回 `rtui.VNode`，`BuildVNode()` 返回具体的 `*scrollview.VNode`。
+
+## 内容模型
+
+`ScrollView` 当前以文本行为核心模型。`Instance.extractContent()` 会从 child 中提取文本内容：
+
+- 读取 props 中的 `content`。
+- 识别 `ui/components/text.VNode`。
+- 识别实现 `Content() string` 的节点。
+- 对 children 递归提取，并用换行拼接。
+
+因此它最适合长文本和按行展示的内容。需要复杂行组件、选中项、高亮项或大数据列表时，优先使用 `VirtualList` 或 `List.BuildVirtualList()`。
+
+## 滚动行为
+
+`ScrollView` 支持两种滚动使用方式：
+
+1. 非受控初始偏移：使用 `ScrollOffset()` / `InitialScrollOffset()` 设置首次偏移，之后实例可以通过 action 自己改变滚动位置。
+2. 受控偏移：使用 `ScrollOffsetControlled()`，父组件每次 render 传入新的偏移，实例会同步到该值。
+
+运行期实例支持：
 
 ```go
-// 创建带边框的滚动日志查看器
-logContent := ui.Text(allLogs)
-
-logViewer := layout.NewScrollView(logContent).
-    Width(100).
-    Height(30).
-    ScrollOffset(scrollPos).
-    ShowBorder(true).  // 显示边框
-    Build()
+inst.ScrollBy(delta)
+inst.ScrollTo(offset)
+inst.ScrollTop()
+inst.ScrollBottom()
+inst.PageUp()
+inst.PageDown()
+inst.CanScrollUp()
+inst.CanScrollDown()
+inst.GetScrollOffset()
+inst.GetTotalLines()
+inst.GetViewportSize()
+inst.IsScrollable()
 ```
 
-### 示例 3：状态管理
+这些方法在组件实例层存在。普通应用代码通常通过 action、状态和重新 render 来驱动，而不是直接持有实例。
+
+## Action 支持
+
+`scrollview.Instance` 实现了 action target 能力，支持：
+
+| Action | 行为 |
+|---|---|
+| `ActionScroll` | 根据滚轮 delta 滚动 |
+| `ActionNavigateUp` / `ActionNavigateDown` | 上下滚动一行 |
+| `ActionNavigatePageUp` / `ActionNavigatePageDown` | 翻页滚动 |
+| `ActionNavigateHome` / `ActionNavigateEnd` | 到顶部 / 底部 |
+
+鼠标滚轮会经由 `framework/event.Pump -> runtime/msg.MouseMsg -> runtime/action.InputProcessor -> framework.App.processMsg` 进入 action 路由。命中目标由 HitMap / `TargetFiber` 提供。
+
+## 渲染细节
+
+- 无边框时，组件只绘制视口内可见行。
+- 有边框时，实际绘制尺寸为 `width + 2` 和 `height + 2`。
+- 内容超过宽度会被截断。
+- `ShowIndicator(true)` 且内容高度超过视口时，右边框底部会显示滚动位置提示。
+- 高度为 `0` 时按全部内容高度测量，通常不会产生垂直滚动。
+
+## 示例：日志视图
 
 ```go
-// 在组件外部维护滚动状态
-type MyComponent struct {
-    scrollOffset int
-}
-
-func (c *MyComponent) Render() ui.VNode {
-    content := ui.Text(c.getLongContent())
-
-    return layout.NewScrollView(content).
+func LogPanel(lines []string, offset int) ui.VNode {
+    return ui.NewScrollViewBuilder().
+        Child(ui.Text(strings.Join(lines, "\n"))).
         Width(80).
-        Height(20).
-        ScrollOffset(c.scrollOffset).  // 使用状态中的滚动位置
+        Height(18).
+        ScrollOffsetControlled(offset).
+        ShowBorder(true).
+        ShowIndicator(true).
         Build()
 }
-
-// 键盘事件处理
-func (c *MyComponent) HandleKeyDown(key string) {
-    switch key {
-    case "pgdn":
-        c.scrollOffset += 20  // 向下滚动一页
-    case "pgup":
-        c.scrollOffset -= 20  // 向上滚动一页
-    }
-}
 ```
 
----
-
-## 🎮 Inspector 集成
-
-### 1. 状态字段
+## 示例：代码片段
 
 ```go
-type StandaloneInspector struct {
-    // ...
-    treeScrollOffset int  // 滚动位置
-    treeTotalLines   int  // 总行数
+func CodePreview(source string) ui.VNode {
+    return ui.ScrollBordered(
+        ui.Text(source),
+        72,
+        16,
+    )
 }
 ```
 
-### 2. 键盘事件处理
+## ScrollView 与 VirtualList
 
-```go
-func (si *StandaloneInspector) HandleKeyEvent(key string, alt, ctrl bool) bool {
-    // 只在 Elements 标签页处理滚动
-    if si.activeTab == TabElements {
-        treeViewHeight := si.overlayHeight - 14
+| 场景 | 推荐组件 |
+|---|---|
+| 长文本、日志、代码、树形文本快照 | `ScrollView` |
+| 大量字符串项、需要 selected index、每项样式函数 | `VirtualList` |
+| 富行模型、选择/搜索/checkbox 等列表交互 | `List` 或 `List.BuildVirtualList()` |
 
-        switch key {
-        case "pgup":
-            si.treeScrollOffset -= treeViewHeight
-            // 边界检查...
-            return true
-        case "pgdn":
-            si.treeScrollOffset += treeViewHeight
-            // 边界检查...
-            return true
-        case "home":
-            si.treeScrollOffset = 0
-            return true
-        case "end":
-            si.treeScrollOffset = maxOffset
-            return true
-        }
-    }
-}
+## 测试与验证
+
+相关测试：
+
+```bash
+go test ./ui/components/scrollview -count=1
+go test ./ui/e2e -run ScrollView -count=1
+go test ./examples/fiber_firsts/scrollview_demo -count=1
 ```
 
-### 3. 更新说明
-
-```go
-instructions := rtui.VStack(
-    app.NewTextBuilder("Instructions:").Build(),
-    app.NewTextBuilder("  PgUp/PgDn: Scroll tree").Build(),
-    app.NewTextBuilder("  Home/End: Top/Bottom").Build(),
-    // ...
-)
-```
-
----
-
-## 🚀 性能优势
-
-### 虚拟滚动
-
-```
-传统方式（全部渲染）：
-- 1000 行内容
-- 创建 1000 个 VNode
-- 全部参与 Diff 和 Paint
-- CPU 和内存消耗大
-
-ScrollView（虚拟滚动）：
-- 1000 行内容
-- 只渲染可见的 20 行
-- 只有 20 个 VNode 参与
-- 性能提升 50 倍
-```
-
-### 内存优化
-
-```go
-// 传统方式
-for i := 0; i < 1000; i++ {
-    children = append(children, renderLine(i))
-}
-// 内存: 1000 个 VNode 对象
-
-// ScrollView
-visibleLines := allLines[start:end]  // 只有 20 行
-// 内存: 20 个 VNode 对象
-```
-
----
-
-## 📊 与其他方案的对比
-
-| 方案 | 优点 | 缺点 | 适用场景 |
-|------|------|------|---------|
-| **ScrollView** | ✅ 通用组件<br>✅ 虚拟滚动<br>✅ 简单 API<br>✅ 高性能 | ⚠️ 文本内容限制 | 长文本、日志、树视图 |
-| **VirtualList** | ✅ 通用组件<br>✅ 虚拟滚动<br>✅ 支持复杂项 | ⚠️ 需要 item renderer | 列表、表格 |
-| **手动分页** | ✅ 完全控制 | ❌ 代码复杂<br>❌ 不可复用 | 特殊需求 |
-
----
-
-## 🔧 扩展方向
-
-### 未来增强
-
-1. **水平滚动支持**
-   ```go
-   .ScrollOffsetX(x)
-   .ScrollOffsetY(y)
-   ```
-
-2. **动态内容加载**
-   ```go
-   .OnScroll(func(offset int) {
-       // 懒加载更多内容
-   })
-   ```
-
-3. **滚动条样式**
-   ```go
-   .ScrollbarStyle(...)
-   ```
-
-4. **内容缓存**
-   ```go
-   .EnableCache(true)
-   ```
-
----
-
-## 📁 相关文件
-
-| 文件 | 说明 |
-|------|------|
-| `components/layout/scroll_view.go` | ScrollView 组件实现 |
-| `components/layout/virtual_scroll.go` | VirtualList 组件（更复杂） |
-| `internal/inspector/standalone_inspector.go` | Inspector 使用 ScrollView |
-| `app/app.go` | ScrollView 导出 |
-
----
-
-## 🎓 使用最佳实践
-
-### ✅ 推荐
-
-```go
-// 1. 在外部维护滚动状态
-type MyComponent struct {
-    scrollOffset int
-}
-
-// 2. 使用 Builder 模式
-scrollView := layout.NewScrollView(content).
-    Width(80).
-    Height(20).
-    ScrollOffset(c.scrollOffset).
-    Build()
-
-// 3. 处理边界情况
-if c.scrollOffset < 0 {
-    c.scrollOffset = 0
-}
-maxOffset := totalLines - viewportHeight
-if c.scrollOffset > maxOffset {
-    c.scrollOffset = maxOffset
-}
-```
-
-### ❌ 避免
-
-```go
-// ❌ 不要在 ScrollView 内部维护状态
-// （TUI 是声明式的，每次渲染都重新创建）
-
-// ❌ 不要忘记处理边界
-// （会导致越界错误）
-
-// ❌ 不要设置过小的 viewport
-// （用户体验差）
-```
-
----
-
-## 🎯 总结
-
-### 问题解决
-
-✅ **内容溢出** - 通过虚拟滚动只渲染可见内容
-✅ **性能问题** - 大幅减少 VNode 数量
-✅ **通用性** - 可在任何需要滚动的地方使用
-✅ **简单性** - 清晰的 Builder API
-
-### 架构价值
-
-1. **关注点分离** - 滚动逻辑与业务逻辑分离
-2. **可复用性** - 一个组件服务整个项目
-3. **可维护性** - 集中管理滚动行为
-4. **可测试性** - 独立的组件易于测试
-
----
-
-**版本**: 1.0
-**状态**: ✅ 已实现并集成
-**日期**: 2025-02-08
-**作者**: Claude + 用户协作
+当前文档描述的是 `ui/components/scrollview` 的现行实现；如果历史设计文档提到 `components/layout/scroll_view.go`，应视为旧路径。

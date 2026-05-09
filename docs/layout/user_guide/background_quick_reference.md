@@ -2,6 +2,8 @@
 
 **Container Background Quick Reference**
 
+> 当前 API 提示：布局/背景行为仍有参考价值，但示例中如出现 `app.ButtonBuilder` 或其他 `app.*` 组件 builder，需要改写为当前 `ui.NewXBuilder` API。`app` 包现在主要作为 `app.Run` / `app.Quit` 兼容入口。
+
 快速指南：如何在 Mint TUI 中使用容器背景。
 
 ---
