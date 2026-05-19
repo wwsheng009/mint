@@ -3,27 +3,28 @@ package input
 import (
 	"time"
 
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // InputSnapshot 是输入状态的快照
 // 包含鼠标、键盘等所有输入的当前状态
 //
-// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计原则：
+// Based on the archived pressed-state design:
+// docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 // - 输入不是事件流，而是"状态快照流"
 // - 通过比较前后两个快照推断边缘事件（Press/Release/Move）
 type InputSnapshot struct {
 	// 鼠标状态
-	MouseX       int
-	MouseY       int
-	MouseButton  runtimemsg.MouseButton
-	MouseAction  runtimemsg.MouseAction
+	MouseX      int
+	MouseY      int
+	MouseButton runtimemsg.MouseButton
+	MouseAction runtimemsg.MouseAction
 
 	// 键盘状态
-	KeyboardKey  rune // 可打印字符
-	SpecialKey   runtimeplatform.SpecialKey
-	Modifiers    runtimemsg.Modifiers
+	KeyboardKey rune // 可打印字符
+	SpecialKey  runtimeplatform.SpecialKey
+	Modifiers   runtimemsg.Modifiers
 
 	// 时间戳（用于事件顺序）
 	Timestamp int64

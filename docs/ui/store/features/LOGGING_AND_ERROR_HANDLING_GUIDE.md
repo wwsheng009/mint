@@ -3,7 +3,7 @@
 **版本**: v2.0
 **创建日期**: 2026-03-04
 **状态**: ✅ 已实现
-**相关文档**: [SYSTEM_ANALYSIS_OPTIMIZATION.md](../optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md)
+**相关历史文档**: `../../../../docsArchive/cleanup-2026-05-19/docs/ui/store/optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md`
 
 ---
 
@@ -512,7 +512,7 @@ func registerHandlers() {
 
 ### A. 相关文档
 
-- [SYSTEM_ANALYSIS_OPTIMIZATION.md](../optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md) - 系统分析与优化
+- 系统分析与优化历史记录：`../../../../docsArchive/cleanup-2026-05-19/docs/ui/store/optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md`
 - [IMPLEMENTATION_REVIEW.md](/docsArchive/reviews/IMPLEMENTATION_REVIEW.md) - 实施复查报告
 - [STORE_STORE_REDUCER_GUIDE.md](../guides/STORE_REDUCER_GUIDE.md) - Store + Reducer 指南
 

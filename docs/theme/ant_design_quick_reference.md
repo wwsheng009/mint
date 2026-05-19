@@ -385,9 +385,9 @@ Disabled > Error > Warning > Success > Focus > Hover > Normal
 ## 🔗 相关文档
 
 - [Ant Design 官方文档](https://ant.design/)
-- [Ant Design 设计理念](./design/ant_design.md)
+- Ant Design 设计理念历史记录：`../../docsArchive/cleanup-2026-05-19/docs/theme/design/ant_design.md`
 - [主题系统指南](./theme_system_guide.md)
-- [组件配色检查](./check_1.md)
+- 组件配色检查历史记录：`../../docsArchive/cleanup-2026-05-19/docs/theme/check_1.md`
 - [实施完整指南](./ant_design_implementation_guide.md)
 
 ---

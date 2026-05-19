@@ -46,7 +46,7 @@
 
 | 文档 | 描述 |
 |------|------|
-| **[布局重构](../refactor/layout_refactor.md)** | 布局系统重构历史 |
+| **布局重构历史** | 已归档到 `../../../docsArchive/cleanup-2026-05-19/docs/layout/refactor/` |
 | **[渲染重构](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)** | 渲染管线重构（已归档） |
 | **[单次重构](/docsArchive/single_pass_refactor_summary.md)** | 单次布局重构总结（已归档） |
 
@@ -126,7 +126,7 @@ vnode.SetLayer(rtui.LayerOverlay)
 
 1. **架构分析**: [Layer 架构](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)
 2. **约束系统**: [Constraints](/docsArchive/getChildconstraints_architecture_analysis.md)
-3. **重构历史**: [布局重构](../refactor/layout_refactor.md)
+3. **重构历史**: `../../../docsArchive/cleanup-2026-05-19/docs/layout/refactor/`
 4. **渲染管线**: [渲染重构](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)
 
 ---

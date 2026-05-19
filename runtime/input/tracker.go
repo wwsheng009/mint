@@ -1,13 +1,14 @@
 package input
 
 import (
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // InputTracker 跟踪输入状态变化，推断边缘事件
 //
-// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计原则：
+// Based on the archived pressed-state design:
+// docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 // - 不依赖底层事件完整性
 // - 通过比较前一帧和当前帧状态推断 Press/Release
 type InputTracker struct {
@@ -25,18 +26,18 @@ type InputIntent interface {
 
 // InputPressIntent 按钮按下意图
 type InputPressIntent struct {
-	X, Y    int
-	Button  runtimemsg.MouseButton
-	Source  string // "mouse" | "keyboard"
+	X, Y   int
+	Button runtimemsg.MouseButton
+	Source string // "mouse" | "keyboard"
 }
 
 func (InputPressIntent) isInputIntent() {}
 
 // InputReleaseIntent 按钮释放意图
 type InputReleaseIntent struct {
-	X, Y    int
-	Button  runtimemsg.MouseButton
-	Source  string // "mouse" | "keyboard"
+	X, Y   int
+	Button runtimemsg.MouseButton
+	Source string // "mouse" | "keyboard"
 }
 
 func (InputReleaseIntent) isInputIntent() {}
@@ -130,7 +131,7 @@ func (t *InputTracker) inferMouseState(prev, curr *InputSnapshot, intents *[]Inp
 // inferKeyboardState 推断键盘状态变化
 func (t *InputTracker) inferKeyboardState(prev, curr *InputSnapshot, intents *[]InputIntent) {
 	// 推断键盘输入：有新按键或特殊键
-	if (curr.KeyboardKey != 0 || curr.SpecialKey != runtimeplatform.KeyUnknown) {
+	if curr.KeyboardKey != 0 || curr.SpecialKey != runtimeplatform.KeyUnknown {
 		// 只在实际按键时才触发（忽略状态同步）
 		if !curr.IsEmpty() {
 			*intents = append(*intents, InputKeyboardIntent{

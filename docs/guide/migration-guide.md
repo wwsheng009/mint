@@ -176,7 +176,7 @@ framework/event.Pump
 相关文档：
 
 - [../howto/migrate-to-targetbounds.md](../howto/migrate-to-targetbounds.md)
-- [../event/long_term_event_architecture.md](../event/long_term_event_architecture.md)
+- Historical event architecture: `../../docsArchive/cleanup-2026-05-19/docs/event/long_term_event_architecture.md`
 
 ## 测试迁移
 

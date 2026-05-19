@@ -165,6 +165,6 @@ For overlay click-outside behavior, the HitMap target may be a child component, 
 
 ## Related Docs
 
-- [../event/long_term_event_architecture.md](../event/long_term_event_architecture.md)
-- [../event/PRESSED_STATE_COMPLETE_SOLUTION.md](../event/PRESSED_STATE_COMPLETE_SOLUTION.md)
+- Historical event architecture: `../../docsArchive/cleanup-2026-05-19/docs/event/long_term_event_architecture.md`
+- Historical pressed-state solution: `../../docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md`
 - [../features/focus/README.md](../features/focus/README.md)

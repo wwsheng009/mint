@@ -452,5 +452,5 @@ func main() {
 
 - [Fiber 架构](/docs/architecture/design/FIBER_ARCHITECTURE.md)
 - [Store + Reducer 指南](./STORE_REDUCER_GUIDE.md)
-- [Intent 迁移指南](../migration/INTENT_HANDLER_MIGRATION.md)
+- Intent 迁移历史：`../../../../docsArchive/cleanup-2026-05-19/docs/ui/store/migration/INTENT_HANDLER_MIGRATION.md`
 - [重构计划](/docsArchive/REFACTOR_PLAN.md)

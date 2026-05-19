@@ -412,4 +412,4 @@ func TestBoxModel(t *testing.T) {
 - [Box Model 优化方案](/docsArchive/box_model_optimization_plan.md)
 - [Box Model 流程图](box_model_flow_diagram.md)
 - [Margin 与测量](../margin/margin_and_measurement.md)
-- [Margin Bug 分析](../margin/margin_bug_analysis.md)
+- Margin bug 历史分析已归档到 `../../../docsArchive/cleanup-2026-05-19/docs/layout/margin/`

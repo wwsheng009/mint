@@ -33,13 +33,10 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 
 ---
 
-### [architecture/](./architecture/)
+### Architecture Notes
 **System architecture and technical analysis**
 
-- **[LAYER_LAYOUT_ARCHITECTURE_REVIEW.md](/docsArchive/LAYER_LAYOUT_ARCHITECTURE_REVIEW.md)** - Comprehensive Layer and Layout architecture review (archived)
-- **[getChildconstraints_architecture_analysis.md](/docsArchive/getChildconstraints_architecture_analysis.md)** - Constraint propagation mechanism analysis (archived)
-- **[layer_constraint_audit_report.md](/docsArchive/layer_constraint_audit_report.md)** - Layer system constraint issues (archived)
-- **[rendering_pipeline_implementation.md](./architecture/rendering_pipeline_implementation.md)** - Rendering pipeline implementation details
+Historical layout architecture and rendering implementation notes are archived under `../../docsArchive/cleanup-2026-05-19/docs/layout/` and `../../docsArchive/`.
 
 **Best for**: Contributors working on the layout system internals
 
@@ -64,13 +61,10 @@ Welcome to the Mint TUI Layout System documentation. This directory contains com
 
 ---
 
-### [refactor/](./refactor/)
+### Refactor History
 **Refactoring design and history**
 
-- **[layout_refactor.md](./refactor/layout_refactor.md)** - Layout system refactor history
-- **[LAYOUT_RENDERING_REFACTOR.md](/docsArchive/LAYOUT_RENDERING_REFACTOR.md)** - Rendering pipeline refactor (archived)
-- **[single_pass_layout_refactor_design.md](/docsArchive/single_pass_layout_refactor_design.md)** - Single-pass layout refactor design (archived)
-- **[single_pass_refactor_summary.md](/docsArchive/single_pass_refactor_summary.md)** - Single-pass refactor summary (archived)
+Refactor history is archived under `../../docsArchive/cleanup-2026-05-19/docs/layout/refactor/` and older `../../docsArchive/` records.
 
 **Best for**: Understanding the evolution of the layout system
 

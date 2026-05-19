@@ -2,15 +2,15 @@ package interaction
 
 import (
 	"github.com/wwsheng009/mint/runtime/input"
-	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
 
 // InteractionState 交互状态枚举
 type InteractionState int
 
 const (
-	StateIdle     InteractionState = iota // 空闲
+	StateIdle      InteractionState = iota // 空闲
 	StateHover                             // 悬停
 	StatePressed                           // 按下
 	StateDragging                          // 拖拽中
@@ -23,8 +23,8 @@ const (
 // - HotID: 当前鼠标悬停的组件
 // - ActiveID: 当前按下的组件
 type InteractionContext struct {
-	HotID    int  // 当前 hover 的组件 ID
-	ActiveID int  // 当前按下的组件 ID
+	HotID    int // 当前 hover 的组件 ID
+	ActiveID int // 当前按下的组件 ID
 
 	// 按下时的起始位置（用于拖拽判断）
 	StartX, StartY int
@@ -135,7 +135,8 @@ func (c *InteractionContext) handleRelease(x, y int, hitTest func(int, int) int,
 
 // handleKeyboard 处理键盘输入
 //
-// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计原则：
+// Based on the archived pressed-state design:
+// docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 // 新的键盘输入应该重置所有交互状态
 func (c *InteractionContext) handleKeyboard(key rune, special runtimeplatform.SpecialKey, mod runtimemsg.Modifiers) {
 	c.resetAllPressedStates()
@@ -180,14 +181,14 @@ type CancelHandler interface {
 //
 // 如果组件行为（Behavior）需要访问 Instance，设计如下：
 //
-//   type Button struct {
-//       PressableBehavior *control.PressableBehavior
-//       instance          control.Instance
-//   }
+//	type Button struct {
+//	    PressableBehavior *control.PressableBehavior
+//	    instance          control.Instance
+//	}
 //
-//   func (b *Button) ResetPressed() {
-//       b.PressableBehavior.ResetPressedWithInstance(b.instance)
-//   }
+//	func (b *Button) ResetPressed() {
+//	    b.PressableBehavior.ResetPressedWithInstance(b.instance)
+//	}
 type PressedResetHandler interface {
 	ResetPressed()
 }

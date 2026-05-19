@@ -80,26 +80,15 @@ docs/ui/store/
 ### `optimization/`
 
 - [FIELD_BINDING_OPTIMIZATION.md](optimization/FIELD_BINDING_OPTIMIZATION.md)
-- [SYSTEM_ANALYSIS_OPTIMIZATION.md](optimization/SYSTEM_ANALYSIS_OPTIMIZATION.md)
-- [APPVIEW_TYPE_OPTIMIZATION.md](optimization/APPVIEW_TYPE_OPTIMIZATION.md)
 
-### `migration/`
+### Archived migration, fixes, and issue notes
 
-- [FORM_FIELDMAP_MIGRATION.md](migration/FORM_FIELDMAP_MIGRATION.md)
-- [INTENT_HANDLER_MIGRATION.md](migration/INTENT_HANDLER_MIGRATION.md)
+Detailed migration records, fix notes, and issue investigations were moved to `../../../docsArchive/cleanup-2026-05-19/docs/ui/store/`. Current app development should use this README, the guides, and `DEVELOPMENT.md`.
 
 ### `hybrid/`
 
 - [STATE_MANAGEMENT_GUIDE.md](hybrid/STATE_MANAGEMENT_GUIDE.md)
 - [HYBRID_MODE_IMPLEMENTATION.md](hybrid/HYBRID_MODE_IMPLEMENTATION.md)
-
-### `fixes/` 和 `issues/`
-
-问题记录和修复说明：
-
-- [fixes/RUN_VS_RUNAPP.md](fixes/RUN_VS_RUNAPP.md)
-- [fixes/TIMETRAVEL_FIX.md](fixes/TIMETRAVEL_FIX.md)
-- [issues/FMT_PRINT_ISSUE.md](issues/FMT_PRINT_ISSUE.md)
 
 ## 最小模式
 

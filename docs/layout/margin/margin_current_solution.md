@@ -135,7 +135,7 @@ if isFlexRow {
 
 ## 参考资料
 
-- Bug 分析：`docs/layout/margin/margin_bug_analysis.md`
+- Bug 历史分析：`docsArchive/cleanup-2026-05-19/docs/layout/margin/margin_bug_analysis.md`
 - 完整流程：`docs/layout/margin/margin_flow_diagram.md`
 - 测量文档：`docs/layout/margin/margin_and_measurement.md`
 

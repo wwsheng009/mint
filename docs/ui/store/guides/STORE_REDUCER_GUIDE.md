@@ -438,7 +438,7 @@ type ChangeIntent struct{}  // 改变什么？
 
 ## 相关文档
 
-- [INTENT_HANDLER_MIGRATION.md](../migration/INTENT_HANDLER_MIGRATION.md) - Intent Handler 迁移指南
+- Intent Handler 迁移历史：`../../../../docsArchive/cleanup-2026-05-19/docs/ui/store/migration/INTENT_HANDLER_MIGRATION.md`
 - [REFACTOR_PLAN.md](/docsArchive/REFACTOR_PLAN.md) - 完整重构计划
 - [store.md](../README.md) - Store 详细设计
 

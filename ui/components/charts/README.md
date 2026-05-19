@@ -86,9 +86,9 @@
 - [heatmap/README.md](./heatmap/README.md)
 - [scatterplot/README.md](./scatterplot/README.md)
 - [candlestick/README.md](./candlestick/README.md)
-- [../../../examples/charts_heatmap_demo/README.md](../../../examples/charts_heatmap_demo/README.md)
-- [../../../examples/charts_scatterplot_demo/README.md](../../../examples/charts_scatterplot_demo/README.md)
-- [../../../examples/charts_candlestick_demo/README.md](../../../examples/charts_candlestick_demo/README.md)
+- [../../../examples/charts_gallery_demo](../../../examples/charts_gallery_demo)
+
+独立 heatmap、scatterplot、candlestick 小示例已归档到 `../../../docsArchive/cleanup-2026-05-19/_examples/`，当前推荐使用综合图表示例。
 
 ## 目录原则
 

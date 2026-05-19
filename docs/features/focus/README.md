@@ -115,11 +115,7 @@ go test ./examples/ui_demos/demo1_full_featured -count=1
 
 ## 文档列表
 
-- [mouse_click_focus_issue.md](mouse_click_focus_issue.md): 鼠标点击焦点问题分析。
-- [mouse_click_focus_implementation.md](mouse_click_focus_implementation.md): 鼠标点击焦点切换实现记录。
-- [tab_key_focus_implementation.md](tab_key_focus_implementation.md): Tab 键焦点切换实现记录。
-
-这些文档包含历史行号和旧路径时，应以当前源码为准。
+历史问题分析和实现记录已归档到 `../../../docsArchive/cleanup-2026-05-19/docs/features/focus/`。当前目录保留焦点能力总览，具体行为以 `runtime/focus`、`runtime/ui`、`ui/e2e` 和相关测试为准。
 
 ## 维护注意
 
@@ -129,6 +125,5 @@ go test ./examples/ui_demos/demo1_full_featured -count=1
 
 ## 相关文档
 
-- [../../event/long_term_event_architecture.md](../../event/long_term_event_architecture.md)
 - [../../howto/migrate-to-targetbounds.md](../../howto/migrate-to-targetbounds.md)
 - [../../architecture/README.md](../../architecture/README.md)

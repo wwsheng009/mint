@@ -850,6 +850,9 @@ func (a *App) findTextPoint(text string) (Point, error) {
 		if index < 0 {
 			continue
 		}
+		if index >= len(positions) {
+			return Point{}, fmt.Errorf("text %q found at rune index %d on row %d, but row position map has length %d", text, index, y, len(positions))
+		}
 		x := positions[index]
 		return Point{X: x, Y: y}, nil
 	}

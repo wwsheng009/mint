@@ -42,7 +42,7 @@
 | **Computed/Selector** | 计算值优化，避免不必要的重渲染 | main.go:110-122 | `store.NewComputed()` |
 | **Middleware** | Reducer中间件（日志、调试等） | main.go:310-311 | `reducer.WithMiddleware()` |
 
-**重要更新**: Time Travel Debugging 现在包含完整的 Undo/Redo 功能，使用 `skipHistory` 机制避免无限循环，详见：`docs/architecture/store/TIMETRAVEL_FIX.md`
+**重要更新**: Time Travel Debugging 现在包含完整的 Undo/Redo 功能，使用 `skipHistory` 机制避免无限循环；历史修复记录见 `docsArchive/cleanup-2026-05-19/docs/ui/store/fixes/TIMETRAVEL_FIX.md`。
 
 ---
 
@@ -388,7 +388,7 @@ if state.Submitted {
 }
 ```
 
-**原因**：`os.Stdout` 被 UI 渲染系统占用（每秒60次写入），`fmt.Println` 输出会被控制字符污染。详见：`docs/architecture/store/FMT_PRINT_ISSUE.md`
+**原因**：`os.Stdout` 被 UI 渲染系统占用（每秒60次写入），`fmt.Println` 输出会被控制字符污染。历史问题记录见 `docsArchive/cleanup-2026-05-19/docs/ui/store/issues/FMT_PRINT_ISSUE.md`。
 
 ### 2. 必须注册 Intent handlers
 
@@ -536,7 +536,7 @@ Time Travel Debugging 提供完整的状态历史记录和撤销/重做功能，
 
 ##### 重要修复
 
-Time Travel功能的实现使用了 `skipHistory` 机制来避免无限循环问题（详见：`docs/architecture/store/TIMETRAVEL_FIX.md`）
+Time Travel功能的实现使用了 `skipHistory` 机制来避免无限循环问题（历史记录见 `docsArchive/cleanup-2026-05-19/docs/ui/store/fixes/TIMETRAVEL_FIX.md`）
 
 ##### 使用方法
 
@@ -1041,9 +1041,9 @@ func renderErrors(errors map[string]string) ui.VNode {
 
 - **RunApp 指南**：`docs/architecture/store/RUNAPP_GUIDE.md`
 - **FieldMap 优化**：`docs/architecture/store/FIELD_BINDING_OPTIMIZATION.md`
-- **类型优化**：`docs/architecture/store/APPVIEW_TYPE_OPTIMIZATION.md`
-- **fmt.Println 问题**：`docs/architecture/store/FMT_PRINT_ISSUE.md`
-- **时间旅行调试修复**：`docs/architecture/store/TIMETRAVEL_FIX.md`
+- **类型优化历史**：`docsArchive/cleanup-2026-05-19/docs/ui/store/optimization/APPVIEW_TYPE_OPTIMIZATION.md`
+- **fmt.Println 问题历史**：`docsArchive/cleanup-2026-05-19/docs/ui/store/issues/FMT_PRINT_ISSUE.md`
+- **时间旅行调试修复历史**：`docsArchive/cleanup-2026-05-19/docs/ui/store/fixes/TIMETRAVEL_FIX.md`
 
 ### 相关示例
 

@@ -71,8 +71,8 @@ VNode (临时) → Fiber (持久) + paint.PaintableBox (实例)
 
 **适合**: 架构师、技术负责人、需要了解整体设计的人员
 
-### 2. [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
-**实施指南文档**
+### 2. Historical implementation guide
+**实施指南文档已归档**
 
 - 核心接口定义
 - 代码实现示例
@@ -81,7 +81,9 @@ VNode (临时) → Fiber (持久) + paint.PaintableBox (实例)
 - 性能监控
 - 调试技巧
 
-**适合**: 开发人员、需要具体实施的人员
+归档位置：`../../../../docsArchive/cleanup-2026-05-19/docs/render/paint/optimized/IMPLEMENTATION_GUIDE.md`
+
+**适合**: 需要追溯历史实施方案的维护者
 
 ## 关键优化点
 
@@ -239,7 +241,7 @@ layout.Dirtyable
 ## 快速开始
 
 1. **了解架构**: 阅读 [FIBER_FIRST_RENDER_PIPELINE.md](./FIBER_FIRST_RENDER_PIPELINE.md)
-2. **开始实施**: 参考 [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
+2. **追溯历史实施方案**: 参考 `../../../../docsArchive/cleanup-2026-05-19/docs/render/paint/optimized/IMPLEMENTATION_GUIDE.md`
 3. **迁移组件**: 按照检查清单逐个迁移
 4. **测试验证**: 确保功能和性能符合预期
 

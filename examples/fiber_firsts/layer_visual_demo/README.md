@@ -177,7 +177,7 @@ fwApp.Run()
 
 | 文件 | 说明 |
 |-----|------|
-| `docs/layer/FIBER_FIRST_AUTO_ENABLE.md` | framework.App 自动启用 Fiber-first 机制 |
+| `docsArchive/cleanup-2026-05-19/docs/layer/FIBER_FIRST_AUTO_ENABLE.md` | framework.App 自动启用 Fiber-first 机制的历史说明 |
 | `examples/fiber_firsts/layer_zorder_test/` | Layer Z-Order 详细测试 |
 | `examples/fiber_firsts/tooltip_demo/` | Tooltip/Toast 组件示例 |
 | `internal/render/declarative_node.go:424-504` | fiberFirstPaint() 实现 |

@@ -49,7 +49,7 @@ func main() {
 }
 ```
 
-完整可运行示例见 [examples/charts_candlestick_demo](/E:/projects/yao/wwsheng009/mint/examples/charts_candlestick_demo)。
+当前推荐示例见 `examples/charts_gallery_demo`；历史独立可运行示例已归档到 `docsArchive/cleanup-2026-05-19/_examples/charts_candlestick_demo/`。
 
 ## 设计说明
 

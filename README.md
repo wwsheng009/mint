@@ -1,138 +1,103 @@
 # Mint
 
-Mint 是一个现代化、声明式、可测试的 Go TUI 框架。项目当前已经不再是只有基础控件的原型仓库，而是具备完整组件库、Store/Reducer/Intent 状态管理、Fiber-first 渲染与布局路径、Layer/Portal/Focus 运行时、图表组件、Sandbox/E2E 测试设施，以及 DevTools、Inspector、AI MCP 集成能力的终端 UI 开发栈。
+Mint is a modern declarative TUI framework for Go. It provides a React-like VNode model, a Fiber-first render pipeline, a terminal component library, typed Intent dispatch, Store/Reducer state management, sandbox testing, E2E utilities, DevTools, and Inspector support.
 
-## 当前实施状态
+This repository is usable as an SDK-style Go module. The public application surface is intentionally concentrated around `github.com/wwsheng009/mint/ui` plus a small set of runtime packages for state and intent handling.
 
-截至 `2026-04-23`，Mint 已从“框架原型期”进入“能力收口与持续增强期”。核心运行时、主流组件、示例体系和测试基础设施已经可用，当前工作重点不再是补齐最基础的组件，而是继续做复杂组件增强、文档同步和测试密度提升。
+## Status
 
-| 指标 | 当前情况 |
-|------|----------|
-| Go 版本 | `go 1.24.0`，`toolchain go1.24.2` |
-| 组件/支撑目录 | `60` 个（排除 `ui/components/docs` 与 `ui/components/internal`） |
-| 顶层示例目录 | `66` 个 |
-| E2E 套件 | `58` 个 `ui/e2e/*_e2e_test.go` |
-| 组件路线图 | `ui/components/ROADMAP.md` 中 Phase 1-4 已完成收口 |
-| 最近全量验证 | `go test ./... -count=1` 于 `2026-04-23` 通过 |
+Current repository status as of 2026-05-19:
 
-当前剩余工作主要集中在：
+| Area | Status |
+|---|---|
+| Module path | `github.com/wwsheng009/mint` |
+| Go version | `go 1.24.0`, `toolchain go1.24.2` |
+| Primary entry point | `ui.Run` |
+| Store/Reducer entry point | `ui.Run` with `ui.WithInit(...)`, or `ui.RunApp` for `statemachine.AppRuntime[T]` |
+| Rendering path | Fiber-first by default |
+| Component library | Broad TUI component set under `ui/components` |
+| Test support | Unit tests, component tests, sandbox, replay, E2E driver, render snapshots |
+| Documentation posture | SDK-facing docs are kept in this README, `DEVELOPMENT.md`, and the focused docs under `docs/`; historical implementation notes are archived under `docsArchive/` |
 
-- 已有组件的能力补齐和语义收口
-- 复杂组件 README、迁移指南与示例说明同步
-- `internal/` 支撑模块与高复杂交互场景的测试覆盖继续加密
+Recent local verification covered the public UI package, state runtime packages, sandbox packages, representative components, charts, and selected examples. Full `go test ./...` can take several minutes and should be run before releases.
 
-## 项目功能
+## Installation
 
-### 1. 声明式 UI 与应用模型
-
-- 使用 `ui.Run(...)` 启动应用，根视图返回 `ui.VNode`
-- 组件以 Builder 风格为主，适合链式声明和静态组合
-- 提供 `VStack`、`HStack`、`Flex`、`Grid`、`Row/Col`、`Space`、`Layout` 等布局原语
-- 支持主题、样式、边框、宽高、对齐、滚动和可聚焦节点组合
-
-### 2. 状态管理
-
-- 组件内局部状态仍可使用 Hooks，例如 `UseEffect`、`UseRef` 等
-- 应用级状态推荐使用 `store.NewStore(...) + reducer.NewBuilder(...) + intent.Intent`
-- 通过 `ui.UseStoreSelector(...)` 从 Store 中订阅精确状态切片
-- 表单与字段交互可结合 `intent.BindField(...)`、`FieldChangeIntent` 等机制统一处理
-- 当前交互类组件示例以 `.OnPress(...)` 触发 intent 为主
-
-### 3. 运行时与交互基础设施
-
-- 已具备 Fiber-first 渲染路径和可持续演进的运行时结构
-- 已实现 Focus 管理、Tab/方向键切换、鼠标交互、滚动容器和可测试输入注入
-- 已实现 Layer、Portal、Overlay、Popup、Modal、Drawer 等浮层能力
-- 菜单、Tooltip、Popover、Popconfirm 等组件已接入 viewport-aware placement、fallback 和 clamp 逻辑
-
-### 4. 组件库
-
-Mint 已具备完整的终端组件库能力，覆盖常见应用场景：
-
-- 表单输入：`Input`、`Textarea`、`Select`、`Checkbox`、`Radio`、`Switch`、`Slider`、`Rate`、`DatePicker`、`TimePicker`、`Cascader`、`Transfer`、`Form`
-- 数据展示：`Table`、`List`、`VirtualList`、`TreeView`、`Descriptions`、`Statistic`、`Timeline`、`Badge`、`Tag`
-- 反馈与状态：`Alert`、`Spin`、`Notification`、`Toast`、`Result`、`Skeleton`、`Progress`
-- 导航与容器：`Tabs`、`Menu`、`Breadcrumb`、`Pagination`、`Steps`、`Anchor`、`Panel`
-- 浮层与弹出：`Modal`、`Drawer`、`Tooltip`、`Popover`、`Popconfirm`
-- 布局与基础：`Text`、`Divider`、`ScrollView`、`Absolute`、`Wrap`、`Grid`、`Layout`、`Row/Col`
-
-完整清单与状态请查看 [ui/components/ROADMAP.md](./ui/components/ROADMAP.md)。
-
-### 5. 图表与数据可视化
-
-图表能力已经进入可用阶段，并配有示例和 E2E 验证：
-
-- `sparkline`
-- `bulletchart`
-- `barchart`
-- `linechart`
-- `heatmap`
-- `scatterplot`
-- `candlestick`
-
-图表目录说明见 [ui/components/charts/README.md](./ui/components/charts/README.md)，综合示例见 [examples/charts_gallery_demo](./examples/charts_gallery_demo)。
-
-### 6. 测试、调试与可观测性
-
-- 提供 `sandbox`、record/replay、snapshot、mock/real sandbox 等测试支撑
-- 已有大批 `ui/e2e` 用例覆盖组件回归、布局、浮层和图表渲染
-- 提供 DevTools、Timeline、Time Travel、Replay、Observation、Remote 调试能力
-- 提供 Inspector、布局诊断、节点检查和运行时分析辅助
-
-### 7. AI / MCP 集成
-
-- 仓库内已具备嵌入式 MCP Server 能力
-- 支持 `http` / `pipe` 等传输方式和可选鉴权
-- 可在示例中演示 UI 与 AI/MCP 工具暴露的集成方式
-
-相关示例见 [examples/ai_mcp_demo](./examples/ai_mcp_demo)。
-
-## 推荐使用方式
-
-当前更推荐把 Mint 当作“声明式视图 + 类型化状态流 + 可测试运行时”来使用，而不是只把它当作一组零散组件。
-
-- 组件内短生命周期状态：使用 Hooks，适合局部副作用、定时器、引用和临时 UI 状态
-- 应用级业务状态：使用 `Store + Reducer + Intent`，保持单一状态源和可预测状态变更
-- 交互分发：按钮、菜单、快捷操作等通过 `.OnPress(...)` 发送 intent
-- 复杂表单：通过 Field 绑定、验证、受控/非受控模式组合实现
-- 复杂弹层：优先使用已接入 Layer/Portal 的组件能力，不建议自行拼接底层 overlay 逻辑
-
-如果你是第一次接触当前架构，建议先从以下示例进入：
-
-- [examples/counter](./examples/counter)
-- [examples/store_reducer_demo](./examples/store_reducer_demo)
-- [examples/timer](./examples/timer)
-- [examples/menu_demo](./examples/menu_demo)
-- [examples/ui_demos/demo1_full_featured](./examples/ui_demos/demo1_full_featured)
-
-## 快速开始
-
-### 环境要求
-
-- Go `1.24+`
-
-### 安装
+For an external application, reference Mint as a Go module.
 
 ```bash
-git clone git@github.com:wwsheng009/mint.git
-cd mint
-go mod download
+mkdir my-tui-app
+cd my-tui-app
+go mod init example.com/my-tui-app
+go get github.com/wwsheng009/mint
 ```
 
-### 运行示例
+When developing against a local checkout, use a `replace` directive:
 
 ```bash
-go run ./examples/counter
-go run ./examples/store_reducer_demo
-go run ./examples/timer
-go run ./examples/menu_demo
-go run ./examples/charts_gallery_demo
-go run ./examples/ai_mcp_demo
+go mod edit -replace github.com/wwsheng009/mint=E:\projects\yao\wwsheng009\mint
+go mod tidy
 ```
 
-### 最小示例
+Example `go.mod`:
 
-下面这个示例展示了当前推荐的 `Store + Reducer + Intent + OnPress` 用法：
+```go
+module example.com/my-tui-app
+
+go 1.24.0
+
+require github.com/wwsheng009/mint v0.0.0
+
+replace github.com/wwsheng009/mint => E:\projects\yao\wwsheng009\mint
+```
+
+Use the local `replace` form while Mint is consumed from a workspace instead of a tagged release.
+
+## Minimal App
+
+```go
+package main
+
+import "github.com/wwsheng009/mint/ui"
+
+func App() ui.VNode {
+	return ui.VStack(
+		ui.NewTextBuilder("Hello Mint").Bold(true).FgColor("cyan").Build(),
+		ui.Text("A declarative terminal UI."),
+	)
+}
+
+func main() {
+	if err := ui.Run(App,
+		ui.WithWidth(80),
+		ui.WithHeight(24),
+		ui.WithTitle("Mint App"),
+	); err != nil {
+		panic(err)
+	}
+}
+```
+
+Run it:
+
+```bash
+go run .
+```
+
+## Recommended App Architecture
+
+For production applications, use typed Intents and a Store/Reducer state flow.
+
+```text
+User input
+  -> component emits Intent
+  -> reducer handles Intent
+  -> Store updates state
+  -> view reads Store
+  -> Fiber render update
+```
+
+Small local UI state can use Hooks. Cross-component or business state should use `runtime/store`, `runtime/reducer`, and `runtime/intent`.
 
 ```go
 package main
@@ -152,26 +117,27 @@ type AppState struct {
 
 type IncrementIntent struct{}
 
-func (IncrementIntent) IntentType() string { return "CounterIncrement" }
+func (IncrementIntent) IntentType() string { return "AppIncrement" }
 func (IncrementIntent) StayPressed() bool  { return true }
 
 var appStore = store.NewStore(AppState{})
 
-func init() {
-	reducer.NewBuilder[AppState]().
-		On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
-			s.Count++
-			return s
-		}).
-		BuildAndRegister(intent.DefaultRegistry(), appStore)
+var appReducer = reducer.NewBuilder[AppState]().
+	On(IncrementIntent{}, func(s AppState, i intent.Intent) AppState {
+		s.Count++
+		return s
+	})
+
+func registerHandlers() {
+	appReducer.RegisterToGlobal(appStore)
 }
 
 func App() ui.VNode {
-	count := ui.UseStoreSelector(appStore, func(s AppState) int { return s.Count })
+	state := appStore.Get()
 
 	return ui.VStack(
-		ui.NewTextBuilder("Mint Counter").Bold(true).FgColor("cyan").Build(),
-		ui.NewTextBuilder(fmt.Sprintf("Count: %d", count)).FgColor("green").Build(),
+		ui.NewTextBuilder("Counter").Bold(true).FgColor("cyan").Build(),
+		ui.Text(fmt.Sprintf("Count: %d", state.Count)),
 		ui.NewButtonBuilder(" +1 ").
 			Variant(ui.ButtonVariantPrimary).
 			OnPress(IncrementIntent{}).
@@ -183,58 +149,198 @@ func main() {
 	if err := ui.Run(App,
 		ui.WithWidth(40),
 		ui.WithHeight(10),
-		ui.WithTitle("Mint Counter"),
+		ui.WithTitle("Counter"),
+		ui.WithInit(registerHandlers),
 	); err != nil {
 		panic(err)
 	}
 }
 ```
 
-## 示例与文档入口
+## Public Packages
 
-### 示例入口
+| Package | Use |
+|---|---|
+| `github.com/wwsheng009/mint/ui` | Main SDK entry: `ui.Run`, VNode helpers, component builders, Hooks, app options, testing helpers |
+| `github.com/wwsheng009/mint/runtime/intent` | Typed user intent model, dispatch, built-in field change intent |
+| `github.com/wwsheng009/mint/runtime/store` | Generic observable state store |
+| `github.com/wwsheng009/mint/runtime/reducer` | Generic reducer builder and field binding helpers |
+| `github.com/wwsheng009/mint/runtime/statemachine` | Optional AppRuntime with history and time-travel support |
+| `github.com/wwsheng009/mint/sandbox` | Test sandbox, replay, event injection |
 
-- 基础状态与组件：[`examples/counter`](./examples/counter)、[`examples/timer`](./examples/timer)
-- Store/Reducer 架构：[`examples/store_reducer_demo`](./examples/store_reducer_demo)、[`examples/store_mixed_demo`](./examples/store_mixed_demo)
-- 菜单与浮层：[`examples/menu_demo`](./examples/menu_demo)
-- 完整 UI 演示：[`examples/ui_demos`](./examples/ui_demos)、[`examples/fiber_demos`](./examples/fiber_demos)
-- 图表：[`examples/charts_gallery_demo`](./examples/charts_gallery_demo)
-- DevTools：[`examples/devtools_demo`](./examples/devtools_demo)
-- Sandbox：[`examples/sandbox`](./examples/sandbox)
-- AI / MCP：[`examples/ai_mcp_demo`](./examples/ai_mcp_demo)
+Avoid depending on `internal/*`. Treat `framework/*` and lower-level `runtime/*` packages as advanced extension points unless a document or example explicitly uses them.
 
-### 文档入口
+## Common App Options
 
-- 文档总览：[docs/README.md](./docs/README.md)
-- 组件路线图：[ui/components/ROADMAP.md](./ui/components/ROADMAP.md)
-- Store/Reducer 指南：[docs/ui/store/guides/README.md](./docs/ui/store/guides/README.md)
-- Sandbox 文档：[docs/sandbox/QUICK_START_GUIDE.md](./docs/sandbox/QUICK_START_GUIDE.md)
-- Inspector 文档：[docs/inspector/README.md](./docs/inspector/README.md)
+```go
+ui.Run(App,
+	ui.WithWidth(80),
+	ui.WithHeight(24),
+	ui.WithTitle("My App"),
+	ui.WithFPS(60),
+	ui.WithNoAlternateScreen(),
+	ui.WithInit(registerHandlers),
+)
+```
 
-## 测试与质量
+Key options:
 
-当前仓库已经具备单元测试、E2E、Sandbox、Snapshot 和示例验证的组合能力。
+| Option | Purpose |
+|---|---|
+| `ui.WithWidth(width)` | Initial layout width |
+| `ui.WithHeight(height)` | Initial layout height |
+| `ui.WithSize(width, height)` | Initial layout size |
+| `ui.WithTitle(title)` | Terminal/app title |
+| `ui.WithFPS(fps)` | Render frame rate limit |
+| `ui.WithNoAlternateScreen()` | Keep output in the normal terminal buffer |
+| `ui.WithInit(fn)` | Register intents or app-level setup after Mint initializes its intent runtime |
+| `ui.WithInteractionMode(mode)` | Choose interactive, app-selection, or terminal-selection mouse behavior |
+
+## Component Surface
+
+Most components are exposed through `ui.New...Builder` helpers:
+
+```go
+ui.NewButtonBuilder("Save").OnPress(SaveIntent{}).Build()
+ui.NewInputBuilder().Placeholder("Search").Build()
+ui.NewTableBuilder().Columns(cols).Rows(rows).Build()
+ui.NewTabsBuilder().AddTab("overview", "Overview").Build()
+ui.NewModalBuilder().Title("Confirm").Build()
+```
+
+Current component groups:
+
+| Group | Components |
+|---|---|
+| Basic display | Text, Divider, Badge, Tag, Empty, Descriptions, Statistic, Timeline, Clock |
+| Layout | VStack/HStack, Space, Layout, Grid, Row/Col, Panel, ScrollView, Wrap, Absolute |
+| Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer, Form, Validation |
+| Data | Table, List, VirtualList, TreeView |
+| Feedback | Alert, Progress, Spin, Skeleton, Result, Notification, Toast |
+| Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, StatusBar |
+| Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm |
+| Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick |
+
+For exact builder methods, read the component README and `builder.go` under `ui/components/<component>/`.
+
+## Curated Examples
+
+The examples directory is intentionally curated. Simple duplicates and historical probes are archived under `docsArchive/cleanup-2026-05-19/_examples/`.
+
+Start here:
+
+```bash
+go run ./examples/counter
+go run ./examples/store_reducer_demo
+go run ./examples/runapp_demo
+go run ./examples/mvp_components_demo
+go run ./examples/mvp_form_demo
+go run ./examples/menu_demo
+go run ./examples/table_interactive_demo
+go run ./examples/charts_gallery_demo
+go run ./examples/sandbox/06_comprehensive
+```
+
+See `examples/README.md` for the maintained example map.
+
+## Documentation Map
+
+| Document | Purpose |
+|---|---|
+| `DEVELOPMENT.md` | SDK usage, application architecture, contribution workflow, test strategy |
+| `docs/README.md` | Focused docs index |
+| `docs/architecture/README.md` | Current architecture and runtime flow |
+| `docs/components/README.md` | Component inventory and source map |
+| `docs/ui/store/README.md` | Store/Reducer state management |
+| `docs/debug/README.md` | Debugging and environment variables |
+| `docs/sandbox/QUICK_START_GUIDE.md` | Sandbox and deterministic testing |
+| `docs/testing/e2e/README.md` | E2E driver and interaction testing |
+
+Historical design notes, fix reports, probes, and duplicate examples live under `docsArchive/`. Archived example directories use an underscore-prefixed folder so `go test ./...` does not treat them as active packages.
+
+## Testing
+
+Fast SDK checks:
+
+```bash
+go test ./ui -count=1
+go test ./runtime/intent ./runtime/store ./runtime/reducer ./runtime/statemachine -count=1
+go test ./sandbox/... -count=1
+```
+
+Representative component checks:
+
+```bash
+go test ./ui/components/button ./ui/components/input ./ui/components/table ./ui/components/treeview ./ui/components/virtuallist ./ui/components/modal ./ui/components/charts/... -count=1
+```
+
+Full validation:
 
 ```bash
 go test ./... -count=1
 ```
 
-你也可以按模块运行：
+The full suite is large. Run it before releases and before broad framework changes.
 
-```bash
-go test ./ui/components/... -count=1
-go test ./ui/e2e/... -count=1
-go test ./sandbox/... -count=1
+## Debugging
+
+Debugging is controlled through environment variables. See `docs/debug/environment_variables.md`.
+
+PowerShell examples:
+
+```powershell
+$env:TUI_LOG_OUTPUT="console"
+$env:TUI_DEBUG_INTENT="true"
+go run ./examples/store_reducer_demo
 ```
 
-## 后续重点
+```powershell
+$env:TUI_LOG_OUTPUT="console"
+$env:TUI_DEBUG_RENDER="true"
+$env:MINT_ASYNC_RENDER="false"
+go run ./examples/counter
+```
 
-项目当前不是“缺少基础框架”，而是继续推进以下收口工作：
+Useful categories:
 
-- 对较复杂组件继续补齐交互细节、受控模式和文档说明
-- 对历史设计文档、迁移指南、示例代码做现状同步
-- 对 `internal/` 支撑层、特殊边界条件和高复杂交互场景继续补测试
+| Variable | Purpose |
+|---|---|
+| `TUI_DEBUG_RENDER` | Render bridge and app rendering |
+| `TUI_DEBUG_PAINT` | Paint output |
+| `TUI_DEBUG_LAYOUT` | Layout details |
+| `TUI_DEBUG_ACTION` | Action routing |
+| `TUI_DEBUG_INTENT` | Intent dispatch |
+| `TUI_DEBUG_HITMAP` | Mouse hit testing |
+| `TUI_DEBUG_FOCUS` | Focus management |
+| `MINT_ASYNC_RENDER=false` | Disable async rendering while debugging ordering issues |
+| `MINT_NO_ALTERNATE_SCREEN=true` | Keep terminal output visible after exit |
 
-## 许可证
+## Repository Layout
+
+```text
+ui/                 Public SDK surface, shortcuts, hooks, test helpers
+ui/components/      Component library
+runtime/            Intent, store, reducer, layout, paint, input, focus primitives
+framework/          App lifecycle, event loop, terminal integration
+internal/render/    VNode/Fiber render bridge
+internal/reconciler/Fiber reconciler and diff engine
+sandbox/            Test sandbox and replay support
+devtools/           Timeline, replay, diagnostics
+examples/           Curated runnable examples
+docs/               Focused current documentation
+docsArchive/        Historical notes, archived docs, duplicate examples
+```
+
+## Versioning Guidance
+
+Until Mint is consumed as a tagged external SDK, downstream applications should:
+
+1. Use a local `replace` directive.
+2. Pin the Mint checkout through your workspace or repository policy.
+3. Run the fast SDK checks after pulling Mint changes.
+4. Avoid depending on `internal/*`.
+5. Prefer Intent-based component interaction over historical closure callback examples.
+
+## License
 
 MIT License

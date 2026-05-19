@@ -97,5 +97,5 @@ heatmap.NewBuilder([][]float64{
 
 ## 示例
 
-- 独立最小示例见 [examples/charts_heatmap_demo/README.md](/E:/projects/yao/wwsheng009/mint/examples/charts_heatmap_demo/README.md)
+- 当前推荐示例见 `examples/charts_gallery_demo`；历史独立最小示例已归档到 `docsArchive/cleanup-2026-05-19/_examples/charts_heatmap_demo/`。
 - 组合展示见 [examples/charts_gallery_demo/README.md](/E:/projects/yao/wwsheng009/mint/examples/charts_gallery_demo/README.md)

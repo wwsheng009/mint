@@ -482,7 +482,7 @@ Step 2
 ### 10.5 文档验收检查清单
 
 - [ ] 架构文档 (`ARCHITECTURE.md`) 完整
-- [ ] 设计文档 (`cell_borders_design.md`) 完整
+- [ ] Cell 边框当前实现与 `ui/components/grid` 源码、测试保持一致；历史设计记录见 `../../../docsArchive/cleanup-2026-05-19/docs/components/grid/`
 - [ ] 验收标准 (`ACCEPTANCE.md`) 完整
 - [ ] 代码注释清晰
 

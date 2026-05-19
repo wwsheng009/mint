@@ -63,22 +63,20 @@ render/
 
 ### `paint/optimized/`
 
-Fiber-first paint pipeline、迁移指南和实现说明：
+Fiber-first paint pipeline 当前说明：
 
 - [paint/optimized/README.md](paint/optimized/README.md)
 - [paint/optimized/FIBER_FIRST_RENDER_PIPELINE.md](paint/optimized/FIBER_FIRST_RENDER_PIPELINE.md)
-- [paint/optimized/FIBER_FIRST_MIGRATION_GUIDE.md](paint/optimized/FIBER_FIRST_MIGRATION_GUIDE.md)
-- [paint/optimized/IMPLEMENTATION_GUIDE.md](paint/optimized/IMPLEMENTATION_GUIDE.md)
+
+历史迁移和实施指南已归档到 `../../docsArchive/cleanup-2026-05-19/docs/render/paint/optimized/`。
 
 ### `pixel/`
 
-Pixel / image / graphics 相关设计和 PoC 计划：
+Pixel / image / graphics 当前保留文档：
 
 - [pixel/README.md](pixel/README.md)
 - [pixel/PIXEL_CHART_RENDERING_ARCHITECTURE.md](pixel/PIXEL_CHART_RENDERING_ARCHITECTURE.md)
-- [pixel/LINECHART_IMAGE_PROTOTYPE_PLAN.md](pixel/LINECHART_IMAGE_PROTOTYPE_PLAN.md)
-- [pixel/GROUP_D_LINECHART_IMAGE_RENDERER_SPEC.md](pixel/GROUP_D_LINECHART_IMAGE_RENDERER_SPEC.md)
-- [pixel/IMPLEMENTATION_SEQUENCE_AND_PR_PLAN.md](pixel/IMPLEMENTATION_SEQUENCE_AND_PR_PLAN.md)
+Historical implementation sequence and PR planning notes were archived to `../../docsArchive/cleanup-2026-05-19/docs/render/pixel/`.
 
 完整清单见 [pixel/README.md](pixel/README.md)。
 

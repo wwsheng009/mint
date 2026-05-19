@@ -20,8 +20,7 @@ This directory contains comprehensive documentation about the Mint TUI Inspector
 - [UniqueID Problem](/docsArchive/INSPECTOR_UNIQUEID_FINAL_SOLUTION.md) - UniqueID collision issues and solutions (archived)
 
 ### 🔧 Implementation Details
-- [Flex Layout Implementation](implementation/INSPECTOR_FLEX_LAYOUT_IMPLEMENTATION.md) - Flex layout for TreeView
-- [AutoSize Implementation](implementation/INSPECTOR_FLEX_AUTOSIZE_IMPLEMENTATION.md) - Auto-sizing components
+- Flex layout and AutoSize implementation records were archived under `../../docsArchive/cleanup-2026-05-19/docs/inspector/implementation/`.
 - [Pointer ID Fix](/docsArchive/INSPECTOR_POINTER_ID_FIX.md) - Pointer-based UniqueID solution (archived)
 - [Border Fix](/docsArchive/INSPECTOR_HARDCODED_BORDER_FIX.md) - Border rendering fixes (archived)
 
@@ -37,7 +36,7 @@ docs/inspector/
 ├── README.md (this file)
 ├── architecture/        # Architecture and design documents (archived: /docsArchive/architecture/)
 ├── investigation/       # Investigation and analysis reports (archived: /docsArchive/investigation/)
-├── implementation/      # Implementation details and fixes
+├── implementation/      # archived: ../../docsArchive/cleanup-2026-05-19/docs/inspector/implementation/
 └── integration/         # Integration with framework and hook system (archived: /docsArchive/integration/)
 ```
 

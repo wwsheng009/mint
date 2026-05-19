@@ -326,7 +326,7 @@ func (b *PressableBehavior) OnAction(inst Instance, act *action.Action) bool {
 // OnStateChange handles state changes.
 //
 // Note: Pressed state management now follows the design from
-// docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md:
+// Archived design: docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 //
 // - OnAction manages press events (Enter/Submit/MousePress)
 // - OnAction manages release events (MouseRelease only)

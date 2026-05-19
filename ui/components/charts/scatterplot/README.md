@@ -54,7 +54,7 @@ scatterplot.NewBuilder(nil).
     Build()
 ```
 
-独立示例入口见 [examples/charts_scatterplot_demo](/E:/projects/yao/wwsheng009/mint/examples/charts_scatterplot_demo)。
+当前推荐示例见 `examples/charts_gallery_demo`；历史独立示例已归档到 `docsArchive/cleanup-2026-05-19/_examples/charts_scatterplot_demo/`。
 
 ## 推荐用法
 

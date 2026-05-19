@@ -266,11 +266,11 @@ This `docs/components` directory is intentionally smaller than the source compon
 - [VIRTUAL_LIST_COMPONENT.md](VIRTUAL_LIST_COMPONENT.md)
 - [TABS_COMPONENT.md](TABS_COMPONENT.md)
 - [TREEVIEW_NAVIGATION.md](TREEVIEW_NAVIGATION.md)
-- [TREEVIEW_NAVIGATION_WORKING.md](TREEVIEW_NAVIGATION_WORKING.md)
 - [DATEPICKER_COMPONENT.md](DATEPICKER_COMPONENT.md)
 - [TIMEPICKER_COMPONENT.md](TIMEPICKER_COMPONENT.md)
 - [grid/](grid/)
-- [control/](control/)
+
+Historical component fix reports and duplicate navigation notes were moved to `../../docsArchive/cleanup-2026-05-19/docs/components/`.
 
 When updating component behavior, update the component-local README first, then update this index only if the inventory or navigation changes.
 

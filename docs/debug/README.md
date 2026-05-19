@@ -130,5 +130,6 @@ go run ./cmd/mint-debugger -log path/to/session.jsonl -report report.md
 
 - [environment_variables.md](environment_variables.md)
 - [../log/LOGGER_ENV_VAR_STANDARD.md](../log/LOGGER_ENV_VAR_STANDARD.md)
-- [../debugging/DEBUG_ENVIRONMENT_VARIABLES.md](../debugging/DEBUG_ENVIRONMENT_VARIABLES.md)
 - [../sandbox/SANDBOX_DEBUG_GUIDE.md](../sandbox/SANDBOX_DEBUG_GUIDE.md)
+
+旧版 `docs/debugging/DEBUG_ENVIRONMENT_VARIABLES.md` 已归档到 `../../docsArchive/cleanup-2026-05-19/docs/debugging/`。

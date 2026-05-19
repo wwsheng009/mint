@@ -37,9 +37,7 @@
 |------|------|------|
 | `docs/ARCHITECTURE.md` | ✅ | 架构设计文档 |
 | `docs/ACCEPTANCE.md` | ✅ | 验收标准 |
-| `docs/TRACER_INTEGRATION.md` | ✅ | 追踪系统集成说明 |
 | `docs/DEBUGGING_GUIDE.md` | ✅ | 调试指南 |
-| `cell_borders_design.md` | ✅ | Cell 边框设计 |
 | `README.md` | ✅ | 当前状态与入口文档 |
 | `API.md` | ❌ | 尚未单独整理 |
 | `EXAMPLES.md` | ❌ | 尚未单独整理 |
@@ -68,6 +66,6 @@
 
 - [架构设计](./docs/ARCHITECTURE.md)
 - [验收标准](./docs/ACCEPTANCE.md)
-- [追踪集成](./docs/TRACER_INTEGRATION.md)
 - [调试指南](./docs/DEBUGGING_GUIDE.md)
-- [Cell 边框设计](./cell_borders_design.md)
+
+追踪集成和 Cell 边框历史设计记录已归档到 `../../../docsArchive/cleanup-2026-05-19/docs/components/grid/`。

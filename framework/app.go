@@ -195,7 +195,8 @@ type App struct {
 	// ============================================================================
 	testMsgProbe    func(runtimemsg.Msg)
 	testActionProbe func(*action.Action, bool, string)
-	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
+	// Based on the archived pressed-state design:
+	// docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 	// - InputTracker: 追踪输入状态变化，推断边缘事件
 	// - InteractionContext: 全局交互状态管理，分配 Click/Cancel/ResetPressed
 	inputTracker   *input.InputTracker
@@ -1325,7 +1326,8 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	// ========================================================================
 	// Phase 1-3: Pressed State 解决方案
 	// ========================================================================
-	// 根据 docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md 的设计：
+	// Based on the archived pressed-state design:
+	// docsArchive/cleanup-2026-05-19/docs/event/PRESSED_STATE_COMPLETE_SOLUTION.md
 	// 1. 将 Msg 转换为 InputSnapshot
 	// 2. 使用 InputTracker 推断边缘事件 (Press/Release/Move/Keyboard)
 	// 3. 使用 InteractionContext 更新交互状态，分发 Click/Cancel/ResetPressed

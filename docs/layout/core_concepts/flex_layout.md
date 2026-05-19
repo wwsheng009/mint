@@ -450,5 +450,5 @@ TUI_PIPELINE_DEBUG=true go run ./examples/demo1
 ## 相关文档
 
 - [Stretch Layout System](./stretch_layout.md) - 完整的拉伸布局系统文档
-- [Layout Refactor](../refactor/layout_refactor.md) - 布局重构方案
+- Layout refactor history - archived under `../../../docsArchive/cleanup-2026-05-19/docs/layout/refactor/`
 - [Rendering Pipeline](/docsArchive/LAYOUT_RENDERING_REFACTOR.md) - 渲染管线
