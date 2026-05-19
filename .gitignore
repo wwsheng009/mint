@@ -25,6 +25,7 @@ examples/ui_demos/demo1_full_featured/*_verification.md
 trash/
 tmp/
 output/
+artifacts/
 *.log
 .qoder
 .crush
