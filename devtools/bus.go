@@ -27,20 +27,21 @@ const (
 // DebugEvent represents a lightweight debug event.
 // This structure is designed to be allocated on stack and copied without heap allocation.
 type DebugEvent struct {
-	Type   DebugEventType
-	Data   uintptr  // Pointer to pre-allocated memory or inline data
-	Frame  int      // Frame number
-	Time   int64    // Nanoseconds (optional)
+	Type  DebugEventType
+	Data  uintptr // Pointer to pre-allocated memory or inline data
+	Frame int     // Frame number
+	Time  int64   // Nanoseconds (optional)
 }
 
-// EventBus is a lock-free ring buffer based event bus for debug events.
+// EventBus is a ring buffer based event bus for debug events.
 // It allows the render thread to emit events without blocking,
 // while background goroutines process them asynchronously.
 type EventBus struct {
-	enabled    uint32        // Atomic flag for quick enable/disable check
-	writePos   uint32        // Current write position in the ring buffer
-	buffer     []DebugEvent  // Ring buffer
-	mask       uint32        // Mask for ring buffer indexing (size - 1)
+	enabled  uint32       // Atomic flag for quick enable/disable check
+	writePos uint32       // Current write position in the ring buffer
+	buffer   []DebugEvent // Ring buffer
+	mask     uint32       // Mask for ring buffer indexing (size - 1)
+	bufferMu sync.Mutex   // Protects buffer writes and dispatch reads
 
 	// Subscribers
 	subscribers []chan<- DebugEvent
@@ -56,10 +57,10 @@ type EventBus struct {
 
 // EventBusStats 统计信息
 type EventBusStats struct {
-	EventsSent       atomic.Uint64
-	EventsDropped    atomic.Uint64
+	EventsSent        atomic.Uint64
+	EventsDropped     atomic.Uint64
 	BackpressureDrops atomic.Uint64
-	CurrentBufferLen atomic.Uint64
+	CurrentBufferLen  atomic.Uint64
 }
 
 // NewEventBus creates a new event bus with the specified buffer size.
@@ -83,7 +84,7 @@ func NewEventBus(size int) *EventBus {
 func nlz32(x uint32) uint32 {
 	if x == 0 {
 		return 32
-}
+	}
 	var n uint32 = 0
 	if x>>16 == 0 {
 		n += 16
@@ -108,7 +109,6 @@ func nlz32(x uint32) uint32 {
 }
 
 // Emit sends an event to the bus.
-// This is lock-free and extremely fast (just an atomic add and array write).
 // Safe to call from the render thread.
 func (b *EventBus) Emit(ev DebugEvent) {
 	// Fast path: if disabled, return immediately
@@ -117,11 +117,11 @@ func (b *EventBus) Emit(ev DebugEvent) {
 		return
 	}
 
-	// Atomically increment write position and get the new position
-	pos := atomic.AddUint32(&b.writePos, 1)
-
-	// Write event to ring buffer (masked to wrap around)
-	b.buffer[(pos-1)&b.mask] = ev
+	b.bufferMu.Lock()
+	pos := atomic.LoadUint32(&b.writePos)
+	b.buffer[pos&b.mask] = ev
+	atomic.StoreUint32(&b.writePos, pos+1)
+	b.bufferMu.Unlock()
 }
 
 // Subscribe subscribes a channel to receive events from the bus.
@@ -157,6 +157,7 @@ func (b *EventBus) dispatchLoop(ch chan<- DebugEvent) {
 	pollInterval := 10 * time.Millisecond
 	maxPollInterval := 100 * time.Millisecond
 	currentPollInterval := pollInterval
+	maxBatch := 1000 // 单次最多处理1000个事件
 
 	defer func() {
 		// 清理资源
@@ -170,11 +171,20 @@ func (b *EventBus) dispatchLoop(ch chan<- DebugEvent) {
 		default:
 		}
 
-		// 获取当前写位置
+		events := make([]DebugEvent, 0, maxBatch)
+
+		b.bufferMu.Lock()
 		writePos := atomic.LoadUint32(&b.writePos)
+		if readPos < writePos {
+			for readPos < writePos && len(events) < maxBatch {
+				events = append(events, b.buffer[readPos&b.mask])
+				readPos++
+			}
+		}
+		b.bufferMu.Unlock()
 
 		// 如果没有新事件，智能等待
-		if readPos >= writePos {
+		if len(events) == 0 {
 			// 动态调整轮询间隔：没有事件时降低频率
 			select {
 			case <-b.done:
@@ -192,14 +202,7 @@ func (b *EventBus) dispatchLoop(ch chan<- DebugEvent) {
 		// 有新事件，重置轮询间隔
 		currentPollInterval = pollInterval
 
-		// 批量处理所有可用事件
-		batchCount := 0
-		maxBatch := 1000 // 单次最多处理1000个事件
-
-		for readPos < writePos && batchCount < maxBatch {
-			ev := b.buffer[readPos&b.mask]
-			readPos++
-
+		for _, ev := range events {
 			// 发送到订阅者，带背压处理
 			select {
 			case ch <- ev:
@@ -210,11 +213,10 @@ func (b *EventBus) dispatchLoop(ch chan<- DebugEvent) {
 				// 背压：跳过此事件
 				b.stats.BackpressureDrops.Add(1)
 			}
-			batchCount++
 		}
 
 		// 如果处理了大量事件，让出 CPU 时间片
-		if batchCount > 50 {
+		if len(events) > 50 {
 			runtime.Gosched()
 		}
 	}
@@ -249,15 +251,10 @@ func (b *EventBus) WritePosition() uint32 {
 }
 
 // P1-1: GetStats returns the current event bus statistics.
-func (b *EventBus) GetStats() EventBusStats {
+func (b *EventBus) GetStats() *EventBusStats {
 	// Calculate current buffer usage
 	writePos := atomic.LoadUint32(&b.writePos)
 	b.stats.CurrentBufferLen.Store(uint64(writePos & b.mask))
 
-	return EventBusStats{
-		EventsSent:       b.stats.EventsSent,
-		EventsDropped:    b.stats.EventsDropped,
-		BackpressureDrops: b.stats.BackpressureDrops,
-		CurrentBufferLen: b.stats.CurrentBufferLen,
-	}
+	return &b.stats
 }

@@ -216,6 +216,11 @@ func TestE2EModalBackdropClickClosesWithoutBackgroundLeak(t *testing.T) {
 	}
 	defer app.Close()
 
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByID("open-btn"))
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := app.Driver().Click(ByID("open-btn")); err != nil {
 		t.Fatal(err)
 	}

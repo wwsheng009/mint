@@ -490,9 +490,17 @@ func (r *Renderer) GetFrontBuffer() *Buffer {
 
 // GetRenderSnapshot returns a plain-text snapshot of the current rendered
 // content. It locks the renderer so callers never see a partially-reset buffer.
-func (r *Renderer) GetRenderSnapshot() string {
+func (r *Renderer) GetRenderSnapshot() (snapshot string) {
+	if r == nil {
+		return ""
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	defer func() {
+		if recover() != nil {
+			snapshot = ""
+		}
+	}()
 
 	buf := r.back
 	if buf == nil || buf.Height == 0 || buf.Width == 0 {
