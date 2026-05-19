@@ -37,11 +37,7 @@ go run ./examples/charts_gallery_demo
 | `mvp_components_demo` | Broad component gallery |
 | `mvp_form_demo` | Form workflow |
 | `validation_demo` | Validation helpers |
-| `date_time_picker_demo` | DatePicker and TimePicker |
-| `radiogroup_demo` | Radio group behavior |
-| `checkbox` | Checkbox behavior |
 | `multiselect_demo` | Multi-select flow |
-| `input` | Input behavior |
 | `select` | Select behavior |
 | `progress` | Progress variants |
 | `toast` | Toast feedback |
@@ -65,7 +61,6 @@ go run ./examples/charts_gallery_demo
 | `grid` | Grid layout |
 | `absolute` | Absolute positioning |
 | `render` | Render path demo |
-| `mouse` | Mouse interactions |
 | `charts_gallery_demo` | Chart gallery |
 | `charts_linechart_image_prototype` | Experimental image chart rendering |
 
@@ -90,4 +85,10 @@ go run ./examples/charts_gallery_demo
 
 ## Example Policy
 
-Keep examples that are useful as a learning path, maintained feature demo, integration scenario, or regression fixture. Prefer tests over new examples for narrow bug reproductions. Prefer extending `mvp_components_demo`, `mvp_form_demo`, or `charts_gallery_demo` over adding a tiny one-component demo.
+Keep examples that are useful as a learning path, maintained feature demo, integration scenario, or regression fixture. Prefer tests over new examples for narrow bug reproductions. Prefer extending `mvp_components_demo`, `mvp_form_demo`, `multiselect_demo`, or `charts_gallery_demo` over adding a tiny one-component demo.
+
+Archived component-only entries:
+
+- `checkbox`, `input`, and `date_time_picker_demo` are covered by `mvp_components_demo` and `mvp_form_demo`.
+- `radiogroup_demo` is covered by the option and checkbox composition patterns in `multiselect_demo`.
+- `mouse` is covered by the maintained interaction demos and E2E tests.

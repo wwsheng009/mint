@@ -22,3 +22,8 @@ examples\fiber_firsts\portal_demo\debug
 examples\fiber_demos\demo1_full_featured\compare_nodes
 examples\fiber_demos\demo1_full_featured\fiber_layout_test
 examples\fiber_demos\border_style_layout_test
+examples\checkbox
+examples\date_time_picker_demo
+examples\input
+examples\mouse
+examples\radiogroup_demo

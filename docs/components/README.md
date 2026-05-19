@@ -207,7 +207,6 @@ Useful example entry points:
 - `../../examples/modal`
 - `../../examples/select`
 - `../../examples/table_interactive_demo`
-- `../../examples/date_time_picker_demo`
 - `../../examples/charts_gallery_demo`
 - `../../examples/layout_component_fixtures_demo`
 - `../../examples/component_fixtures`

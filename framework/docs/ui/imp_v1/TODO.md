@@ -183,11 +183,10 @@ MVP      [███████████████████████�
 |------|------|------|
 | Counter | `examples/counter/` | 计数器示例 |
 | Timer | `examples/timer/` | 定时器示例 |
-| Input | `examples/input/` | 文本输入示例 |
-| Checkbox | `examples/checkbox/` | 复选框示例 |
+| Input / Checkbox | `examples/mvp_components_demo/` | 表单组件综合示例 |
 | Progress | `examples/progress/` | 进度条示例 |
 | Select | `examples/select/` | 下拉选择示例 |
-| Demo | `examples/demo/` | 综合演示 |
+| Components | `examples/mvp_components_demo/` | 综合演示 |
 | Modal | `examples/modal/` | 模态框示例 |
 | Tabs | `examples/tabs/` | 标签页示例 |
 | Grid | `examples/grid/` | 网格布局示例 |
