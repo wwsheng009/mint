@@ -35,9 +35,43 @@ jobs:
         run: go test ./... -count=1 -p 1
 
   race:
-    name: Race Detector
+    name: Race Detector (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: runtime
+            packages: ./runtime/...
+            component_shard: ''
+          - name: framework
+            packages: ./framework/...
+            component_shard: ''
+          - name: sandbox
+            packages: ./sandbox/...
+            component_shard: ''
+          - name: devtools
+            packages: ./devtools/...
+            component_shard: ''
+          - name: ui-components-0
+            packages: ''
+            component_shard: '0'
+          - name: ui-components-1
+            packages: ''
+            component_shard: '1'
+          - name: ui-components-2
+            packages: ''
+            component_shard: '2'
+          - name: ui-components-3
+            packages: ''
+            component_shard: '3'
+          - name: ui-components-4
+            packages: ''
+            component_shard: '4'
+          - name: ui-components-5
+            packages: ''
+            component_shard: '5'
     steps:
       - uses: actions/checkout@v4
 
@@ -47,5 +81,34 @@ jobs:
           go-version: '1.24.2'
           cache: true
 
+      - name: Download modules
+        run: go mod download
+
       - name: Run focused race tests
-        run: go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
+        shell: bash
+        env:
+          PACKAGES: ${{ matrix.packages }}
+          COMPONENT_SHARD: ${{ matrix.component_shard }}
+          COMPONENT_SHARDS: '6'
+        run: |
+          if [ -n "$PACKAGES" ]; then
+            go test -race $PACKAGES -count=1 -p 1
+            exit 0
+          fi
+
+          mapfile -t component_packages < <(go list ./ui/components/...)
+          selected=()
+          for i in "${!component_packages[@]}"; do
+            if [ $((i % COMPONENT_SHARDS)) -eq "$COMPONENT_SHARD" ]; then
+              selected+=("${component_packages[$i]}")
+            fi
+          done
+
+          if [ ${#selected[@]} -eq 0 ]; then
+            echo "No ui/components packages in shard ${COMPONENT_SHARD}; skipping."
+            exit 0
+          fi
+
+          printf 'Running race detector for %d ui/components packages in shard %s/%s:\n' "${#selected[@]}" "$COMPONENT_SHARD" "$COMPONENT_SHARDS"
+          printf '  %s\n' "${selected[@]}"
+          go test -race "${selected[@]}" -count=1 -p 1

@@ -251,10 +251,14 @@ Full check:
 ```bash
 go vet ./...
 go test ./... -count=1 -p 1
-go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
+go test -race ./runtime/... -count=1 -p 1
+go test -race ./framework/... -count=1 -p 1
+go test -race ./sandbox/... -count=1 -p 1
+go test -race ./devtools/... -count=1 -p 1
+go test -race ./ui/components/... -count=1 -p 1
 ```
 
-Run the full suite before releases, broad refactors, or changes to render, focus, event routing, or component base behavior.
+Run the full suite before releases, broad refactors, or changes to render, focus, event routing, or component base behavior. CI shards the component race detector job so failures identify the affected subsystem or component package group.
 
 ## Debugging
 
@@ -361,6 +365,10 @@ Before publishing or handing off a version:
 5. `go test ./ui/e2e/... -count=1`
 6. `go vet ./...`
 7. `go test ./... -count=1 -p 1`
-8. `go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1`
-9. Run the curated examples that cover changed behavior.
-10. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.
+8. `go test -race ./runtime/... -count=1 -p 1`
+9. `go test -race ./framework/... -count=1 -p 1`
+10. `go test -race ./sandbox/... -count=1 -p 1`
+11. `go test -race ./devtools/... -count=1 -p 1`
+12. `go test -race ./ui/components/... -count=1 -p 1`
+13. Run the curated examples that cover changed behavior.
+14. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.

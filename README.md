@@ -17,10 +17,10 @@ Current repository status as of 2026-05-20:
 | Rendering path | Fiber-first by default |
 | Component library | Broad TUI component set under `ui/components` |
 | Test support | Unit tests, component tests, sandbox, replay, E2E driver, render snapshots |
-| CI gates | `go vet ./...`, `go test ./... -count=1 -p 1`, and focused `go test -race` over runtime/framework/sandbox/devtools/components |
+| CI gates | `go vet ./...`, `go test ./... -count=1 -p 1`, and sharded focused `go test -race` over runtime/framework/sandbox/devtools/components |
 | Documentation posture | SDK-facing docs are kept in this README, `DEVELOPMENT.md`, and the focused docs under `docs/`; historical implementation notes are archived under `docsArchive/` |
 
-Recent local verification covered `go vet ./...`, the full test suite, and the focused race gate used by CI. Full validation can take several minutes and should be run before releases.
+Recent local verification covered `go vet ./...`, the full test suite, and the focused race gate used by CI, split by subsystem and component shards. Full validation can take several minutes and should be run before releases.
 
 ## Installation
 
@@ -280,10 +280,14 @@ Full validation:
 ```bash
 go vet ./...
 go test ./... -count=1 -p 1
-go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
+go test -race ./runtime/... -count=1 -p 1
+go test -race ./framework/... -count=1 -p 1
+go test -race ./sandbox/... -count=1 -p 1
+go test -race ./devtools/... -count=1 -p 1
+go test -race ./ui/components/... -count=1 -p 1
 ```
 
-The full suite and race gate are large. Run them before releases and before broad framework changes.
+The full suite and race gate are large. CI runs the component race gate as shards for better failure isolation and to avoid a single long-running race process. Local validation can also split `./ui/components/...` into smaller package groups when the single command is slow.
 
 ## Debugging
 
