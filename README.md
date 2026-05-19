@@ -6,7 +6,7 @@ This repository is usable as an SDK-style Go module. The public application surf
 
 ## Status
 
-Current repository status as of 2026-05-19:
+Current repository status as of 2026-05-20:
 
 | Area | Status |
 |---|---|
@@ -17,9 +17,10 @@ Current repository status as of 2026-05-19:
 | Rendering path | Fiber-first by default |
 | Component library | Broad TUI component set under `ui/components` |
 | Test support | Unit tests, component tests, sandbox, replay, E2E driver, render snapshots |
+| CI gates | `go vet ./...`, `go test ./... -count=1 -p 1`, and focused `go test -race` over runtime/framework/sandbox/devtools/components |
 | Documentation posture | SDK-facing docs are kept in this README, `DEVELOPMENT.md`, and the focused docs under `docs/`; historical implementation notes are archived under `docsArchive/` |
 
-Recent local verification covered the public UI package, state runtime packages, sandbox packages, representative components, charts, and selected examples. Full `go test ./...` can take several minutes and should be run before releases.
+Recent local verification covered `go vet ./...`, the full test suite, and the focused race gate used by CI. Full validation can take several minutes and should be run before releases.
 
 ## Installation
 
@@ -277,10 +278,12 @@ go test ./ui/components/button ./ui/components/input ./ui/components/table ./ui/
 Full validation:
 
 ```bash
-go test ./... -count=1
+go vet ./...
+go test ./... -count=1 -p 1
+go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
 ```
 
-The full suite is large. Run it before releases and before broad framework changes.
+The full suite and race gate are large. Run them before releases and before broad framework changes.
 
 ## Debugging
 

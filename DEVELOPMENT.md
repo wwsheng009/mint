@@ -249,7 +249,9 @@ go test ./ui/components/button ./ui/components/input ./ui/components/table ./ui/
 Full check:
 
 ```bash
-go test ./... -count=1
+go vet ./...
+go test ./... -count=1 -p 1
+go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
 ```
 
 Run the full suite before releases, broad refactors, or changes to render, focus, event routing, or component base behavior.
@@ -329,7 +331,7 @@ docsArchive/cleanup-2026-05-19/_examples/
 4. Add or update tests at the same layer.
 5. Run targeted tests first.
 6. Run the fast SDK checks.
-7. Run the full suite for broad changes.
+7. Run `go vet ./...`, the full suite, and the focused race gate for broad changes.
 8. Update README, `DEVELOPMENT.md`, area docs, or component README only when public behavior changes.
 
 ## API Stability Rules
@@ -357,6 +359,8 @@ Before publishing or handing off a version:
 3. `go test ./sandbox/... -count=1`
 4. `go test ./ui/components/... -count=1`
 5. `go test ./ui/e2e/... -count=1`
-6. `go test ./... -count=1`
-7. Run the curated examples that cover changed behavior.
-8. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.
+6. `go vet ./...`
+7. `go test ./... -count=1 -p 1`
+8. `go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1`
+9. Run the curated examples that cover changed behavior.
+10. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.
