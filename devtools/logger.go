@@ -57,8 +57,8 @@ type LogEntry struct {
 // P1-4: 使用环形缓冲区减少内存分配
 type Logger struct {
 	// Atomic state
-	level    atomic.Int32 // Current log level
-	enabled  atomic.Bool  // Enable/disable flag
+	level   atomic.Int32 // Current log level
+	enabled atomic.Bool  // Enable/disable flag
 
 	// Ring buffer for recent entries
 	buffer    []LogEntry
@@ -71,18 +71,23 @@ type Logger struct {
 	output   OutputFunc
 
 	// Statistics
-	stats LoggerStats
+	stats loggerCounters
 }
 
 // OutputFunc is a function that writes log entries.
 type OutputFunc func(entry *LogEntry)
 
-// LoggerStats contains logger statistics.
+type loggerCounters struct {
+	LogsEmitted atomic.Uint64
+	LogsDropped atomic.Uint64
+}
+
+// LoggerStats contains a point-in-time logger statistics snapshot.
 type LoggerStats struct {
-	LogsEmitted   atomic.Uint64
-	LogsDropped   atomic.Uint64
-	BufferSize    int
-	CurrentLevel  LogLevel
+	LogsEmitted  uint64
+	LogsDropped  uint64
+	BufferSize   int
+	CurrentLevel LogLevel
 }
 
 // NewLogger creates a new logger with the specified buffer size.
@@ -291,8 +296,8 @@ func (l *Logger) Clear() {
 // GetStats returns the current logger statistics.
 func (l *Logger) GetStats() LoggerStats {
 	return LoggerStats{
-		LogsEmitted:  l.stats.LogsEmitted,
-		LogsDropped:  l.stats.LogsDropped,
+		LogsEmitted:  l.stats.LogsEmitted.Load(),
+		LogsDropped:  l.stats.LogsDropped.Load(),
 		BufferSize:   l.bufferCap,
 		CurrentLevel: l.GetLevel(),
 	}

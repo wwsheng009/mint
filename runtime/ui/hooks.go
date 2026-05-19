@@ -96,6 +96,10 @@ type ComponentContext struct {
 
 	// StateMu protects concurrent access to GlobalState and PendingUpdates.
 	StateMu sync.RWMutex
+
+	// SharedStateMu optionally points at the root state mutex when multiple
+	// component contexts share GlobalState.
+	SharedStateMu *sync.RWMutex
 }
 
 // =============================================================================
@@ -164,7 +168,15 @@ func NewComponentContext(name string) *ComponentContext {
 		RenderCount:    0,
 		GlobalState:    make(map[string]interface{}),
 		PendingUpdates: make(map[string]interface{}),
+		SharedStateMu:  new(sync.RWMutex),
 	}
+}
+
+func (ctx *ComponentContext) stateMu() *sync.RWMutex {
+	if ctx.SharedStateMu != nil {
+		return ctx.SharedStateMu
+	}
+	return &ctx.StateMu
 }
 
 // NewComponentContextForRoot creates a new component context for the root
@@ -319,8 +331,9 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 		}
 	}()
 
-	ctx.StateMu.Lock()
-	defer ctx.StateMu.Unlock()
+	mu := ctx.stateMu()
+	mu.Lock()
+	defer mu.Unlock()
 
 	// Check if value actually changed
 	// Use reflect.DeepEqual to handle uncomparable types (e.g., functions, slices, maps)
@@ -363,8 +376,9 @@ func (ctx *ComponentContext) SetState(key string, value interface{}) {
 // Migration guide: https://github.com/wwsheng009/mint/docs/ui/store/guides/MIGRATION_GUIDE.md
 // Status: Will be removed in v1.0
 func (ctx *ComponentContext) GetState(key string) (interface{}, bool) {
-	ctx.StateMu.RLock()
-	defer ctx.StateMu.RUnlock()
+	mu := ctx.stateMu()
+	mu.RLock()
+	defer mu.RUnlock()
 
 	// Check pending updates first (read-your-writes)
 	if value, exists := ctx.PendingUpdates[key]; exists {
@@ -380,8 +394,9 @@ func (ctx *ComponentContext) GetState(key string) (interface{}, bool) {
 // After flushing, the pending updates queue is cleared.
 // Returns the number of updates applied.
 func (ctx *ComponentContext) FlushUpdates() int {
-	ctx.StateMu.Lock()
-	defer ctx.StateMu.Unlock()
+	mu := ctx.stateMu()
+	mu.Lock()
+	defer mu.Unlock()
 
 	if len(ctx.PendingUpdates) == 0 {
 		return 0

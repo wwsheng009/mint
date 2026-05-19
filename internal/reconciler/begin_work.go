@@ -87,7 +87,10 @@ func manageWorkInProgressInstance(current, workInProgress *Fiber) {
 		sharedCtx := currentReconciler.ctx
 		instanceCtx := instance.GetContext()
 		instanceCtx.GlobalState = sharedCtx.GlobalState
-		instanceCtx.StateMu = sharedCtx.StateMu
+		instanceCtx.SharedStateMu = sharedCtx.SharedStateMu
+		if instanceCtx.SharedStateMu == nil {
+			instanceCtx.SharedStateMu = &sharedCtx.StateMu
+		}
 		instanceCtx.SetIntentRuntime(sharedCtx.GetIntentRuntime())
 		instanceCtx.SetScheduleUpdate(func() {
 			sharedCtx.ScheduleUpdate()

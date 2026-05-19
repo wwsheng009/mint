@@ -26,7 +26,7 @@ const (
 //
 // The Resolve method is called during rendering to get the current value.
 type Prop[T any] struct {
-	mu         sync.RWMutex
+	mu         *sync.RWMutex
 	kind       PropKind
 	staticVal  T
 	bindPath   string
@@ -40,6 +40,7 @@ type Prop[T any] struct {
 // NewStatic creates a static property with the given value.
 func NewStatic[T any](val T) Prop[T] {
 	return Prop[T]{
+		mu:        new(sync.RWMutex),
 		kind:      PropStatic,
 		staticVal: val,
 	}
@@ -57,6 +58,7 @@ func NewBinding[T any](path string) Prop[T] {
 	cleanPath = strings.TrimSpace(cleanPath)
 
 	return Prop[T]{
+		mu:       new(sync.RWMutex),
 		kind:     PropBound,
 		bindPath: cleanPath,
 	}
@@ -74,6 +76,7 @@ func NewExpression[T any](expr string) Prop[T] {
 	cleanExpr = strings.TrimSpace(cleanExpr)
 
 	return Prop[T]{
+		mu:         new(sync.RWMutex),
 		kind:       PropExpression,
 		expression: ParseExpression(cleanExpr),
 	}
@@ -85,6 +88,7 @@ func NewExpression[T any](expr string) Prop[T] {
 // The deps slice specifies which keys this computed property depends on.
 func NewComputed[T any](deps []string, fn func(Context) T) Prop[T] {
 	return Prop[T]{
+		mu:        new(sync.RWMutex),
 		kind:      PropExpression,
 		computed:  true,
 		deps:      deps,
@@ -131,6 +135,7 @@ func isSimpleBinding(expr string) bool {
 // For bound properties, looks up the path in the context.
 // For expression properties, evaluates the expression.
 func (p *Prop[T]) Resolve(ctx Context) T {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -182,6 +187,7 @@ func (p *Prop[T]) ResolveString(ctx Context) string {
 
 // IsBound returns true if this is a bound property.
 func (p *Prop[T]) IsBound() bool {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.kind == PropBound
@@ -189,6 +195,7 @@ func (p *Prop[T]) IsBound() bool {
 
 // IsExpression returns true if this is an expression property.
 func (p *Prop[T]) IsExpression() bool {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.kind == PropExpression
@@ -196,6 +203,7 @@ func (p *Prop[T]) IsExpression() bool {
 
 // IsStatic returns true if this is a static property.
 func (p *Prop[T]) IsStatic() bool {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.kind == PropStatic
@@ -203,6 +211,7 @@ func (p *Prop[T]) IsStatic() bool {
 
 // GetPath returns the binding path for bound properties.
 func (p *Prop[T]) GetPath() string {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.bindPath
@@ -210,6 +219,7 @@ func (p *Prop[T]) GetPath() string {
 
 // GetDependencies returns the dependencies for computed properties.
 func (p *Prop[T]) GetDependencies() []string {
+	p.ensureMu()
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.computed {
@@ -259,6 +269,7 @@ func getRootPath(path string) string {
 
 // SetStatic sets the static value (converts to static property).
 func (p *Prop[T]) SetStatic(val T) {
+	p.ensureMu()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.kind = PropStatic
@@ -369,8 +380,15 @@ func MustResolve[T any](p Prop[T], ctx Context) T {
 // LazyProp creates a lazily evaluated property.
 func LazyProp[T any](fn func() T) Prop[T] {
 	return Prop[T]{
+		mu:        new(sync.RWMutex),
 		kind:      PropExpression,
 		computed:  true,
 		computeFn: func(Context) T { return fn() },
+	}
+}
+
+func (p *Prop[T]) ensureMu() {
+	if p.mu == nil {
+		p.mu = new(sync.RWMutex)
 	}
 }

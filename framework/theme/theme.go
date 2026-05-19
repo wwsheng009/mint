@@ -45,19 +45,19 @@ type SpacingSet struct {
 
 // StyleConfig 样式配置
 type StyleConfig struct {
-	Foreground *Color
-	Background *Color
-	Bold       bool
-	Italic     bool
-	Underline  bool
+	Foreground    *Color
+	Background    *Color
+	Bold          bool
+	Italic        bool
+	Underline     bool
 	Strikethrough bool
-	Reverse    bool
-	Blink      bool
-	Padding    *[4]int // top, right, bottom, left
-	Margin     *[4]int
-	Width      *int
-	Height     *int
-	Border     *BorderStyle
+	Reverse       bool
+	Blink         bool
+	Padding       *[4]int // top, right, bottom, left
+	Margin        *[4]int
+	Width         *int
+	Height        *int
+	Border        *BorderStyle
 }
 
 // ComponentStyle 组件样式
@@ -289,8 +289,18 @@ func (t *Theme) Extend(name string) *Theme {
 
 // WithColor 返回修改指定颜色后的新主题
 func (t *Theme) WithColor(colorName string, color Color) *Theme {
-	newTheme := *t
-	newTheme.Colors = t.Colors
+	t.mu.RLock()
+	newTheme := &Theme{
+		Name:       t.Name,
+		Version:    t.Version,
+		Parent:     t.Parent,
+		Colors:     t.Colors,
+		Spacing:    t.Spacing,
+		Styles:     t.Styles,
+		Components: t.Components,
+		Metadata:   t.Metadata,
+	}
+	t.mu.RUnlock()
 
 	// 修改指定颜色
 	switch strings.ToLower(colorName) {
@@ -361,7 +371,7 @@ func (t *Theme) WithColor(colorName string, color Color) *Theme {
 		newTheme.Colors.Primary = color
 	}
 
-	return &newTheme
+	return newTheme
 }
 
 // Clone 克隆主题

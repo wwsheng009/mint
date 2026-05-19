@@ -28,6 +28,9 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Run go vet
+        run: go vet ./...
+
       - name: Run full test suite
         run: go test ./... -count=1 -p 1
 
