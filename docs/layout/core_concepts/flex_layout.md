@@ -414,13 +414,13 @@ mainContent := ui.VStackBuilder(
 
 ```bash
 # 布局调试
-TUI_LAYOUT_DEBUG=true go run ./examples/demo1
+TUI_LAYOUT_DEBUG=true go run ./examples/layout_demo
 
 # 拉伸调试
-TUI_STRETCH_DEBUG=true go run ./examples/demo1
+TUI_STRETCH_DEBUG=true go run ./examples/layout_demo
 
 # 管道调试
-TUI_PIPELINE_DEBUG=true go run ./examples/demo1
+TUI_PIPELINE_DEBUG=true go run ./examples/layout_demo
 ```
 
 ### 调试输出示例

@@ -908,11 +908,10 @@ func checkLayerNodes(fiber *rtui.Fiber) bool {
 使用 SVG 布局可视化工具:
 
 ```bash
-cd examples/svg_layout_visualization
-go run main.go
+go run ./examples/fiber_firsts/layer_visual_demo
 ```
 
-可生成展示不同层级布局关系的 SVG 文件。
+可在终端中展示不同层级布局关系；历史 SVG 可视化探针已归档到 `docsArchive/cleanup-2026-05-19/_examples/`。
 
 ---
 

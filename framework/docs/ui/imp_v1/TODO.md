@@ -255,7 +255,7 @@ MVP      [███████████████████████�
 - `examples/fiber_firsts/absolute_demo/main.go` - Absolute 示例
 - `examples/virtuallist/main.go` - VirtualList 示例
 - `ui/components/toast` - Toast 组件测试
-- `examples/fiber_counter/main.go` - Fiber 计数器示例
+- `examples/fiber_counter_intent/main.go` - Fiber 计数器示例
 
 **文档:**
 - `docs/TESTING.md` - 测试框架文档

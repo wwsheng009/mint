@@ -107,7 +107,7 @@ if log.InspectorLogger.Enabled() || log.UILogger.Enabled() {
 - `internal/reconciler/begin_work.go` - TUI_DEBUG_HITMAP
 - `framework/inspector_integration.go` - TUI_DEBUG_UI
 - `ui/components/input/instance.go` - TUI_INPUT_DEBUG
-- `examples/fiber_counter/main.go` - TUI_DEBUG_UI
+- `examples/fiber_counter_intent/main.go` - TUI_DEBUG_UI
 - `ui/layout.go` - TUI_DEBUG_LAYOUT
 
 ## 环境变量对照表

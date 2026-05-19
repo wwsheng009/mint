@@ -853,7 +853,7 @@ testApp, _ := ui.TestRunWithConfig(MyApp, config)
 | CI/CD | Mock | `go test -race -cover` |
 
 更多详细示例，请参考：
-- `examples/sandbox_demo/` - 完整示例代码
+- `examples/sandbox/` - 完整示例代码
 - `docs/sandbox/USER_GUIDE.md` - 详细使用手册
 - `docs/sandbox/API_REFERENCE.md` - API 参考手册
 - `docs/sandbox/SANDBOX_ADVANCED_FEATURES.md` - 高级功能指南（录制/回放、快照、TestHelper等）

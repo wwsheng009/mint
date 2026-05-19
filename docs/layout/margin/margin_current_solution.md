@@ -82,7 +82,7 @@ if isFlexRow {
 ### 测试结果
 
 ```bash
-$ cd examples/elegant_api_demo && go run test_margin_simple.go
+$ go test ./runtime/layout -run Margin -count=1
 
 === Layout Boxes (Buttons Only) ===
   Btn1     | Pos: (  0,  5) | Size: 9x1 | PropsID: Btn1
