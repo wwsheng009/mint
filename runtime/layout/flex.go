@@ -1,5 +1,7 @@
 package layout
 
+import "sync"
+
 // ==============================================================================
 // Flexbox Layout Algorithm (V3)
 // ==============================================================================
@@ -173,6 +175,7 @@ type FlexLayout struct {
 	id       string
 	children []Node
 	style    *FlexStyle
+	mu       sync.RWMutex
 	size     Size
 	position Point
 }
@@ -203,33 +206,45 @@ func (f *FlexLayout) Children() []Node {
 
 // GetPosition 获取位置
 func (f *FlexLayout) GetPosition() (int, int) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.position.X, f.position.Y
 }
 
 // SetPosition 设置位置
 func (f *FlexLayout) SetPosition(x, y int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.position.X = x
 	f.position.Y = y
 }
 
 // GetSize 获取尺寸
 func (f *FlexLayout) GetSize() (int, int) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.size.Width, f.size.Height
 }
 
 // SetSize 设置尺寸
 func (f *FlexLayout) SetSize(width, height int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.size.Width = width
 	f.size.Height = height
 }
 
 // GetWidth 获取宽度
 func (f *FlexLayout) GetWidth() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.size.Width
 }
 
 // GetHeight 获取高度
 func (f *FlexLayout) GetHeight() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.size.Height
 }
 

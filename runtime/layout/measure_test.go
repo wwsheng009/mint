@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 type MockNode struct {
 	id       string
 	nodeType string
+	mu       sync.RWMutex
 	position Point
 	size     Size
 	children []Node
@@ -38,28 +40,40 @@ func (m *MockNode) Children() []Node {
 }
 
 func (m *MockNode) GetPosition() (int, int) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.position.X, m.position.Y
 }
 
 func (m *MockNode) SetPosition(x, y int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.position.X = x
 	m.position.Y = y
 }
 
 func (m *MockNode) GetSize() (int, int) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.size.Width, m.size.Height
 }
 
 func (m *MockNode) SetSize(width, height int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.size.Width = width
 	m.size.Height = height
 }
 
 func (m *MockNode) GetWidth() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.size.Width
 }
 
 func (m *MockNode) GetHeight() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.size.Height
 }
 
@@ -114,7 +128,7 @@ func TestMeasure_Text(t *testing.T) {
 			// Create a measurable node representing text
 			node := NewMockMeasurableNode(tt.text, tt.expectedWidth, 1)
 			result := node.Measure(tt.constraints)
-			
+
 			assert.Equal(t, tt.expectedWidth, result.Width, "Width should match expected")
 			assert.GreaterOrEqual(t, result.Width, tt.constraints.MinWidth, "Width should be >= MinWidth")
 			assert.LessOrEqual(t, result.Width, tt.constraints.MaxWidth, "Width should be <= MaxWidth")
@@ -169,7 +183,7 @@ func TestMeasure_Box(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			node := NewMockMeasurableNode("box", tt.nodeWidth, tt.nodeHeight)
 			result := node.Measure(tt.constraints)
-			
+
 			assert.Equal(t, tt.expectedWidth, result.Width, "Width should match expected")
 			assert.Equal(t, tt.expectedHeight, result.Height, "Height should match expected")
 		})
@@ -201,7 +215,7 @@ func TestMeasure_Nested(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Build nested structure
 			var parent Node = NewMockMeasurableNode("level0", 100, 100)
-			
+
 			for i := 1; i < tt.nestingLevel; i++ {
 				child := NewMockMeasurableNode("level"+string(rune('0'+i)), 80, 80)
 				parent = &FlexLayout{
@@ -210,7 +224,7 @@ func TestMeasure_Nested(t *testing.T) {
 					style:    DefaultFlexStyle(),
 				}
 			}
-			
+
 			// Measure the top-level parent
 			if measurable, ok := parent.(Measurable); ok {
 				result := measurable.Measure(tt.constraints)
@@ -226,25 +240,25 @@ func TestMeasure_FlexGrow(t *testing.T) {
 		name           string
 		flexGrowValues []int
 		availableSpace int
-		expectedTotal   int
+		expectedTotal  int
 	}{
 		{
 			name:           "no flex grow (all zero)",
 			flexGrowValues: []int{0, 0, 0},
 			availableSpace: 300,
-			expectedTotal:   0, // No extra space distributed
+			expectedTotal:  0, // No extra space distributed
 		},
 		{
 			name:           "uniform flex grow",
 			flexGrowValues: []int{1, 1, 1},
 			availableSpace: 300,
-			expectedTotal:   300, // All space distributed equally
+			expectedTotal:  300, // All space distributed equally
 		},
 		{
 			name:           "non-uniform flex grow",
 			flexGrowValues: []int{1, 2, 3},
 			availableSpace: 300,
-			expectedTotal:   300, // Space distributed proportionally
+			expectedTotal:  300, // Space distributed proportionally
 		},
 	}
 
@@ -254,19 +268,19 @@ func TestMeasure_FlexGrow(t *testing.T) {
 			for i := range tt.flexGrowValues {
 				children[i] = NewMockMeasurableNode("child"+string(rune('0'+i)), 50, 50)
 			}
-			
+
 			flex := NewFlexLayout("flex", children)
 			for i, grow := range tt.flexGrowValues {
 				flex.SetFlex(i, grow, 1, 0)
 			}
-			
+
 			result := flex.Measure(Constraints{
 				MinWidth:  tt.availableSpace,
 				MaxWidth:  tt.availableSpace,
 				MinHeight: 0,
 				MaxHeight: MaxInt,
 			})
-			
+
 			assert.Equal(t, tt.availableSpace, result.Width, "Width should match available space")
 		})
 	}
@@ -274,28 +288,28 @@ func TestMeasure_FlexGrow(t *testing.T) {
 
 func TestMeasure_FlexShrink(t *testing.T) {
 	tests := []struct {
-		name            string
+		name             string
 		flexShrinkValues []int
-		availableSpace  int
-		baseSizes       []int
+		availableSpace   int
+		baseSizes        []int
 	}{
 		{
-			name:            "no flex shrink (all zero)",
+			name:             "no flex shrink (all zero)",
 			flexShrinkValues: []int{0, 0, 0},
-			availableSpace:  200,
-			baseSizes:       []int{100, 100, 100},
+			availableSpace:   200,
+			baseSizes:        []int{100, 100, 100},
 		},
 		{
-			name:            "uniform flex shrink",
+			name:             "uniform flex shrink",
 			flexShrinkValues: []int{1, 1, 1},
-			availableSpace:  200,
-			baseSizes:       []int{100, 100, 100},
+			availableSpace:   200,
+			baseSizes:        []int{100, 100, 100},
 		},
 		{
-			name:            "non-uniform flex shrink",
+			name:             "non-uniform flex shrink",
 			flexShrinkValues: []int{1, 2, 3},
-			availableSpace:  200,
-			baseSizes:       []int{100, 100, 100},
+			availableSpace:   200,
+			baseSizes:        []int{100, 100, 100},
 		},
 	}
 
@@ -305,19 +319,19 @@ func TestMeasure_FlexShrink(t *testing.T) {
 			for i := range tt.flexShrinkValues {
 				children[i] = NewMockMeasurableNode("child"+string(rune('0'+i)), tt.baseSizes[i], 50)
 			}
-			
+
 			flex := NewFlexLayout("flex", children)
 			for i, shrink := range tt.flexShrinkValues {
 				flex.SetFlex(i, 0, shrink, tt.baseSizes[i])
 			}
-			
+
 			result := flex.Measure(Constraints{
 				MinWidth:  0,
 				MaxWidth:  tt.availableSpace,
 				MinHeight: 0,
 				MaxHeight: MaxInt,
 			})
-			
+
 			// Result should be constrained by available space
 			assert.LessOrEqual(t, result.Width, tt.availableSpace, "Width should be <= available space")
 		})
@@ -360,14 +374,14 @@ func TestMeasure_MaxWidth(t *testing.T) {
 			child := NewMockMeasurableNode("child", tt.contentWidth, 50)
 			flex := NewFlexLayout("flex", []Node{child})
 			flex.SetFlex(0, tt.flexGrow, 1, 0)
-			
+
 			result := flex.Measure(Constraints{
 				MinWidth:  0,
 				MaxWidth:  tt.maxWidth,
 				MinHeight: 0,
 				MaxHeight: MaxInt,
 			})
-			
+
 			assert.LessOrEqual(t, result.Width, tt.maxWidth, "Width should be <= maxWidth")
 		})
 	}
@@ -403,14 +417,14 @@ func TestMeasure_MaxHeight(t *testing.T) {
 			flex := NewFlexLayout("flex", []Node{child})
 			flex.SetDirection(FlexColumn)
 			flex.SetFlex(0, tt.flexGrow, 1, 0)
-			
+
 			result := flex.Measure(Constraints{
 				MinWidth:  0,
 				MaxWidth:  MaxInt,
 				MinHeight: 0,
 				MaxHeight: tt.maxHeight,
 			})
-			
+
 			assert.LessOrEqual(t, result.Height, tt.maxHeight, "Height should be <= maxHeight")
 		})
 	}
@@ -455,14 +469,14 @@ func TestMeasure_MinConstraints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			child := NewMockMeasurableNode("child", tt.contentSize.Width, tt.contentSize.Height)
 			flex := NewFlexLayout("flex", []Node{child})
-			
+
 			result := flex.Measure(Constraints{
 				MinWidth:  tt.minWidth,
 				MaxWidth:  MaxInt,
 				MinHeight: tt.minHeight,
 				MaxHeight: MaxInt,
 			})
-			
+
 			assert.GreaterOrEqual(t, result.Width, tt.minWidth, "Width should be >= minWidth")
 			assert.GreaterOrEqual(t, result.Height, tt.minHeight, "Height should be >= minHeight")
 		})
@@ -471,7 +485,7 @@ func TestMeasure_MinConstraints(t *testing.T) {
 
 func TestEngine_Measure(t *testing.T) {
 	engine := NewEngine()
-	
+
 	tests := []struct {
 		name        string
 		node        Node
@@ -501,11 +515,11 @@ func TestEngine_Measure(t *testing.T) {
 			wantHeight:  100,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := engine.Measure(tt.node, tt.constraints)
-			
+
 			assert.Equal(t, tt.wantWidth, result.Width, "Width should match expected")
 			assert.Equal(t, tt.wantHeight, result.Height, "Height should match expected")
 		})
@@ -514,7 +528,7 @@ func TestEngine_Measure(t *testing.T) {
 
 func TestEngine_Measure_FlexLayout(t *testing.T) {
 	engine := NewEngine()
-	
+
 	tests := []struct {
 		name        string
 		direction   FlexDirection
@@ -540,14 +554,14 @@ func TestEngine_Measure_FlexLayout(t *testing.T) {
 			constraints: UnboundedConstraints(),
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			flex := NewFlexLayout("flex", tt.children)
 			flex.SetDirection(tt.direction)
-			
+
 			result := engine.Measure(flex, tt.constraints)
-			
+
 			assert.Greater(t, result.Width, 0, "Width should be greater than 0")
 			assert.Greater(t, result.Height, 0, "Height should be greater than 0")
 		})
@@ -559,7 +573,7 @@ func BenchmarkMeasure_SimpleNode(b *testing.B) {
 	node := NewMockMeasurableNode("bench", 100, 50)
 	constraints := UnboundedConstraints()
 	engine := NewEngine()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		engine.Measure(node, constraints)
@@ -574,7 +588,7 @@ func BenchmarkMeasure_FlexLayout(b *testing.B) {
 	flex := NewFlexLayout("flex", children)
 	constraints := UnboundedConstraints()
 	engine := NewEngine()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		engine.Measure(flex, constraints)
@@ -583,16 +597,16 @@ func BenchmarkMeasure_FlexLayout(b *testing.B) {
 
 func BenchmarkMeasure_NestedLayout(b *testing.B) {
 	var parent Node = NewMockMeasurableNode("root", 100, 100)
-	
+
 	// Create 5 levels of nesting
 	for i := 0; i < 5; i++ {
 		child := NewMockMeasurableNode("level", 80, 80)
 		parent = NewFlexLayout("parent"+string(rune('0'+i)), []Node{parent, child})
 	}
-	
+
 	constraints := UnboundedConstraints()
 	engine := NewEngine()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		engine.Measure(parent, constraints)

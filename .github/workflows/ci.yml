@@ -34,6 +34,7 @@ jobs:
   race:
     name: Race Detector
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +45,4 @@ jobs:
           cache: true
 
       - name: Run focused race tests
-        run: |
-          # Runtime layout and framework race coverage is tracked separately;
-          # this gate only includes packages that are currently race-clean.
-          go test -race ./devtools/... ./sandbox/... ./ui/components/... -count=1 -p 1
+        run: go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1

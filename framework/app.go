@@ -109,6 +109,7 @@ type App struct {
 	activeTickables bool
 
 	// AI / external invoke support
+	aiMu           sync.RWMutex
 	aiService      *aiservice.Service
 	invokeQ        chan invokeRequest
 	invokeDone     chan struct{}
@@ -967,8 +968,8 @@ func (a *App) Init() error {
 	}
 
 	atomic.StoreInt32(&a.state, int32(StateRunning))
-	if a.aiService != nil && a.aiService.ShouldAutoStart() {
-		if err := a.aiService.Start(); err != nil {
+	if aiService := a.getAIService(); aiService != nil && aiService.ShouldAutoStart() {
+		if err := aiService.Start(); err != nil {
 			atomic.StoreInt32(&a.state, int32(StateError))
 			return err
 		}
@@ -2259,9 +2260,9 @@ func (a *App) render() {
 			a.pump.SetHitMap(a.hitMap)
 		}
 	}
-	if a.aiService != nil {
+	if aiService := a.getAIService(); aiService != nil {
 		a.renderSeq++
-		a.aiService.OnAfterRender(aiservice.RenderInfo{
+		aiService.OnAfterRender(aiservice.RenderInfo{
 			RenderSeq:  a.renderSeq,
 			RenderedAt: time.Now(),
 		})
@@ -2451,8 +2452,8 @@ func (a *App) Close() error {
 		a.invokeDoneOnce.Do(func() {
 			close(a.invokeDone)
 		})
-		if a.aiService != nil {
-			_ = a.aiService.Stop()
+		if aiService := a.getAIService(); aiService != nil {
+			_ = aiService.Stop()
 		}
 
 		// 让根组件失去焦点

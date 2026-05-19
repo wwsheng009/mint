@@ -52,26 +52,32 @@ func (a *App) EnableAI(cfg AIConfig) error {
 	if a == nil {
 		return errors.New("nil app")
 	}
-	if a.aiService != nil {
-		return errors.New("AI service already enabled")
-	}
 
 	normalized := normalizeAIConfig(cfg)
-	a.aiService = aiservice.New(a, toInternalAIConfig(normalized))
+	service := aiservice.New(a, toInternalAIConfig(normalized))
+
+	a.aiMu.Lock()
+	if a.aiService != nil {
+		a.aiMu.Unlock()
+		return errors.New("AI service already enabled")
+	}
+	a.aiService = service
+	a.aiMu.Unlock()
 
 	if a.IsRunning() && normalized.AutoStart {
-		return a.aiService.Start()
+		return service.Start()
 	}
 	return nil
 }
 
 // AIStatus returns the current embedded AI service state.
 func (a *App) AIStatus() AIStatus {
-	if a == nil || a.aiService == nil {
+	service := a.getAIService()
+	if service == nil {
 		return AIStatus{}
 	}
 
-	status := a.aiService.Status()
+	status := service.Status()
 	return AIStatus{
 		Enabled:      status.Enabled,
 		Running:      status.Running,
@@ -85,6 +91,15 @@ func (a *App) AIStatus() AIStatus {
 		HTTPEndpoint: status.HTTPEndpoint,
 		AuthToken:    status.AuthToken,
 	}
+}
+
+func (a *App) getAIService() *aiservice.Service {
+	if a == nil {
+		return nil
+	}
+	a.aiMu.RLock()
+	defer a.aiMu.RUnlock()
+	return a.aiService
 }
 
 func normalizeAIConfig(cfg AIConfig) AIConfig {
