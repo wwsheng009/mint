@@ -249,6 +249,8 @@ go test ./ui/components/button ./ui/components/input ./ui/components/table ./ui/
 Full check:
 
 ```bash
+go mod tidy
+git diff --exit-code -- go.mod go.sum
 go vet ./...
 go test ./... -count=1 -p 1
 go test -race ./runtime/... -count=1 -p 1
@@ -363,12 +365,14 @@ Before publishing or handing off a version:
 3. `go test ./sandbox/... -count=1`
 4. `go test ./ui/components/... -count=1`
 5. `go test ./ui/e2e/... -count=1`
-6. `go vet ./...`
-7. `go test ./... -count=1 -p 1`
-8. `go test -race ./runtime/... -count=1 -p 1`
-9. `go test -race ./framework/... -count=1 -p 1`
-10. `go test -race ./sandbox/... -count=1 -p 1`
-11. `go test -race ./devtools/... -count=1 -p 1`
-12. `go test -race ./ui/components/... -count=1 -p 1`
-13. Run the curated examples that cover changed behavior.
-14. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.
+6. `go mod tidy`
+7. `git diff --exit-code -- go.mod go.sum`
+8. `go vet ./...`
+9. `go test ./... -count=1 -p 1`
+10. `go test -race ./runtime/... -count=1 -p 1`
+11. `go test -race ./framework/... -count=1 -p 1`
+12. `go test -race ./sandbox/... -count=1 -p 1`
+13. `go test -race ./devtools/... -count=1 -p 1`
+14. `go test -race ./ui/components/... -count=1 -p 1`
+15. Run the curated examples that cover changed behavior.
+16. Confirm `README.md`, `DEVELOPMENT.md`, `docs/README.md`, and `examples/README.md` still point to existing files.

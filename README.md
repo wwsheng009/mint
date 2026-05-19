@@ -17,10 +17,10 @@ Current repository status as of 2026-05-20:
 | Rendering path | Fiber-first by default |
 | Component library | Broad TUI component set under `ui/components` |
 | Test support | Unit tests, component tests, sandbox, replay, E2E driver, render snapshots |
-| CI gates | `go vet ./...`, `go test ./... -count=1 -p 1`, and sharded focused `go test -race` over runtime/framework/sandbox/devtools/components |
+| CI gates | `go mod tidy` diff check, `go vet ./...`, `go test ./... -count=1 -p 1`, and sharded focused `go test -race` over runtime/framework/sandbox/devtools/components |
 | Documentation posture | SDK-facing docs are kept in this README, `DEVELOPMENT.md`, and the focused docs under `docs/`; historical implementation notes are archived under `docsArchive/` |
 
-Recent local verification covered `go vet ./...`, the full test suite, and the focused race gate used by CI, split by subsystem and component shards. Full validation can take several minutes and should be run before releases.
+Recent local verification covered the module tidy check, `go vet ./...`, the full test suite, and the focused race gate used by CI, split by subsystem and component shards. Full validation can take several minutes and should be run before releases.
 
 ## Installation
 
@@ -278,6 +278,8 @@ go test ./ui/components/button ./ui/components/input ./ui/components/table ./ui/
 Full validation:
 
 ```bash
+go mod tidy
+git diff --exit-code -- go.mod go.sum
 go vet ./...
 go test ./... -count=1 -p 1
 go test -race ./runtime/... -count=1 -p 1

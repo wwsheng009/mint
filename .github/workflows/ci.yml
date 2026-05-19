@@ -28,6 +28,11 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Verify module files are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
       - name: Run go vet
         run: go vet ./...
 
