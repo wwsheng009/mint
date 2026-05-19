@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run full test suite
+        run: go test ./... -count=1 -p 1
+
+  race:
+    name: Race Detector
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.2'
+          cache: true
+
+      - name: Run focused race tests
+        run: |
+          go test -race ./runtime/... ./framework/... ./sandbox/... ./devtools/... ./ui/components/... -count=1 -p 1
