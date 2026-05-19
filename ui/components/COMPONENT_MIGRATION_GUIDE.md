@@ -1155,7 +1155,7 @@ func printBuffer(buf *paint.Buffer, width, height int) {
 
 - `examples/fiber_firsts/stack_demo/` - Stack 组件完整示例
 - `examples/fiber_firsts/panel_demo/` - Panel 组件示例
-- `examples/fiber_firsts/button_demo/` - Button 组件示例
+- `examples/mvp_components_demo/` - Button 等基础组件组合示例
 
 ---
 

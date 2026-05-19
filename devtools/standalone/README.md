@@ -242,7 +242,7 @@ mint-debugger -analyze-only
 - `debugger.go` - 独立调试器核心
 - `logger.go` - 日志记录器
 - `cmd/mint-debugger/main.go` - CLI 工具
-- `examples/engine/main_with_logger.go` - 使用示例
+- `examples/engine/with_logger/main.go` - 使用示例
 
 ## 与嵌入式 DevTools 对比
 
@@ -405,4 +405,4 @@ Standalone DevTools 通过**日志文件解耦**的方式，解决了传统嵌�
 | `logger.go` | 日志记录器 | 库 |
 | `README.md` | 本文档 | 文档 |
 | `cmd/mint-debugger/main.go` | CLI 工具 | 可执行文件 |
-| `examples/engine/main_with_logger.go` | 使用示例 | 示例代码 |
+| `examples/engine/with_logger/main.go` | 使用示例 | 示例代码 |

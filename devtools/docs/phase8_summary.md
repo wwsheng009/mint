@@ -413,10 +413,10 @@ function handleMessage(msg) {
 
 ## 测试客户端
 
-测试客户端位于 `examples/wsclient/main.go`：
+测试客户端位于 `tests/wsclient/main.go`：
 
 ```bash
-cd examples/wsclient
+cd tests/wsclient
 go run main.go
 ```
 
@@ -492,10 +492,10 @@ Frames count: 4
 ```bash
 # 启动服务器
 cd examples/devtools_demo
-go run remote_demo.go
+go run ./remote_demo
 
 # 运行 WebSocket 测试客户端
-cd examples/wsclient
+cd tests/wsclient
 go run main.go
 
 # 在浏览器中打开

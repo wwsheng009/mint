@@ -178,8 +178,8 @@ fwApp.Run()
 | 文件 | 说明 |
 |-----|------|
 | `docsArchive/cleanup-2026-05-19/docs/layer/FIBER_FIRST_AUTO_ENABLE.md` | framework.App 自动启用 Fiber-first 机制的历史说明 |
-| `examples/fiber_firsts/layer_zorder_test/` | Layer Z-Order 详细测试 |
-| `examples/fiber_firsts/tooltip_demo/` | Tooltip/Toast 组件示例 |
+| `internal/render/paint_engine_test.go` | Paint plane / Z-Order 回归测试 |
+| `ui/components/tooltip`、`ui/components/toast` | Tooltip / Toast 组件实现与测试 |
 | `internal/render/declarative_node.go:424-504` | fiberFirstPaint() 实现 |
 | `internal/render/paint_engine.go:496` | PaintPaintablePlanes() 实现 |
 

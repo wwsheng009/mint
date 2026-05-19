@@ -8,7 +8,7 @@
 //   3. FieldMap 消除 switch-case 硬编码
 //   4. 类型安全
 //
-// 运行: go run ./examples/typesafe_form_demo/main_runapp.go
+// 运行: go run ./examples/typesafe_form_demo_runapp
 
 package main
 

@@ -1,17 +1,17 @@
 # Engine 示例 嵌入式 DevTools 调试指南
 
-本指南展示如何使用 DevTools 来调试 `examples/engine/main.go` 程序。
+本指南展示如何使用 DevTools 来调试 `examples/engine/origin/main.go` 程序。
 
 ## 问题诊断
 
-当 `main.go` 无法正常工作时，可以使用 `main_with_devtools.go` 来进行调试。
+当基础版本无法正常工作时，可以使用 `examples/engine/with_devtools/main.go` 来进行调试。
 
 ### 使用方法
 
 ```bash
 # 运行带 DevTools 的版本
 cd examples/engine
-go run main_with_devtools.go
+go run ./with_devtools
 ```
 
 ## DevTools 集成说明

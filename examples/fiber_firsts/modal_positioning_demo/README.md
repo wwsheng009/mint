@@ -6,10 +6,9 @@
 
 ## 示例程序
 
-本目录包含两个示例程序：
+本目录包含一个交互式示例程序：
 
 1. **交互式演示** (`main.go`) - 点击按钮切换显示不同位置的 Modal
-2. **直接渲染测试** (`direct_render.go`) - 同时渲染所有 Modal，用于快速检查位置
 
 ---
 
@@ -46,33 +45,6 @@ go build -o bin/modal_positioning_demo.exe examples/fiber_firsts/modal_positioni
 # 运行
 bin\modal_positioning_demo.exe
 ```
-
-### 直接渲染测试 (`direct_render.go`)
-
-由于直接渲染测试会同时显示 6 个 Modal，这个示例更适合用于：
-
-1. **检查渲染位置是否正确**
-2. **验证布局系统的工作方式**
-3. **快速迭代调试**
-
-运行方式：
-
-```bash
-cd examples/fiber_firsts/modal_positioning_demo
-go run direct_render.go
-```
-
-或编译后运行：
-
-```bash
-# 从项目根目录编译
-go build -o bin/direct_render_test.exe examples/fiber_firsts/modal_positioning_demo/direct_render.go
-
-# 运行
-bin\direct_render_test.exe
-```
-
----
 
 ## 使用方法
 

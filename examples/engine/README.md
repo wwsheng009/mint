@@ -15,7 +15,7 @@
 ## 运行方式
 
 ```bash
-go run ./examples/engine/
+go run ./examples/engine/origin
 ```
 
 ## 控制说明
