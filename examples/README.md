@@ -28,7 +28,6 @@ go run ./examples/charts_gallery_demo
 | `typesafe_form_demo_runapp` | Type-safe form flow with RunApp |
 | `timer` | Timed updates |
 | `transition_demo` | Transition-style updates |
-| `timetravel_demo` | Time-travel state history |
 
 ## Components And Forms
 
@@ -36,15 +35,11 @@ go run ./examples/charts_gallery_demo
 |---|---|
 | `mvp_components_demo` | Broad component gallery |
 | `mvp_form_demo` | Form workflow |
-| `validation_demo` | Validation helpers |
 | `multiselect_demo` | Multi-select flow |
 | `select` | Select behavior |
-| `progress` | Progress variants |
-| `toast` | Toast feedback |
 | `modal` | Modal behavior |
 | `menu_demo` | Menu, popup and navigation behavior |
 | `tabs` | Tabs behavior |
-| `list_interactive_demo` | Interactive list |
 | `table_interactive_demo` | Table features |
 | `virtuallist` | Virtual list |
 | `clock_demo` | Clock component |
@@ -68,9 +63,7 @@ go run ./examples/charts_gallery_demo
 | `engine/*` | Engine-level integration demos |
 | `fiber_firsts/*` | Fiber-first render and component demos |
 | `fiber_counter_intent` | Fiber + Intent counter |
-| `lane_demo` | Lane scheduling |
 | `lane_scheduler_demo` | Scheduler demo |
-| `interruptible_demo` | Interruptible rendering/update demo |
 | `ai_mcp_demo` | AI/MCP integration |
 | `webdashboard_demo` | Web dashboard integration |
 | `ant_design_demo` | Ant Design-style theme/component demo |
@@ -87,3 +80,5 @@ Archived component-only entries:
 - `radiogroup_demo` is covered by the option and checkbox composition patterns in `multiselect_demo`.
 - `mouse` is covered by the maintained interaction demos and E2E tests.
 - `absolute`, `grid`, `layout_api_demo`, `layout/*`, `render`, and `fiber_demos/*` are historical layout/render probes now covered by `layout_demo`, `layout_component_fixtures_demo`, `fiber_firsts/*`, component tests, and runtime tests.
+- `progress`, `toast`, `validation_demo`, and `list_interactive_demo` are single-component demos covered by component tests and broader form/table/list examples.
+- `lane_demo`, `interruptible_demo`, and `timetravel_demo` are command-line API probes covered by runtime scheduler/debug tests or the maintained `lane_scheduler_demo` integration example.

@@ -184,7 +184,7 @@ MVP      [███████████████████████�
 | Counter | `examples/counter/` | 计数器示例 |
 | Timer | `examples/timer/` | 定时器示例 |
 | Input / Checkbox | `examples/mvp_components_demo/` | 表单组件综合示例 |
-| Progress | `examples/progress/` | 进度条示例 |
+| Progress | `ui/components/progress` tests | 进度条验证入口 |
 | Select | `examples/select/` | 下拉选择示例 |
 | Components | `examples/mvp_components_demo/` | 综合演示 |
 | Modal | `examples/modal/` | 模态框示例 |
@@ -192,7 +192,7 @@ MVP      [███████████████████████�
 | Grid | `examples/fiber_firsts/grid_demo/` | 网格布局示例 |
 | Absolute | `examples/fiber_firsts/absolute_demo/` | 绝对定位示例 |
 | VirtualList | `examples/virtuallist/` | 虚拟列表示例 |
-| Toast | `examples/toast/` | 通知提示示例 |
+| Toast | `ui/components/toast` tests | 通知提示验证入口 |
 
 #### Fiber Reconciler 核心完成 (2026-02-01)
 
@@ -254,7 +254,7 @@ MVP      [███████████████████████�
 - `examples/fiber_firsts/grid_demo/main.go` - Grid 示例
 - `examples/fiber_firsts/absolute_demo/main.go` - Absolute 示例
 - `examples/virtuallist/main.go` - VirtualList 示例
-- `examples/toast/main.go` - Toast 示例
+- `ui/components/toast` - Toast 组件测试
 - `examples/fiber_counter/main.go` - Fiber 计数器示例
 
 **文档:**
@@ -1948,7 +1948,7 @@ func Timer() ui.VNode {
 #### 示例程序
 
 ```go
-// examples/virtuallist_demo/main.go
+// examples/virtuallist/main.go
 func main() {
     // 生成 100000 项数据
     items := make([]string, 100000)
@@ -2064,7 +2064,7 @@ func ConfirmDialog() ui.VNode {
 - [ ] `progress/phase_7_summary.md`
 - [ ] `docs/advanced.md` - 高级特性文档
 - [ ] `docs/layer.md` - Layer 系统文档
-- [ ] `examples/virtuallist_demo/` - 虚拟化示例
+- [ ] `examples/virtuallist/` - 虚拟化示例
 - [ ] `examples/modal_demo/` - Modal 示例
 
 ---
