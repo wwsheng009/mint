@@ -125,6 +125,6 @@ ui.NewClockBuilder().
 - 单元测试：`go test ./ui/components/clock`
 - E2E：`go test ./ui/e2e -run TestE2EClock`
 
-## Demo
+## 示例
 
-- 运行交互示例：`go run ./examples/clock_demo/`
+当前以组件单测和 E2E 覆盖 Clock 行为。历史交互示例已归档到 `docsArchive/cleanup-2026-05-19/_examples/clock_demo/`。

@@ -43,3 +43,10 @@ examples\progress
 examples\timetravel_demo
 examples\toast
 examples\validation_demo
+examples\clock_demo
+examples\fiber_firsts\list_demo
+examples\fiber_firsts\tabs_demo
+examples\fiber_firsts\textarea_demo
+examples\fiber_firsts\treeview_demo
+examples\fiber_firsts\virtuallist_demo
+examples\fiber_firsts\wrap_demo

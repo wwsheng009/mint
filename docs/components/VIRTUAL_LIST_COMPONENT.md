@@ -23,7 +23,7 @@ virtuallist.VNode
 | Runtime instance / paint / action handling | `ui/components/virtuallist/instance.go` |
 | 根包快捷入口 | `ui/shortcuts.go` |
 | 单元测试 | `ui/components/virtuallist/virtuallist_test.go` |
-| 示例 | `examples/virtuallist`、`examples/fiber_firsts/virtuallist_demo` |
+| 示例 | `examples/virtuallist` |
 
 不要再使用历史 API `app.NewVirtualList(...)`、`layout.NewVirtualList(...)`，也不要引用旧路径 `components/layout/virtual_scroll.go`。
 
@@ -195,7 +195,6 @@ ui.List().
 go test ./ui/components/virtuallist -count=1
 go test ./ui -run VirtualList -count=1
 go test ./examples/virtuallist -count=1
-go test ./examples/fiber_firsts/virtuallist_demo -count=1
 ```
 
 当前文档描述的是 `ui/components/virtuallist` 的现行实现。历史文档中基于 `app.NewVirtualList(itemCount, renderItem)` 的示例不再代表当前公共 API。

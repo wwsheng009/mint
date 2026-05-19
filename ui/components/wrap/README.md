@@ -741,12 +741,7 @@ wrap.New().AddChild(a).AddChild(b).AddChild(c)
 go test ./ui/components/wrap/... -v
 ```
 
-运行示例程序：
-
-```bash
-cd examples/fiber_firsts/wrap_demo
-go run main.go
-```
+历史单组件示例已归档到 `docsArchive/cleanup-2026-05-19/_examples/fiber_firsts/wrap_demo/`。当前建议通过组件单测和 `examples/ui_demos/demo2_runtime_internals` 中的组合界面验证 Wrap 行为。
 
 ## 相关组件
 

@@ -42,7 +42,6 @@ go run ./examples/charts_gallery_demo
 | `tabs` | Tabs behavior |
 | `table_interactive_demo` | Table features |
 | `virtuallist` | Virtual list |
-| `clock_demo` | Clock component |
 | `error_boundary` | Error boundary behavior |
 
 ## Layout And Rendering
@@ -82,3 +81,4 @@ Archived component-only entries:
 - `absolute`, `grid`, `layout_api_demo`, `layout/*`, `render`, and `fiber_demos/*` are historical layout/render probes now covered by `layout_demo`, `layout_component_fixtures_demo`, `fiber_firsts/*`, component tests, and runtime tests.
 - `progress`, `toast`, `validation_demo`, and `list_interactive_demo` are single-component demos covered by component tests and broader form/table/list examples.
 - `lane_demo`, `interruptible_demo`, and `timetravel_demo` are command-line API probes covered by runtime scheduler/debug tests or the maintained `lane_scheduler_demo` integration example.
+- `clock_demo`, `fiber_firsts/list_demo`, `fiber_firsts/tabs_demo`, `fiber_firsts/textarea_demo`, `fiber_firsts/treeview_demo`, `fiber_firsts/virtuallist_demo`, and `fiber_firsts/wrap_demo` are single-component walkthroughs now covered by component docs/tests, `mvp_components_demo`, `ui_demos/*`, or the maintained top-level `tabs` and `virtuallist` examples.
