@@ -972,7 +972,16 @@ func TestE2EMenuContextOutsideClickClosesWithoutBackgroundLeak(t *testing.T) {
 	}
 
 	app.ClearIntentLogs()
-	if err := app.Driver().Click(ByID("menu-background-btn")); err != nil {
+	backgroundBounds, err := app.BoundsOf(ByID("menu-background-btn"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clickPoint := Point{X: backgroundBounds.X, Y: backgroundBounds.Y}
+	if bounds.Contains(clickPoint.X, clickPoint.Y) {
+		clickPoint.X = bounds.X + bounds.Width + 1
+		clickPoint.Y = backgroundBounds.Y
+	}
+	if err := app.Driver().ClickAt(clickPoint.X, clickPoint.Y); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {

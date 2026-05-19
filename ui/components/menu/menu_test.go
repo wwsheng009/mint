@@ -30,10 +30,25 @@ func (r *fakeRegistrar) OnKeyCombo(combo string, handler func()) {
 type fakeInstallerHost struct {
 	fakeRegistrar
 	middlewareCount int
+	userData        map[string]interface{}
 }
 
 func (h *fakeInstallerHost) AddMiddleware(_ action.ActionMiddleware) {
 	h.middlewareCount++
+}
+
+func (h *fakeInstallerHost) SetUserData(key string, value interface{}) {
+	if h.userData == nil {
+		h.userData = map[string]interface{}{}
+	}
+	h.userData[key] = value
+}
+
+func (h *fakeInstallerHost) GetUserData(key string) interface{} {
+	if h.userData == nil {
+		return nil
+	}
+	return h.userData[key]
 }
 
 func buildPopupSurface(items []MenuItem) *popupVNode {
@@ -1481,6 +1496,21 @@ func TestInstallAddsMiddlewareOnceAndDedupsShortcuts(t *testing.T) {
 	}
 	if host.middlewareCount != 1 {
 		t.Fatalf("middlewareCount after second install = %d, want 1", host.middlewareCount)
+	}
+}
+
+func TestInstallStateIsScopedToHostInstance(t *testing.T) {
+	first := &fakeInstallerHost{}
+	second := &fakeInstallerHost{}
+
+	Install(first, nil)
+	Install(second, nil)
+
+	if first.middlewareCount != 1 {
+		t.Fatalf("first middlewareCount = %d, want 1", first.middlewareCount)
+	}
+	if second.middlewareCount != 1 {
+		t.Fatalf("second middlewareCount = %d, want 1", second.middlewareCount)
 	}
 }
 

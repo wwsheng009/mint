@@ -477,6 +477,31 @@ func (r *Reconciler) GetInstanceManager() *state.InstanceManager {
 	return r.instanceMgr
 }
 
+// Dispose releases reconciler-owned runtime state.
+//
+// Normal render diffs clean up removed component instances during CommitRoot.
+// Application shutdown is different: the whole tree is discarded at once, so
+// callers must explicitly unmount managed instances to run hook cleanup and
+// unregister components from any global interaction registries.
+func (r *Reconciler) Dispose() {
+	if r == nil {
+		return
+	}
+	if r.instanceMgr != nil {
+		r.instanceMgr.Clear()
+	}
+	if r.ctx != nil {
+		r.ctx.CleanupAll()
+	}
+	r.root = nil
+	r.workInProgress = nil
+	r.renderedRoot = nil
+	r.buffer = nil
+	r.renderCallback = nil
+	r.lanes = LaneNoLane
+	r.isWorking = false
+}
+
 // GetInteractionStateManager returns the interaction state manager
 func (r *Reconciler) GetInteractionStateManager() *state.InteractionStateManager {
 	return r.interactionStateMgr

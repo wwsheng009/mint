@@ -2457,11 +2457,19 @@ func (a *App) Close() error {
 		}
 
 		// 让根组件失去焦点
+		a.renderMu.Lock()
 		if a.root != nil {
 			if focusable, ok := a.root.(interface{ OnBlur() }); ok {
 				focusable.OnBlur()
 			}
 		}
+
+		if unmountable, ok := a.root.(interface{ Unmount() }); ok {
+			unmountable.Unmount()
+		}
+		a.root = nil
+		a.hitMap = nil
+		a.renderMu.Unlock()
 
 		// 停止事件泵
 		if a.pump != nil {

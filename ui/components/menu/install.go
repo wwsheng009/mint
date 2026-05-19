@@ -1,7 +1,6 @@
 package menu
 
 import (
-	"reflect"
 	"sync"
 
 	"github.com/wwsheng009/mint/runtime/action"
@@ -13,13 +12,18 @@ type InstallerHost interface {
 	AddMiddleware(action.ActionMiddleware)
 }
 
+type installerStateHost interface {
+	SetUserData(string, interface{})
+	GetUserData(string) interface{}
+}
+
 type installState struct {
 	mu                  sync.Mutex
 	middlewareInstalled bool
 	shortcutCombos      map[string]bool
 }
 
-var installStateRegistry sync.Map
+const installStateUserDataKey = "mint.ui.components.menu.installState"
 
 func Install(host InstallerHost, emit func(intent.Intent), builders ...*Builder) int {
 	if host == nil {
@@ -74,25 +78,14 @@ func Install(host InstallerHost, emit func(intent.Intent), builders ...*Builder)
 }
 
 func getInstallState(host InstallerHost) *installState {
-	key := installerHostKey(host)
-	if key == 0 {
-		return &installState{shortcutCombos: map[string]bool{}}
-	}
-	if existing, ok := installStateRegistry.Load(key); ok {
-		return existing.(*installState)
+	if stateHost, ok := host.(installerStateHost); ok {
+		if existing, ok := stateHost.GetUserData(installStateUserDataKey).(*installState); ok && existing != nil {
+			return existing
+		}
+		state := &installState{shortcutCombos: map[string]bool{}}
+		stateHost.SetUserData(installStateUserDataKey, state)
+		return state
 	}
 	state := &installState{shortcutCombos: map[string]bool{}}
-	actual, _ := installStateRegistry.LoadOrStore(key, state)
-	return actual.(*installState)
-}
-
-func installerHostKey(host InstallerHost) uintptr {
-	value := reflect.ValueOf(host)
-	if !value.IsValid() {
-		return 0
-	}
-	if value.Kind() == reflect.Pointer || value.Kind() == reflect.UnsafePointer {
-		return value.Pointer()
-	}
-	return 0
+	return state
 }

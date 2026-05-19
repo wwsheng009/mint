@@ -14,10 +14,25 @@ import (
 
 type fakeInstallerHost struct {
 	middlewareCount int
+	userData        map[string]interface{}
 }
 
 func (h *fakeInstallerHost) AddMiddleware(_ action.ActionMiddleware) {
 	h.middlewareCount++
+}
+
+func (h *fakeInstallerHost) SetUserData(key string, value interface{}) {
+	if h.userData == nil {
+		h.userData = map[string]interface{}{}
+	}
+	h.userData[key] = value
+}
+
+func (h *fakeInstallerHost) GetUserData(key string) interface{} {
+	if h.userData == nil {
+		return nil
+	}
+	return h.userData[key]
 }
 
 func TestNewCapturesButtonIntent(t *testing.T) {

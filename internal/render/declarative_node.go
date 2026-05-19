@@ -1565,8 +1565,29 @@ func (n *DeclarativeNode) Mount(parent component.Container) {
 func (n *DeclarativeNode) Unmount() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	// Cleanup any resources
+	if disposable, ok := n.reconciler.(interface{ Dispose() }); ok {
+		disposable.Dispose()
+	}
+	if n.instance != nil {
+		n.instance.CleanupAll()
+	}
+	if n.paintEngine != nil {
+		n.paintEngine.InvalidateCache()
+	}
+	if n.newLayoutEngine != nil {
+		n.newLayoutEngine.ClearCache()
+	}
+	if n.converter != nil {
+		n.converter = nil
+	}
+	n.fiberLastHitMap = nil
+	n.lastLayoutResult = nil
+	n.lastPaintableRoot = nil
+	n.lastPaintDirtyRects = nil
+	n.lastPortalBoxes = nil
+	rtui.SetGlobalRenderScheduler(nil)
 	n.root = nil
+	n.renderFn = nil
 }
 
 // IsMounted returns whether this node is mounted

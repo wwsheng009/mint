@@ -124,3 +124,10 @@ func (a *fiberReconcilerAdapter) GetAllInteractionInstances() map[int]interface{
 func (a *fiberReconcilerAdapter) GetFiberRoot() *reconciler.Fiber {
 	return a.r.GetFiberRoot()
 }
+
+func (a *fiberReconcilerAdapter) Dispose() {
+	if a == nil || a.r == nil {
+		return
+	}
+	a.r.Dispose()
+}

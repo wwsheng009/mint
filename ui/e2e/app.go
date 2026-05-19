@@ -78,6 +78,7 @@ func newApp(testApp *ui.TestableApp) (*App, error) {
 		fwApp.SetTestActionProbe(app.recordAction)
 	}
 	app.driver = &Driver{app: app}
+	app.ForceRender()
 	if err := app.AwaitIdle(); err != nil {
 		_ = app.Close()
 		return nil, err
@@ -220,7 +221,7 @@ func (a *App) AwaitIdleFor(timeout time.Duration) error {
 		snapshot := a.captureIdleSnapshot()
 		if snapshot == prev {
 			stableRounds++
-			if stableRounds >= 3 {
+			if stableRounds >= 3 && snapshot.ready {
 				return nil
 			}
 		} else {
@@ -865,6 +866,7 @@ type idleSnapshot struct {
 	focusType   int
 	intentCount int
 	hitMapSize  int
+	ready       bool
 }
 
 func (a *App) captureIdleSnapshot() idleSnapshot {
@@ -876,8 +878,10 @@ func (a *App) captureIdleSnapshot() idleSnapshot {
 	if hitMap := a.HitMap(); hitMap != nil {
 		snapshot.hitMapSize = hitMap.Size()
 	}
+	rendered := a.RenderString()
+	snapshot.ready = snapshot.hitMapSize > 0 && strings.TrimSpace(rendered) != ""
 	hasher := fnv.New64a()
-	_, _ = hasher.Write([]byte(a.RenderString()))
+	_, _ = hasher.Write([]byte(rendered))
 	snapshot.renderHash = hasher.Sum64()
 	return snapshot
 }
