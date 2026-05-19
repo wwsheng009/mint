@@ -58,4 +58,4 @@ go run main.go
 
 ## 基于文档
 
-`framework/docs/ui/demo/demo2_inside.md`
+`../../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo2_inside.md`

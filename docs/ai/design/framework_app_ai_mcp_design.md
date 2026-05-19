@@ -2,7 +2,7 @@
 
 **文档状态**: Active (Phase 0-4 已实现)
 **适用范围**: `framework.App` / `ui.Run()` / `ui.RunApp()` 交互式应用
-**参考文档**: `framework/docs/AI_INTEGRATION.md`
+**参考文档**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/AI_INTEGRATION.md` (archived)
 **代码基线**: 基于 2026-03-09 仓库现状审计，2026-03-30 更新实施状态
 
 ## 实施状态摘要
@@ -38,7 +38,7 @@
 
 ## 1. 背景
 
-`framework/docs/AI_INTEGRATION.md` 已经定义了 AI 作为一级操作者的目标形态：
+已归档的 `docsArchive/cleanup-2026-05-19/_framework_docs/AI_INTEGRATION.md` 定义了 AI 作为一级操作者的目标形态：
 
 1. AI 不依赖截图/OCR。
 2. AI 通过结构化状态理解 UI。

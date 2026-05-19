@@ -60,7 +60,7 @@ go run ./examples/charts_gallery_demo
 | `sandbox/*` | Sandbox recording, snapshots, injection and comprehensive tests |
 | `devtools_demo/*` | DevTools and remote demo |
 | `engine/*` | Engine-level integration demos |
-| `fiber_firsts/*` | Fiber-first render and component demos |
+| `fiber_firsts/*` | Curated Fiber-first runtime demos for focus, layers, modals, and portals |
 | `fiber_counter_intent` | Fiber + Intent counter |
 | `lane_scheduler_demo` | Scheduler demo |
 | `ai_mcp_demo` | AI/MCP integration |
@@ -78,7 +78,8 @@ Archived component-only entries:
 - `checkbox`, `input`, and `date_time_picker_demo` are covered by `mvp_components_demo` and `mvp_form_demo`.
 - `radiogroup_demo` is covered by the option and checkbox composition patterns in `multiselect_demo`.
 - `mouse` is covered by the maintained interaction demos and E2E tests.
-- `absolute`, `grid`, `layout_api_demo`, `layout/*`, `render`, and `fiber_demos/*` are historical layout/render probes now covered by `layout_demo`, `layout_component_fixtures_demo`, `fiber_firsts/*`, component tests, and runtime tests.
+- `absolute`, `grid`, `layout_api_demo`, `layout/*`, `render`, and `fiber_demos/*` are historical layout/render probes now covered by `layout_demo`, `layout_component_fixtures_demo`, component tests, and runtime tests.
 - `progress`, `toast`, `validation_demo`, and `list_interactive_demo` are single-component demos covered by component tests and broader form/table/list examples.
 - `lane_demo`, `interruptible_demo`, and `timetravel_demo` are command-line API probes covered by runtime scheduler/debug tests or the maintained `lane_scheduler_demo` integration example.
 - `clock_demo`, `fiber_firsts/list_demo`, `fiber_firsts/tabs_demo`, `fiber_firsts/textarea_demo`, `fiber_firsts/treeview_demo`, `fiber_firsts/virtuallist_demo`, and `fiber_firsts/wrap_demo` are single-component walkthroughs now covered by component docs/tests, `mvp_components_demo`, `ui_demos/*`, or the maintained top-level `tabs` and `virtuallist` examples.
+- `fiber_firsts/absolute_demo`, `fiber_firsts/border_as_property`, `fiber_firsts/border_demo`, `fiber_firsts/fiber_first_demo`, `fiber_firsts/grid_demo`, `fiber_firsts/panel_demo`, `fiber_firsts/scrollview_demo`, `fiber_firsts/stack_demo`, and `fiber_firsts/table_demo` were archived as low-level Fiber/layout probes now covered by `layout_demo`, `layout_component_fixtures_demo`, `mvp_components_demo`, docs, and tests.

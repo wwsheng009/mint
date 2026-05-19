@@ -22,7 +22,7 @@ scrollview.VNode
 | Runtime instance / paint / action handling | `ui/components/scrollview/instance.go` |
 | 根包快捷入口 | `ui/shortcuts.go` |
 | E2E 覆盖 | `ui/e2e/scrollview_e2e_test.go` |
-| 示例 | `examples/fiber_firsts/scrollview_demo` |
+| SDK 示例 | `examples/mvp_components_demo`、`examples/ui_demos/` |
 
 不要再引用历史路径 `components/layout/scroll_view.go`。
 
@@ -179,7 +179,8 @@ func CodePreview(source string) ui.VNode {
 ```bash
 go test ./ui/components/scrollview -count=1
 go test ./ui/e2e -run ScrollView -count=1
-go test ./examples/fiber_firsts/scrollview_demo -count=1
 ```
 
 当前文档描述的是 `ui/components/scrollview` 的现行实现；如果历史设计文档提到 `components/layout/scroll_view.go`，应视为旧路径。
+
+旧的 `examples/fiber_firsts/scrollview_demo` 是低层 Fiber 渲染探针，已归档到 `docsArchive/cleanup-2026-05-19/_examples/fiber_firsts/scrollview_demo/`。当前 SDK 学习路径以组件文档、E2E 覆盖和更高层示例为准。

@@ -78,5 +78,5 @@ go test -v ./internal/render -run Pipeline
 ## Related Documentation
 
 - [Hook System Documentation](../render/hook/README.md)
-- [Framework Architecture](/framework/docs/ARCHITECTURE.md)
+- [Current Architecture](../architecture/README.md)
 - [Rendering Pipeline](/runtime/render/README.md)

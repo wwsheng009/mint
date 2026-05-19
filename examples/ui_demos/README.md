@@ -1,6 +1,6 @@
 # Mint TUI UI Demos
 
-本目录包含基于 `framework/docs/ui/demo` 文档创建的示例程序。
+本目录包含基于历史设计稿创建并持续维护的示例程序。原始设计稿已归档到 `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/`。
 
 ## 目录结构
 
@@ -36,7 +36,7 @@ cd demo1_full_featured
 go run main.go
 ```
 
-**基于文档**: `framework/docs/ui/demo/demo1.md`
+**来源设计稿**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo1.md`
 
 ---
 
@@ -56,7 +56,7 @@ cd demo2_runtime_internals
 go run main.go
 ```
 
-**基于文档**: `framework/docs/ui/demo/demo2_inside.md`
+**来源设计稿**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo2_inside.md`
 
 ---
 
@@ -79,7 +79,7 @@ cd demo3_styling
 go run main.go
 ```
 
-**基于文档**: `framework/docs/ui/demo/demo3_with_style.md`
+**来源设计稿**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo3_with_style.md`
 
 ---
 
@@ -97,7 +97,7 @@ cd demo4_complex_layout
 go run main.go
 ```
 
-**基于文档**: `framework/docs/ui/demo/demo4_layout.md`
+**来源设计稿**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo4_layout.md`
 
 ---
 
@@ -122,7 +122,7 @@ cd demo5_ide
 go run main.go
 ```
 
-**基于文档**: `framework/docs/ui/demo/demo5_ide.md`
+**来源设计稿**: `../../docsArchive/cleanup-2026-05-19/_framework_docs/ui/demo/demo5_ide.md`
 
 ---
 

@@ -571,7 +571,8 @@ stack.NewVStack().
 - [Wrap 组件文档](../layout/core_concepts/wrap_component.md)
 - [Absolute 组件代码](../../ui/components/absolute/)
 - [Style 颜色参考](../theme/ant_design_quick_reference.md)
-- [示例：border_demo](../../examples/fiber_firsts/border_demo/)
+- [示例：Ant Design 风格布局](../../examples/ant_design_demo/)
+- [归档：旧 border_demo](../../docsArchive/cleanup-2026-05-19/_examples/fiber_firsts/border_demo/)
 
 ---
 

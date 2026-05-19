@@ -50,3 +50,12 @@ examples\fiber_firsts\textarea_demo
 examples\fiber_firsts\treeview_demo
 examples\fiber_firsts\virtuallist_demo
 examples\fiber_firsts\wrap_demo
+examples\fiber_firsts\absolute_demo
+examples\fiber_firsts\border_as_property
+examples\fiber_firsts\border_demo
+examples\fiber_firsts\fiber_first_demo
+examples\fiber_firsts\grid_demo
+examples\fiber_firsts\panel_demo
+examples\fiber_firsts\scrollview_demo
+examples\fiber_firsts\stack_demo
+examples\fiber_firsts\table_demo
