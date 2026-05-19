@@ -137,6 +137,7 @@ func RenderPanic() ui.VNode {
 
 // TestErrorBoundary_WithUseState tests error boundary with useState hook
 func TestErrorBoundary_WithUseState(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -188,6 +189,7 @@ func TestErrorBoundary_WithUseState(t *testing.T) {
 
 // TestErrorBoundary_PanicFromHook tests error boundary catching panic from hook logic
 func TestErrorBoundary_PanicFromHook(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -242,6 +244,7 @@ func TestErrorBoundary_PanicFromHook(t *testing.T) {
 
 // TestErrorBoundary_PanicInEffect tests error boundary catching panic from useEffect
 func TestErrorBoundary_PanicInEffect(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -298,6 +301,7 @@ func TestErrorBoundary_PanicInEffect(t *testing.T) {
 
 // TestErrorBoundary_PanicDuringRender tests error boundary catching panic during render
 func TestErrorBoundary_PanicDuringRender(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -356,6 +360,7 @@ func TestErrorBoundary_PanicDuringRender(t *testing.T) {
 
 // TestErrorBoundary_MultipleHooks tests error boundary with components using multiple hooks
 func TestErrorBoundary_MultipleHooks(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -436,6 +441,7 @@ func TestErrorBoundary_MultipleHooks(t *testing.T) {
 
 // TestErrorBoundary_HookStatePreservation tests that hook state is preserved when no panic
 func TestErrorBoundary_HookStatePreservation(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -487,6 +493,7 @@ func TestErrorBoundary_HookStatePreservation(t *testing.T) {
 
 // TestErrorBoundary_HookCleanup tests that hooks are cleaned up after error
 func TestErrorBoundary_HookCleanup(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -547,6 +554,7 @@ func TestErrorBoundary_HookCleanup(t *testing.T) {
 
 // TestErrorBoundary_NestedHooks tests error boundaries with nested hook components
 func TestErrorBoundary_NestedHooks(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 

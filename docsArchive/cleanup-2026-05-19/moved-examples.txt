@@ -27,3 +27,12 @@ examples\date_time_picker_demo
 examples\input
 examples\mouse
 examples\radiogroup_demo
+examples\absolute
+examples\fiber_demos\demo1_full_featured
+examples\fiber_demos\layout_ascii_visualization
+examples\fiber_demos\layout_comparison
+examples\fiber_demos\layout_data_and_conflicts
+examples\grid
+examples\layout
+examples\layout_api_demo
+examples\render

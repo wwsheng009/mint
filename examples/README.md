@@ -55,12 +55,7 @@ go run ./examples/charts_gallery_demo
 | Example | Purpose |
 |---|---|
 | `layout_demo` | Layout overview |
-| `layout_api_demo` | Layout API usage |
 | `layout_component_fixtures_demo` | Layout component fixtures |
-| `layout/*` | Layout visualizer and buffer demos |
-| `grid` | Grid layout |
-| `absolute` | Absolute positioning |
-| `render` | Render path demo |
 | `charts_gallery_demo` | Chart gallery |
 | `charts_linechart_image_prototype` | Experimental image chart rendering |
 
@@ -72,7 +67,6 @@ go run ./examples/charts_gallery_demo
 | `devtools_demo/*` | DevTools and remote demo |
 | `engine/*` | Engine-level integration demos |
 | `fiber_firsts/*` | Fiber-first render and component demos |
-| `fiber_demos/*` | Fiber/layout comparison demos |
 | `fiber_counter_intent` | Fiber + Intent counter |
 | `lane_demo` | Lane scheduling |
 | `lane_scheduler_demo` | Scheduler demo |
@@ -92,3 +86,4 @@ Archived component-only entries:
 - `checkbox`, `input`, and `date_time_picker_demo` are covered by `mvp_components_demo` and `mvp_form_demo`.
 - `radiogroup_demo` is covered by the option and checkbox composition patterns in `multiselect_demo`.
 - `mouse` is covered by the maintained interaction demos and E2E tests.
+- `absolute`, `grid`, `layout_api_demo`, `layout/*`, `render`, and `fiber_demos/*` are historical layout/render probes now covered by `layout_demo`, `layout_component_fixtures_demo`, `fiber_firsts/*`, component tests, and runtime tests.

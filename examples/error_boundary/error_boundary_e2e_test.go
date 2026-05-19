@@ -60,6 +60,7 @@ func MultipleErrorBoundariesApp() ui.VNode {
 
 // TestErrorBoundary_NormalRendering tests that error boundary doesn't interfere with normal rendering
 func TestErrorBoundary_NormalRendering(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -92,6 +93,7 @@ func TestErrorBoundary_NormalRendering(t *testing.T) {
 
 // TestErrorBoundary_CatchesPanic tests that error boundary catches and displays fallback
 func TestErrorBoundary_CatchesPanic(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -124,6 +126,7 @@ func TestErrorBoundary_CatchesPanic(t *testing.T) {
 
 // TestErrorBoundary_RecoveryAfterPanic tests that app can recover after panic is resolved
 func TestErrorBoundary_RecoveryAfterPanic(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -169,6 +172,7 @@ func TestErrorBoundary_RecoveryAfterPanic(t *testing.T) {
 
 // TestErrorBoundary_MultipleBoundaries tests multiple independent error boundaries
 func TestErrorBoundary_MultipleBoundaries(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -202,6 +206,7 @@ func TestErrorBoundary_MultipleBoundaries(t *testing.T) {
 
 // TestErrorBoundary_PartialFailure tests that one error boundary doesn't affect others
 func TestErrorBoundary_PartialFailure(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -234,6 +239,7 @@ func TestErrorBoundary_PartialFailure(t *testing.T) {
 
 // TestErrorBoundary_NonFiberMode tests error boundary in non-Fiber mode
 func TestErrorBoundary_NonFiberMode(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "false")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -261,6 +267,7 @@ func TestErrorBoundary_NonFiberMode(t *testing.T) {
 
 // TestErrorBoundary_WithInteraction tests error boundary with user interaction
 func TestErrorBoundary_WithInteraction(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -296,6 +303,7 @@ func TestErrorBoundary_WithInteraction(t *testing.T) {
 
 // TestErrorBoundary_ErrorContent tests error boundary with detailed error content
 func TestErrorBoundary_ErrorContent(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -338,6 +346,7 @@ func TestErrorBoundary_ErrorContent(t *testing.T) {
 
 // TestErrorBoundary_StressTest tests rapid state changes with error boundary
 func TestErrorBoundary_StressTest(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -374,6 +383,7 @@ func TestErrorBoundary_StressTest(t *testing.T) {
 
 // TestErrorBoundary_KeyDown tests error boundary doesn't block keyboard input
 func TestErrorBoundary_KeyDown(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 
@@ -416,6 +426,7 @@ func TestErrorBoundary_KeyDown(t *testing.T) {
 
 // TestErrorBoundary_Resize tests error boundary behavior during window resize
 func TestErrorBoundary_Resize(t *testing.T) {
+	resetErrorBoundaryTestState(t)
 	t.Setenv("MINT_USE_FIBER", "true")
 	t.Setenv("TUI_DEBUG_UI", "false")
 

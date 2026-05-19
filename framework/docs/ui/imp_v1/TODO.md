@@ -189,8 +189,8 @@ MVP      [███████████████████████�
 | Components | `examples/mvp_components_demo/` | 综合演示 |
 | Modal | `examples/modal/` | 模态框示例 |
 | Tabs | `examples/tabs/` | 标签页示例 |
-| Grid | `examples/grid/` | 网格布局示例 |
-| Absolute | `examples/absolute/` | 绝对定位示例 |
+| Grid | `examples/fiber_firsts/grid_demo/` | 网格布局示例 |
+| Absolute | `examples/fiber_firsts/absolute_demo/` | 绝对定位示例 |
 | VirtualList | `examples/virtuallist/` | 虚拟列表示例 |
 | Toast | `examples/toast/` | 通知提示示例 |
 
@@ -251,8 +251,8 @@ MVP      [███████████████████████�
 **示例文件:**
 - `examples/modal/main.go` - Modal 示例
 - `examples/tabs/main.go` - Tabs 示例
-- `examples/grid/main.go` - Grid 示例
-- `examples/absolute/main.go` - Absolute 示例
+- `examples/fiber_firsts/grid_demo/main.go` - Grid 示例
+- `examples/fiber_firsts/absolute_demo/main.go` - Absolute 示例
 - `examples/virtuallist/main.go` - VirtualList 示例
 - `examples/toast/main.go` - Toast 示例
 - `examples/fiber_counter/main.go` - Fiber 计数器示例
@@ -1367,7 +1367,7 @@ func BenchmarkRenderSimple(b *testing.B) {
 - [ ] `progress/phase_3_progress.md`
 - [ ] `progress/phase_3_summary.md`
 - [ ] `docs/rendering.md` - 渲染管线文档
-- [ ] `examples/render_demo/` - 渲染示例
+- [ ] `runtime/paint` tests and `docs/render/README.md` - 渲染示例与验证入口
 
 ---
 
@@ -1685,7 +1685,7 @@ func main() {
 #### 示例程序
 
 ```go
-// examples/grid_demo/main.go
+// examples/fiber_firsts/grid_demo/main.go
 func main() {
     ui.Run(func() ui.VNode {
         return ui.Grid(
@@ -1726,7 +1726,7 @@ func main() {
 #### 示例程序
 
 ```go
-// examples/absolute_demo/main.go
+// examples/fiber_firsts/absolute_demo/main.go
 func main() {
     ui.Run(func() ui.VNode {
         count, setCount := ui.UseState(0)
@@ -1769,8 +1769,8 @@ func main() {
 - [ ] `progress/phase_5_summary.md`
 - [ ] `docs/layout.md` - 布局系统文档
 - [ ] `examples/layout_demo/` - 布局示例
-- [ ] `examples/grid_demo/` - Grid 示例
-- [ ] `examples/absolute_demo/` - Absolute 示例
+- [ ] `examples/fiber_firsts/grid_demo/` - Grid 示例
+- [ ] `examples/fiber_firsts/absolute_demo/` - Absolute 示例
 
 ---
 
