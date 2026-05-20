@@ -62,9 +62,9 @@ func TestAutomaticEventRouting(t *testing.T) {
 	t.Logf("Inspector registered with framework app (visible=%v)", insp.IsVisible())
 
 	// Wait for initial render
-	time.Sleep(300 * time.Millisecond)
-
-	initialRender := testApp.GetRenderString()
+	initialRender := waitForDemo2Render(t, testApp, 500*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "Layout Tree")
+	})
 	t.Logf("=== Initial Render ===")
 	if !strings.Contains(initialRender, "Layout Tree") {
 		t.Error("Tree view should be displayed")
@@ -89,7 +89,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 		}
 
 		// Just wait - Inspector automatically receives the event
-		time.Sleep(150 * time.Millisecond)
+		settleDemo2Render(t, testApp)
 	}
 
 	afterDown := treeView.GetSelectedIndex()
@@ -106,7 +106,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to inject KeyUp: %v", err)
 		}
-		time.Sleep(150 * time.Millisecond)
+		settleDemo2Render(t, testApp)
 	}
 
 	afterUp := treeView.GetSelectedIndex()
@@ -122,7 +122,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject PageDown: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	afterPageDown := treeView.GetSelectedIndex()
 	t.Logf("After PageDown, focus index: %d", afterPageDown)
@@ -137,7 +137,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject Home: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	afterHome := treeView.GetSelectedIndex()
 	t.Logf("After Home, focus index: %d", afterHome)
@@ -152,7 +152,7 @@ func TestAutomaticEventRouting(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject End: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	afterEnd := treeView.GetSelectedIndex()
 	t.Logf("After End, focus index: %d", afterEnd)
@@ -197,7 +197,7 @@ func TestAutomaticEventRoutingWithDemo2(t *testing.T) {
 
 			// Set root with Fiber reconciler enabled
 			declarativeRoot := render.NewDeclarativeNodeFromFuncWithFiber(RuntimeDemo)
-    		declarativeRoot.SetApp(fwApp)
+			declarativeRoot.SetApp(fwApp)
 			fwApp.SetRoot(declarativeRoot)
 
 			// Run

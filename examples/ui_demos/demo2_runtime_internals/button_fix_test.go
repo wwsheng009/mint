@@ -2,7 +2,6 @@ package main
 
 import (
 	"testing"
-	"time"
 
 	ui "github.com/wwsheng009/mint/ui"
 )
@@ -30,7 +29,7 @@ func TestButtonInstanceCreation(t *testing.T) {
 	defer testApp.Close()
 
 	// Wait for initial render
-	time.Sleep(300 * time.Millisecond)
+	waitForDemo2Idle(t, testApp)
 
 	// Check instance count
 	instanceCount := getInstanceCount(t, testApp)
@@ -83,7 +82,7 @@ func TestButtonHitMapEnrichment(t *testing.T) {
 	defer testApp.Close()
 
 	// Wait for render and HitMap enrichment
-	time.Sleep(500 * time.Millisecond)
+	waitForDemo2Idle(t, testApp)
 
 	// Verify that HitMap was enriched
 	// The fix ensures "Enriched 3/N HitMap entries" instead of "Enriched 0/N"

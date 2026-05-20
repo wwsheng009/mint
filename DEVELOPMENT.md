@@ -252,7 +252,10 @@ Full check:
 go mod tidy
 git diff --exit-code -- go.mod go.sum
 go vet ./...
-go test ./... -count=1 -p 1
+mapfile -t packages < <(go list ./... | grep -v '^github.com/wwsheng009/mint/ui$' | grep -v '^github.com/wwsheng009/mint/ui/e2e$' | grep -v '^github.com/wwsheng009/mint/examples/error_boundary$' | grep -v '^github.com/wwsheng009/mint/examples/ui_demos/demo1_full_featured$' | grep -v '^github.com/wwsheng009/mint/examples/ui_demos/demo2_runtime_internals$')
+go test "${packages[@]}" -count=1
+go test ./ui ./examples/error_boundary ./examples/ui_demos/demo1_full_featured ./examples/ui_demos/demo2_runtime_internals -count=1 -p 1
+go test ./ui/e2e -count=1 -p 1
 go test -race ./runtime/... -count=1 -p 1
 go test -race ./framework/... -count=1 -p 1
 go test -race ./sandbox/... -count=1 -p 1
@@ -260,7 +263,7 @@ go test -race ./devtools/... -count=1 -p 1
 go test -race ./ui/components/... -count=1 -p 1
 ```
 
-Run the full suite before releases, broad refactors, or changes to render, focus, event routing, or component base behavior. CI shards the component race detector job so failures identify the affected subsystem or component package group.
+Run the full suite before releases, broad refactors, or changes to render, focus, event routing, or component base behavior. CI runs regular packages with Go's default package parallelism, then serializes runtime-sensitive `ui`, interaction-heavy examples, and E2E packages to keep timing and global terminal/runtime state isolated. CI also shards the component race detector job so failures identify the affected subsystem or component package group.
 
 ## Debugging
 
@@ -338,7 +341,7 @@ docsArchive/cleanup-2026-05-19/_examples/
 4. Add or update tests at the same layer.
 5. Run targeted tests first.
 6. Run the fast SDK checks.
-7. Run `go vet ./...`, the full suite, and the focused race gate for broad changes.
+7. Run `go vet ./...`, the regular/interactive split full suite, and the focused race gate for broad changes.
 8. Update README, `DEVELOPMENT.md`, area docs, or component README only when public behavior changes.
 
 ## API Stability Rules
@@ -369,7 +372,7 @@ Before publishing or handing off a version:
 6. `go mod tidy`
 7. `git diff --exit-code -- go.mod go.sum`
 8. `go vet ./...`
-9. `go test ./... -count=1 -p 1`
+9. Run regular package tests, then `go test ./ui ./examples/error_boundary ./examples/ui_demos/demo1_full_featured ./examples/ui_demos/demo2_runtime_internals -count=1 -p 1` and `go test ./ui/e2e -count=1 -p 1`.
 10. `go test -race ./runtime/... -count=1 -p 1`
 11. `go test -race ./framework/... -count=1 -p 1`
 12. `go test -race ./sandbox/... -count=1 -p 1`

@@ -35,9 +35,7 @@ func TestActionSystemBasicNavigation(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		idx := testApp.GetFocusedIndex()
 		focusedIndices[idx] = true
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-		testApp.ForceRender()
+		injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	}
 
 	t.Logf("Focused indices after Tab navigation: %v", focusedIndices)
@@ -88,9 +86,10 @@ func TestActionSystemEscape(t *testing.T) {
 	t.Log("Modal is open")
 
 	// Press ESC to close modal (ActionCancel)
-	testApp.InjectSpecialKey(platform.KeyEscape)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	injectDemoSpecialKey(t, testApp, platform.KeyEscape)
+	waitForDemoRender(t, testApp, 120*time.Millisecond, func(rendered string) bool {
+		return !strings.Contains(rendered, "*** Are you sure? ***")
+	})
 
 	rendered = testApp.GetRenderString()
 	if !strings.Contains(rendered, "*** Are you sure? ***") {
@@ -106,18 +105,17 @@ func TestActionSystemTextInput(t *testing.T) {
 
 	// Navigate to input field
 	for i := 0; i < 10; i++ {
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
+		injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	}
-	testApp.ForceRender()
 
 	// Type text - this generates ActionInputText actions
 	err := testApp.InjectString("hello")
 	if err != nil {
 		t.Fatalf("InjectString failed: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 120*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "hello")
+	})
 
 	rendered := testApp.GetRenderString()
 	t.Logf("After typing 'hello':\n%s", rendered)
@@ -146,9 +144,7 @@ func TestActionSystemArrowKeys(t *testing.T) {
 	}
 
 	for _, arrow := range arrows {
-		testApp.InjectSpecialKey(arrow)
-		time.Sleep(30 * time.Millisecond)
-		testApp.ForceRender()
+		injectDemoSpecialKey(t, testApp, arrow)
 		idx := testApp.GetFocusedIndex()
 		t.Logf("After %v: focused index = %d", arrow, idx)
 	}
@@ -167,9 +163,8 @@ func TestActionSystemMultipleClicks(t *testing.T) {
 		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 			t.Fatalf("InjectSpecialKey(KeyEnter) failed: %v", err)
 		}
-		time.Sleep(20 * time.Millisecond)
 	}
-	testApp.ForceRender()
+	settleDemoRender(t, testApp)
 
 	rendered := testApp.GetRenderString()
 	t.Logf("After multiple clicks:\n%s", rendered)
@@ -198,9 +193,7 @@ func TestActionSystemModalFocusTrap(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		idx := testApp.GetFocusedIndex()
 		focusedIndices[idx] = true
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
-		testApp.ForceRender()
+		injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	}
 
 	t.Logf("Focused indices with modal open: %v", focusedIndices)
@@ -221,14 +214,10 @@ func TestActionSystemMiddlewareChain(t *testing.T) {
 	testApp := newDemoTestApp(t)
 
 	// Inject some actions to trigger middleware
-	testApp.InjectSpecialKey(platform.KeyTab)
-	time.Sleep(30 * time.Millisecond)
+	injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	focusButton(t, testApp, focusedAddCountButton)
 	pressEnter(t, testApp)
-	testApp.InjectSpecialKey(platform.KeyEscape)
-	time.Sleep(30 * time.Millisecond)
-
-	testApp.ForceRender()
+	injectDemoSpecialKey(t, testApp, platform.KeyEscape)
 
 	t.Log("PASS: Middleware chain processed actions without errors")
 }
@@ -275,8 +264,11 @@ func TestActionSystemIntegration(t *testing.T) {
 
 	// Test 1: Initial render
 	t.Log("Test 1: Initial render")
-	if err := testApp.AssertRender("TUI Engine Demo"); err != nil {
-		t.Errorf("Initial render failed: %v", err)
+	initialRender := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "TUI Engine Demo")
+	})
+	if !strings.Contains(initialRender, "TUI Engine Demo") {
+		t.Errorf("Initial render failed: render does not contain expected text %q\nactual:\n%s", "TUI Engine Demo", initialRender)
 	} else {
 		t.Log("  ✓ Initial render OK")
 	}
@@ -293,9 +285,10 @@ func TestActionSystemIntegration(t *testing.T) {
 
 	// Test 3: Close modal via ActionCancel
 	t.Log("Test 3: Close modal")
-	testApp.InjectSpecialKey(platform.KeyEscape)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	injectDemoSpecialKey(t, testApp, platform.KeyEscape)
+	waitForDemoRender(t, testApp, 120*time.Millisecond, func(rendered string) bool {
+		return !strings.Contains(rendered, "*** Are you sure? ***")
+	})
 
 	if err := testApp.AssertNotRender("*** Are you sure? ***"); err != nil {
 		t.Logf("  ✗ Modal still visible: %v", err)
@@ -309,8 +302,7 @@ func TestActionSystemIntegration(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		idx := testApp.GetFocusedIndex()
 		focusedIndices[idx] = true
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(30 * time.Millisecond)
+		injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	}
 	if len(focusedIndices) > 1 {
 		t.Logf("  ✓ Navigation works (visited %d elements)", len(focusedIndices))
@@ -344,9 +336,7 @@ func TestActionSystemTypes(t *testing.T) {
 			if tt.key == platform.KeyEnter {
 				focusButton(t, testApp, focusedAddCountButton)
 			}
-			testApp.InjectSpecialKey(tt.key)
-			time.Sleep(50 * time.Millisecond)
-			testApp.ForceRender()
+			injectDemoSpecialKey(t, testApp, tt.key)
 
 			t.Logf("%s processed without panic", tt.name)
 		})

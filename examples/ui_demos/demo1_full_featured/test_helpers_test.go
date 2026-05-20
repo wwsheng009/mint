@@ -31,16 +31,54 @@ func newDemoTestApp(t *testing.T) *ui.TestableApp {
 	}
 	t.Cleanup(func() { _ = testApp.Close() })
 
-	for attempt := 0; attempt < 10; attempt++ {
-		time.Sleep(30 * time.Millisecond)
-		testApp.ForceRender()
-		if testApp.GetFocusedIndex() >= 0 {
-			return testApp
-		}
-	}
-
-	testApp.ForceRender()
+	waitForDemoIdle(t, testApp)
 	return testApp
+}
+
+func waitForDemoRender(t *testing.T, testApp *ui.TestableApp, timeout time.Duration, condition func(string) bool) string {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	var rendered string
+	for {
+		testApp.ForceRender()
+		rendered = testApp.GetRenderString()
+		if condition == nil || condition(rendered) {
+			return rendered
+		}
+		if !time.Now().Before(deadline) {
+			return rendered
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func waitForDemoIdle(t *testing.T, testApp *ui.TestableApp) string {
+	t.Helper()
+
+	rendered := waitForDemoRender(t, testApp, 2*time.Second, func(rendered string) bool {
+		return strings.Contains(rendered, "TUI Engine Demo") && testApp.GetFocusedIndex() >= 0
+	})
+	if !strings.Contains(rendered, "TUI Engine Demo") {
+		t.Fatalf("demo app did not render initial content; last render:\n%s", rendered)
+	}
+	return rendered
+}
+
+func settleDemoRender(t *testing.T, testApp *ui.TestableApp) string {
+	t.Helper()
+
+	time.Sleep(30 * time.Millisecond)
+	testApp.ForceRender()
+	return testApp.GetRenderString()
+}
+
+func injectDemoSpecialKey(t *testing.T, testApp *ui.TestableApp, key platform.SpecialKey) string {
+	t.Helper()
+	if err := testApp.InjectSpecialKey(key); err != nil {
+		t.Fatalf("failed to inject %v: %v", key, err)
+	}
+	return settleDemoRender(t, testApp)
 }
 
 func focusButton(t *testing.T, testApp *ui.TestableApp, marker string) {
@@ -56,7 +94,7 @@ func focusButton(t *testing.T, testApp *ui.TestableApp, marker string) {
 		if err := testApp.InjectSpecialKey(platform.KeyTab); err != nil {
 			t.Fatalf("failed to inject Tab while focusing %q: %v", marker, err)
 		}
-		time.Sleep(30 * time.Millisecond)
+		settleDemoRender(t, testApp)
 	}
 
 	testApp.ForceRender()
@@ -66,11 +104,13 @@ func focusButton(t *testing.T, testApp *ui.TestableApp, marker string) {
 func pressEnter(t *testing.T, testApp *ui.TestableApp) {
 	t.Helper()
 
+	before := testApp.GetRenderString()
 	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 		t.Fatalf("failed to inject Enter: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 120*time.Millisecond, func(rendered string) bool {
+		return rendered != before
+	})
 }
 
 func openModalFromFocusedButton(t *testing.T, testApp *ui.TestableApp) {
@@ -89,6 +129,7 @@ func openModalViaStore(t *testing.T, testApp *ui.TestableApp) {
 		Input:     current.Input,
 	})
 
-	time.Sleep(150 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 150*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "*** Are you sure? ***")
+	})
 }

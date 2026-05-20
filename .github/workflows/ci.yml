@@ -36,8 +36,39 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run full test suite
-        run: go test ./... -count=1 -p 1
+      - name: Run regular test packages
+        shell: bash
+        run: |
+          excluded=(
+            'github.com/wwsheng009/mint/ui'
+            'github.com/wwsheng009/mint/ui/e2e'
+            'github.com/wwsheng009/mint/examples/error_boundary'
+            'github.com/wwsheng009/mint/examples/ui_demos/demo1_full_featured'
+            'github.com/wwsheng009/mint/examples/ui_demos/demo2_runtime_internals'
+          )
+
+          mapfile -t packages < <(go list ./...)
+          regular=()
+          for pkg in "${packages[@]}"; do
+            skip=false
+            for excluded_pkg in "${excluded[@]}"; do
+              if [ "$pkg" = "$excluded_pkg" ]; then
+                skip=true
+                break
+              fi
+            done
+            if [ "$skip" = false ]; then
+              regular+=("$pkg")
+            fi
+          done
+
+          go test "${regular[@]}" -count=1
+
+      - name: Run serialized interaction packages
+        run: go test ./ui ./examples/error_boundary ./examples/ui_demos/demo1_full_featured ./examples/ui_demos/demo2_runtime_internals -count=1 -p 1
+
+      - name: Run interactive E2E package
+        run: go test ./ui/e2e -count=1 -p 1
 
   race:
     name: Race Detector (${{ matrix.name }})

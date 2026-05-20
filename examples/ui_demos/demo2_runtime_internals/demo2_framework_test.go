@@ -3,7 +3,6 @@ package main
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -61,7 +60,7 @@ func TestInspectorStandalone(t *testing.T) {
 	defer testApp.Close()
 
 	// 等待渲染
-	time.Sleep(300 * time.Millisecond)
+	waitForDemo2Idle(t, testApp)
 
 	// 获取渲染输出
 	rendered := testApp.GetRenderString()
@@ -139,7 +138,7 @@ func TestInspectorStandalone(t *testing.T) {
 	// 测试键盘导航
 	t.Log("\n=== Testing keyboard navigation ===")
 	testApp.InjectSpecialKey(platform.KeyPageDown)
-	time.Sleep(200 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	afterPgDn := testApp.GetRenderString()
 	if len(afterPgDn) > 0 {
@@ -147,7 +146,7 @@ func TestInspectorStandalone(t *testing.T) {
 	}
 
 	testApp.InjectSpecialKey(platform.KeyHome)
-	time.Sleep(200 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	afterHome := testApp.GetRenderString()
 	if len(afterHome) > 0 {

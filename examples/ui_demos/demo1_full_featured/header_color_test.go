@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
-	"github.com/wwsheng009/mint/ui"
 )
 
 // TestHeaderBackgroundColorRendering 验证 Header 所有元素都有背景色
@@ -14,21 +13,12 @@ func TestHeaderBackgroundColorRendering(t *testing.T) {
 	// 设置主题
 	_ = theme.SetTheme("nord")
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	// 强制初始渲染
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
+	testApp := newDemoTestApp(t)
 
 	// 获取渲染结果
-	rendered := testApp.GetRenderString()
+	rendered := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "TUI Engine Demo")
+	})
 	lines := splitLines(rendered)
 
 	if len(lines) < 3 {
@@ -85,24 +75,11 @@ func TestHeaderWithDifferentCounts(t *testing.T) {
 	_ = theme.SetTheme("nord")
 
 	// Verify the header renders "Clicks: 0" for a fresh app.
-	// Non-zero counts require button interaction and cannot be tested
-	// by seeding the global store due to global appInstance conflicts.
-	prevState := appStore.Get()
-	appStore.Set(AppState{Count: 0, ShowModal: false, Input: ""})
-	defer appStore.Set(prevState)
+	testApp := newDemoTestApp(t)
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-	rendered := testApp.GetRenderString()
+	rendered := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "Clicks: 0")
+	})
 	lines := splitLines(rendered)
 
 	if len(lines) < 2 {
@@ -123,18 +100,11 @@ func TestHeaderWithDifferentCounts(t *testing.T) {
 func TestHeaderElementPositions(t *testing.T) {
 	_ = theme.SetTheme("nord")
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
+	testApp := newDemoTestApp(t)
 
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-	rendered := testApp.GetRenderString()
+	rendered := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "TUI Engine Demo")
+	})
 	lines := splitLines(rendered)
 
 	headerLine := lines[1]
@@ -192,22 +162,11 @@ func TestHeaderElementPositions(t *testing.T) {
 func TestHeaderVisualContinuity(t *testing.T) {
 	_ = theme.SetTheme("nord")
 
-	prevState := appStore.Get()
-	appStore.Set(AppState{Count: 0, ShowModal: false, Input: prevState.Input})
-	defer appStore.Set(prevState)
+	testApp := newDemoTestApp(t)
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-	rendered := testApp.GetRenderString()
+	rendered := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "TUI Engine Demo")
+	})
 	lines := splitLines(rendered)
 
 	if len(lines) < 3 {
@@ -260,22 +219,11 @@ func TestHeaderVisualContinuity(t *testing.T) {
 func TestHeaderButtonPosition(t *testing.T) {
 	_ = theme.SetTheme("nord")
 
-	prevState := appStore.Get()
-	appStore.Set(AppState{Count: 0, ShowModal: false, Input: prevState.Input})
-	defer appStore.Set(prevState)
+	testApp := newDemoTestApp(t)
 
-	testApp, err := ui.RunTest(App,
-		ui.WithWidth(80),
-		ui.WithHeight(24),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testApp.Close()
-
-	time.Sleep(100 * time.Millisecond)
-	testApp.ForceRender()
-	rendered := testApp.GetRenderString()
+	rendered := waitForDemoRender(t, testApp, 300*time.Millisecond, func(rendered string) bool {
+		return strings.Contains(rendered, "[Open Modal]")
+	})
 	lines := splitLines(rendered)
 
 	headerLine := lines[1]

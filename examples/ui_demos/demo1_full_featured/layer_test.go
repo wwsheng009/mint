@@ -26,8 +26,9 @@ func TestModalOpenClick(t *testing.T) {
 	appStore.Set(AppState{Count: prevState.Count, ShowModal: true, Input: prevState.Input})
 	defer appStore.Set(prevState)
 
-	time.Sleep(150 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 150*time.Millisecond, func(rendered string) bool {
+		return contains(rendered, "*** Are you sure? ***")
+	})
 
 	rendered := testApp.GetRenderString()
 	t.Logf("Rendered with modal open:\n%s\n", rendered)
@@ -59,9 +60,7 @@ func TestModalCloseESC(t *testing.T) {
 	}
 
 	// Press ESC to close modal
-	testApp.InjectSpecialKey(platform.KeyEscape)
-	time.Sleep(200 * time.Millisecond)
-	testApp.ForceRender()
+	injectDemoSpecialKey(t, testApp, platform.KeyEscape)
 
 	// Verify modal is closed
 	if err := testApp.AssertNotRender("*** Are you sure? ***"); err != nil {
@@ -80,8 +79,9 @@ func TestModalCentered(t *testing.T) {
 	appStore.Set(AppState{Count: prevState.Count, ShowModal: true, Input: prevState.Input})
 	defer appStore.Set(prevState)
 
-	time.Sleep(150 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 150*time.Millisecond, func(rendered string) bool {
+		return contains(rendered, "*** Are you sure? ***")
+	})
 
 	rendered := testApp.GetRenderString()
 	lines := splitLines(rendered)
@@ -124,8 +124,9 @@ func TestLayerRenderingOrder(t *testing.T) {
 	appStore.Set(AppState{Count: prevState.Count, ShowModal: true, Input: prevState.Input})
 	defer appStore.Set(prevState)
 
-	time.Sleep(150 * time.Millisecond)
-	testApp.ForceRender()
+	waitForDemoRender(t, testApp, 150*time.Millisecond, func(rendered string) bool {
+		return contains(rendered, "*** Are you sure? ***")
+	})
 
 	// Both base content and modal should be visible
 	rendered := testApp.GetRenderString()
@@ -159,8 +160,7 @@ func TestFocusTrap(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		idx := testApp.GetFocusedIndex()
 		focusedIndices[idx] = true
-		testApp.InjectSpecialKey(platform.KeyTab)
-		time.Sleep(50 * time.Millisecond)
+		injectDemoSpecialKey(t, testApp, platform.KeyTab)
 	}
 
 	t.Logf("Focused indices when modal open: %v", focusedIndices)
@@ -191,8 +191,7 @@ func TestClickCount(t *testing.T) {
 		if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
 			t.Fatalf("InjectSpecialKey(KeyEnter) failed on iteration %d: %v", iteration, err)
 		}
-		time.Sleep(100 * time.Millisecond)
-		testApp.ForceRender()
+		settleDemoRender(t, testApp)
 	}
 
 	rendered = testApp.GetRenderString()

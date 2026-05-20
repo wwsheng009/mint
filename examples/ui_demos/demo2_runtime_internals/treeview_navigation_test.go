@@ -3,7 +3,6 @@ package main
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/wwsheng009/mint/internal/inspector"
 	"github.com/wwsheng009/mint/runtime/platform"
@@ -59,7 +58,7 @@ func TestTreeViewNavigation(t *testing.T) {
 	defer testApp.Close()
 
 	// Wait for initial render
-	time.Sleep(300 * time.Millisecond)
+	waitForDemo2Idle(t, testApp)
 
 	// Attach test root to Inspector
 	insp.AttachToApp(testRoot)
@@ -70,19 +69,8 @@ func TestTreeViewNavigation(t *testing.T) {
 	// Force render to update display
 	testApp.ForceRender()
 
-	time.Sleep(100 * time.Millisecond)
-
-	initialRender := testApp.GetRenderString()
-	t.Logf("=== Initial Render (first 40 lines) ===")
-	lines := strings.Split(initialRender, "\n")
-	maxLines := 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
-	t.Logf("=== End ===\nTotal lines: %d", len(lines))
+	initialRender := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "=== Initial Render ===", initialRender, 24)
 
 	// Verify tree is displayed
 	if !strings.Contains(initialRender, "Layout Tree") {
@@ -102,19 +90,10 @@ func TestTreeViewNavigation(t *testing.T) {
 		// Re-render overlay
 		overlay = insp.RenderOverlay()
 		testApp.ForceRender()
-		time.Sleep(150 * time.Millisecond)
 	}
 
-	afterDown := testApp.GetRenderString()
-	t.Logf("After Down arrows (first 40 lines):")
-	lines = strings.Split(afterDown, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterDown := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Down arrows:", afterDown, 16)
 
 	// Test Up Arrow navigation
 	t.Log("\n=== Testing Up Arrow (2 times) ===")
@@ -128,19 +107,10 @@ func TestTreeViewNavigation(t *testing.T) {
 		// Re-render overlay
 		overlay = insp.RenderOverlay()
 		testApp.ForceRender()
-		time.Sleep(150 * time.Millisecond)
 	}
 
-	afterUp := testApp.GetRenderString()
-	t.Logf("After Up arrows (first 40 lines):")
-	lines = strings.Split(afterUp, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterUp := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Up arrows:", afterUp, 16)
 
 	// Test PageDown
 	t.Log("\n=== Testing PageDown ===")
@@ -153,18 +123,9 @@ func TestTreeViewNavigation(t *testing.T) {
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()
-	time.Sleep(200 * time.Millisecond)
 
-	afterPageDown := testApp.GetRenderString()
-	t.Logf("After PageDown (first 40 lines):")
-	lines = strings.Split(afterPageDown, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterPageDown := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After PageDown:", afterPageDown, 16)
 
 	// Test Home
 	t.Log("\n=== Testing Home ===")
@@ -177,18 +138,9 @@ func TestTreeViewNavigation(t *testing.T) {
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()
-	time.Sleep(200 * time.Millisecond)
 
-	afterHome := testApp.GetRenderString()
-	t.Logf("After Home (first 40 lines):")
-	lines = strings.Split(afterHome, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterHome := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Home:", afterHome, 16)
 
 	// Test End
 	t.Log("\n=== Testing End ===")
@@ -201,18 +153,9 @@ func TestTreeViewNavigation(t *testing.T) {
 	// Re-render overlay
 	overlay = insp.RenderOverlay()
 	testApp.ForceRender()
-	time.Sleep(200 * time.Millisecond)
 
-	afterEnd := testApp.GetRenderString()
-	t.Logf("After End (first 40 lines):")
-	lines = strings.Split(afterEnd, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterEnd := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After End:", afterEnd, 16)
 
 	t.Log("\n=== TreeView Navigation Test Complete ===")
 }
@@ -235,7 +178,7 @@ func TestTreeViewWithDemo2(t *testing.T) {
 	defer testApp.Close()
 
 	// Wait for initial render
-	time.Sleep(300 * time.Millisecond)
+	waitForDemo2Idle(t, testApp)
 
 	// Activate Inspector
 	t.Log("=== Activating Inspector with 'i' key ===")
@@ -245,18 +188,9 @@ func TestTreeViewWithDemo2(t *testing.T) {
 	}
 
 	// Wait for Inspector to appear
-	time.Sleep(500 * time.Millisecond)
+	inspectorRender := settleDemo2Render(t, testApp)
 
-	inspectorRender := testApp.GetRenderString()
-	t.Logf("=== Inspector Rendered (first 50 lines) ===")
-	lines := strings.Split(inspectorRender, "\n")
-	maxLines := 50
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	logDemo2Snapshot(t, "=== Inspector Rendered ===", inspectorRender, 24)
 
 	// Verify Inspector is visible
 	if !strings.Contains(inspectorRender, "INSPECTOR") {
@@ -275,19 +209,10 @@ func TestTreeViewWithDemo2(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to inject KeyDown: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
 	}
 
-	afterDownNav := testApp.GetRenderString()
-	t.Logf("After Down navigation (first 40 lines):")
-	lines = strings.Split(afterDownNav, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterDownNav := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Down navigation:", afterDownNav, 16)
 
 	// Press Up Arrow
 	t.Log("\nPressing Up Arrow 3 times...")
@@ -296,19 +221,10 @@ func TestTreeViewWithDemo2(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to inject KeyUp: %v", err)
 		}
-		time.Sleep(100 * time.Millisecond)
 	}
 
-	afterUpNav := testApp.GetRenderString()
-	t.Logf("After Up navigation (first 40 lines):")
-	lines = strings.Split(afterUpNav, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterUpNav := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Up navigation:", afterUpNav, 16)
 
 	// Test PageDown
 	t.Log("\nTesting PageDown...")
@@ -316,18 +232,8 @@ func TestTreeViewWithDemo2(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject PageDown: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
-
-	afterPageDownNav := testApp.GetRenderString()
-	t.Logf("After PageDown (first 40 lines):")
-	lines = strings.Split(afterPageDownNav, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterPageDownNav := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After PageDown:", afterPageDownNav, 16)
 
 	// Test Home
 	t.Log("\nTesting Home...")
@@ -335,18 +241,8 @@ func TestTreeViewWithDemo2(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject Home: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
-
-	afterHomeNav := testApp.GetRenderString()
-	t.Logf("After Home (first 40 lines):")
-	lines = strings.Split(afterHomeNav, "\n")
-	maxLines = 40
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-	for i := 0; i < maxLines; i++ {
-		t.Logf("  %s", lines[i])
-	}
+	afterHomeNav := settleDemo2Render(t, testApp)
+	logDemo2Snapshot(t, "After Home:", afterHomeNav, 16)
 
 	// Deactivate Inspector
 	t.Log("\n=== Deactivating Inspector with 'q' key ===")
@@ -354,7 +250,7 @@ func TestTreeViewWithDemo2(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to inject 'q' key: %v", err)
 	}
-	time.Sleep(300 * time.Millisecond)
+	settleDemo2Render(t, testApp)
 
 	t.Log("\n=== TreeView Demo2 Test Complete ===")
 }

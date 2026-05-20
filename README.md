@@ -17,10 +17,10 @@ Current repository status as of 2026-05-20:
 | Rendering path | Fiber-first by default |
 | Component library | Broad TUI component set under `ui/components` |
 | Test support | Unit tests, component tests, sandbox, replay, E2E driver, render snapshots |
-| CI gates | `go mod tidy` diff check, `go vet ./...`, `go test ./... -count=1 -p 1`, and sharded focused `go test -race` over runtime/framework/sandbox/devtools/components |
+| CI gates | `go mod tidy` diff check, `go vet ./...`, regular package tests, serialized interaction/E2E package tests, and sharded focused `go test -race` over runtime/framework/sandbox/devtools/components |
 | Documentation posture | SDK-facing docs are kept in this README, `DEVELOPMENT.md`, and the focused docs under `docs/`; historical implementation notes are archived under `docsArchive/` |
 
-Recent local verification covered the module tidy check, `go vet ./...`, the full test suite, and the focused race gate used by CI, split by subsystem and component shards. Full validation can take several minutes and should be run before releases.
+Recent local verification covered the module tidy check, `go vet ./...`, the full test suite using the same regular/interactive package split as CI, and the focused race gate split by subsystem and component shards. Full validation can take several minutes and should be run before releases.
 
 ## Installation
 
@@ -282,7 +282,10 @@ Full validation:
 go mod tidy
 git diff --exit-code -- go.mod go.sum
 go vet ./...
-go test ./... -count=1 -p 1
+mapfile -t packages < <(go list ./... | grep -v '^github.com/wwsheng009/mint/ui$' | grep -v '^github.com/wwsheng009/mint/ui/e2e$' | grep -v '^github.com/wwsheng009/mint/examples/error_boundary$' | grep -v '^github.com/wwsheng009/mint/examples/ui_demos/demo1_full_featured$' | grep -v '^github.com/wwsheng009/mint/examples/ui_demos/demo2_runtime_internals$')
+go test "${packages[@]}" -count=1
+go test ./ui ./examples/error_boundary ./examples/ui_demos/demo1_full_featured ./examples/ui_demos/demo2_runtime_internals -count=1 -p 1
+go test ./ui/e2e -count=1 -p 1
 go test -race ./runtime/... -count=1 -p 1
 go test -race ./framework/... -count=1 -p 1
 go test -race ./sandbox/... -count=1 -p 1
@@ -290,7 +293,7 @@ go test -race ./devtools/... -count=1 -p 1
 go test -race ./ui/components/... -count=1 -p 1
 ```
 
-The full suite and race gate are large. CI runs the component race gate as shards for better failure isolation and to avoid a single long-running race process. Local validation can also split `./ui/components/...` into smaller package groups when the single command is slow.
+The full suite and race gate are large. CI lets regular packages run with Go's default package parallelism, then runs runtime-sensitive `ui` tests, interaction-heavy examples such as `examples/error_boundary`, the active UI demos, and `ui/e2e` serially to keep timing and global terminal/runtime state isolated. The component race gate is also sharded for better failure isolation and to avoid a single long-running race process. Local validation can split `./ui/components/...` into smaller package groups when the single command is slow.
 
 ## Debugging
 
