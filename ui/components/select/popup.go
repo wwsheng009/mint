@@ -296,7 +296,7 @@ func (inst *popupInstance) HandleAction(act *action.Action) bool {
 				return true
 			}
 			inst.setHighlight(index)
-			return inst.commit(index)
+			return true
 		}
 		return inst.commit(inst.highlightedIndex)
 	case action.ActionMouseRelease:

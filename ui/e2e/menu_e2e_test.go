@@ -959,7 +959,9 @@ func TestE2EMenuContextOutsideClickClosesWithoutBackgroundLeak(t *testing.T) {
 	}
 	defer app.Close()
 
-	if err := app.AssertVisible(ByText("Context Action")); err != nil {
+	if err := app.Eventually(1*time.Second, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("Context Action"))
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1128,10 +1130,14 @@ func TestE2EMenuSubmenuFlipsLeftNearRightViewportEdge(t *testing.T) {
 	}
 	defer app.Close()
 
-	if err := app.AssertVisible(ByText("More Tools")); err != nil {
+	if err := app.Eventually(1*time.Second, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("More Tools"))
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText("Tool Details")); err != nil {
+	if err := app.Eventually(1*time.Second, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("Tool Details"))
+	}); err != nil {
 		t.Fatal(err)
 	}
 

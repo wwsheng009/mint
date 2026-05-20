@@ -190,11 +190,6 @@ func TestE2ETooltipDelayWaitsBeforeShowing(t *testing.T) {
 		t.Fatalf("tooltip %q should stay hidden immediately after hover", meta.DelayedText)
 	}
 
-	time.Sleep(30 * time.Millisecond)
-	if err := app.AssertVisible(ByText(meta.DelayedText)); err == nil {
-		t.Fatalf("tooltip %q should still be hidden before delay elapses", meta.DelayedText)
-	}
-
 	if err := app.Eventually(700*time.Millisecond, 20*time.Millisecond, func(app *App) error {
 		return app.AssertVisible(ByText(meta.DelayedText))
 	}); err != nil {

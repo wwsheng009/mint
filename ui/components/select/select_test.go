@@ -519,7 +519,7 @@ func TestPopupInstance_Measure_UsesPopupProps(t *testing.T) {
 	}
 }
 
-func TestPopupInstance_HandleAction_CommitsSelection(t *testing.T) {
+func TestPopupInstance_HandleAction_ClickCommitsSelectionWithoutMousePayload(t *testing.T) {
 	state := overlayControllerState{
 		selectedIndex:    -1,
 		selectedIndices:  nil,
@@ -553,25 +553,22 @@ func TestPopupInstance_HandleAction_CommitsSelection(t *testing.T) {
 	}
 	emitted := make([]intent.Intent, 0, 2)
 	popup := newPopupInstance(rtui.Props{
-		"selectID":         "country-select",
-		"componentID":      "country-select",
-		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
-		"selectedIndex":    -1,
-		"selectedIndices":  []int{},
-		"highlightedIndex": 0,
-		"maxVisibleRows":   6,
-		"minWidth":         20,
-		"changeIntent":     intent.BindField("country"),
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectedIndex":      -1,
+		"selectedIndices":    []int{},
+		"highlightedIndex":   0,
+		"maxVisibleRows":     6,
+		"minWidth":           20,
+		"changeIntent":       intent.BindField("country"),
 		overlayCallbacksProp: callbacks,
 	})
 	popup.SetIntentEmitter(func(i intent.Intent) {
 		emitted = append(emitted, i)
 	})
 
-	mouse := runtimemsg.NewMouseMsg(1, 2, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
-	mouse.LocalX = 1
-	mouse.LocalY = 1
-	if !popup.HandleAction(action.NewAction(action.ActionClick).WithPayload(mouse)) {
+	if !popup.HandleAction(action.NewAction(action.ActionClick)) {
 		t.Fatal("popup click should be handled")
 	}
 	if state.selectedIndex != 0 {
@@ -582,6 +579,72 @@ func TestPopupInstance_HandleAction_CommitsSelection(t *testing.T) {
 	}
 	if len(emitted) == 0 {
 		t.Fatal("expected popup commit to emit intents")
+	}
+}
+
+func TestPopupInstance_HandleAction_MouseClickHighlightsWithoutCommit(t *testing.T) {
+	state := overlayControllerState{
+		selectedIndex:    -1,
+		selectedIndices:  nil,
+		open:             true,
+		highlightedIndex: 0,
+		scrollOffset:     0,
+	}
+	commitCount := 0
+	callbacks := &overlayCallbacks{
+		setOpen: func(open bool) overlayControllerState {
+			state.open = open
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			commitCount++
+			nextIndex, nextIndices, _, shouldClose := applyOverlayCommit(
+				SelectionSingle,
+				2,
+				state.selectedIndex,
+				state.selectedIndices,
+				index,
+			)
+			state.selectedIndex = nextIndex
+			state.selectedIndices = nextIndices
+			state.highlightedIndex = index
+			state.open = !shouldClose
+			return state
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectedIndex":      -1,
+		"selectedIndices":    []int{},
+		"highlightedIndex":   0,
+		"maxVisibleRows":     6,
+		"minWidth":           20,
+		overlayCallbacksProp: callbacks,
+	})
+
+	mouse := runtimemsg.NewMouseMsg(1, 3, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mouse.LocalX = 1
+	mouse.LocalY = 2
+	if !popup.HandleAction(action.NewAction(action.ActionClick).WithPayload(mouse)) {
+		t.Fatal("popup mouse click should be handled")
+	}
+	if state.highlightedIndex != 1 {
+		t.Fatalf("highlightedIndex = %d, want 1", state.highlightedIndex)
+	}
+	if state.selectedIndex != -1 {
+		t.Fatalf("selectedIndex = %d, want -1 before mouse release", state.selectedIndex)
+	}
+	if !state.open {
+		t.Fatal("mouse press should keep popup open until release")
+	}
+	if commitCount != 0 {
+		t.Fatalf("commitCount = %d, want 0 before mouse release", commitCount)
 	}
 }
 
@@ -666,14 +729,14 @@ func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight(t *testing.T) {
 		},
 	}
 	popup := newPopupInstance(rtui.Props{
-		"selectID":         "country-select",
-		"componentID":      "country-select",
-		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
-		"selectedIndex":    -1,
-		"selectedIndices":  []int{},
-		"highlightedIndex": 0,
-		"maxVisibleRows":   6,
-		"minWidth":         20,
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":      -1,
+		"selectedIndices":    []int{},
+		"highlightedIndex":   0,
+		"maxVisibleRows":     6,
+		"minWidth":           20,
 		overlayCallbacksProp: callbacks,
 	})
 
@@ -708,13 +771,13 @@ func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight_EmptyComponentI
 		},
 	}
 	popup := newPopupInstance(rtui.Props{
-		"selectID":         "country-select",
-		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
-		"selectedIndex":    -1,
-		"selectedIndices":  []int{},
-		"highlightedIndex": 0,
-		"maxVisibleRows":   6,
-		"minWidth":         20,
+		"selectID":           "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}, {Value: "jp", Label: "Japan"}},
+		"selectedIndex":      -1,
+		"selectedIndices":    []int{},
+		"highlightedIndex":   0,
+		"maxVisibleRows":     6,
+		"minWidth":           20,
 		overlayCallbacksProp: callbacks,
 	})
 
@@ -741,10 +804,10 @@ func TestMiddleware_ClickOutsideClosesOpenOverlaySelect(t *testing.T) {
 		},
 	}
 	popup := newPopupInstance(rtui.Props{
-		"selectID":         "country-select",
-		"componentID":      "country-select",
-		"closeOnOutside":   true,
-		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"closeOnOutside":     true,
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
 		overlayCallbacksProp: callbacks,
 	})
 	popup.SetBounds(2, 3, 12, 4)
@@ -779,9 +842,9 @@ func TestMiddleware_CancelClosesOpenOverlaySelect(t *testing.T) {
 		},
 	}
 	popup := newPopupInstance(rtui.Props{
-		"selectID":         "country-select",
-		"componentID":      "country-select",
-		"options":          []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
 		overlayCallbacksProp: callbacks,
 	})
 	popup.OnMount()
