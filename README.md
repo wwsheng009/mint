@@ -256,6 +256,7 @@ See `examples/README.md` for the maintained example map.
 | `docs/debug/README.md` | Debugging and environment variables |
 | `docs/sandbox/QUICK_START_GUIDE.md` | Sandbox and deterministic testing |
 | `docs/testing/e2e/README.md` | E2E driver and interaction testing |
+| `devtools/docs/README.md` | DevTools observability, remote debugging, and standalone debugging entry point |
 
 Historical design notes, fix reports, probes, and duplicate examples live under `docsArchive/`. Archived example directories use an underscore-prefixed folder so `go test ./...` does not treat them as active packages.
 

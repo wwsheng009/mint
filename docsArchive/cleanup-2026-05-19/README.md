@@ -22,7 +22,9 @@ Those materials remain useful for archaeology, but they should not be part of th
 | `docs/` | Archived documents moved from `docs/` |
 | `_examples/` | Archived example directories moved from `examples/`; the leading underscore keeps Go tooling from treating them as active packages |
 | `_framework_docs/` | Archived framework design drafts, implementation plans, review notes, and historical reports moved from `framework/docs/`; the leading underscore keeps Go tooling from treating embedded `.go` snippets as active packages |
+| `_devtools_docs/` | Archived DevTools implementation plans, phase summaries, reviews, and old visualization notes moved from `devtools/docs/`; the active DevTools entry point is `devtools/docs/README.md` |
 | `moved-docs.txt` | Relative source paths moved from `docs/` |
+| `moved-devtools-docs.txt` | Relative source paths moved from `devtools/docs/` |
 | `moved-examples.txt` | Relative source paths moved from `examples/` |
 | `moved-framework-docs.txt` | Relative source paths moved from `framework/docs/` |
 | `moved-root-docs.txt` | Root-level historical markdown files moved into `root/` |

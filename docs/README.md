@@ -11,6 +11,7 @@ For SDK users, start with:
 5. `debug/README.md`
 6. `sandbox/QUICK_START_GUIDE.md`
 7. `testing/e2e/README.md`
+8. `../devtools/docs/README.md`
 
 ## Current Source Facts
 
@@ -142,6 +143,7 @@ The most accurate component API is normally under `../ui/components/<component>/
 | `testing/e2e/API_REFERENCE.md` | E2E API |
 | `testing/e2e/INTERACTIVE_E2E_SUITE_DESIGN.md` | E2E suite design |
 | `log/LOGGER_ENV_VAR_STANDARD.md` | Logger env var standard |
+| `../devtools/docs/README.md` | DevTools observability, remote debugging, and standalone debugging |
 
 ### AI And Integrations
 

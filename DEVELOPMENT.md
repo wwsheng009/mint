@@ -305,6 +305,7 @@ Current documentation belongs in:
 | `DEVELOPMENT.md` | App and framework development workflow |
 | `docs/README.md` | Focused current docs index |
 | `docs/<area>/README.md` | Area-level current state and references |
+| `devtools/docs/README.md` | Current DevTools observability and debugging entry point |
 | `ui/components/<component>/README.md` | Component-specific API |
 | `examples/README.md` | Curated runnable example map |
 
