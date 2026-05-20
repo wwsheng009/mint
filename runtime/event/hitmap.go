@@ -2,7 +2,6 @@ package event
 
 import (
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,9 +45,16 @@ func StringToNodeID(id string) uint64 {
 	}
 
 	// 如果不是数字，使用 FNV-1a 哈希（适用于 layout.Node.ID() 等场景）
-	h := fnv.New64a()
-	h.Write([]byte(id))
-	return h.Sum64()
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	var h uint64 = offset64
+	for i := 0; i < len(id); i++ {
+		h ^= uint64(id[i])
+		h *= prime64
+	}
+	return h
 }
 
 // stringToNodeID 将字符串 ID 转换为 uint64 NodeID
@@ -100,6 +106,9 @@ type HitMap struct {
 
 	// buildTime 构建时间戳
 	buildTime time.Time
+
+	zSorted bool
+	lastZ   int
 }
 
 // BuildHitMap 从布局树构建 HitMap
@@ -131,17 +140,38 @@ func BuildHitMap(root layout.Node) *HitMap {
 
 	hm := &HitMap{
 		root:      root,
-		entries:   make([]HitMapEntry, 0),
+		entries:   make([]HitMapEntry, 0, countHitMapEntries(root)),
 		buildTime: time.Now(),
+		zSorted:   true,
 	}
 
 	// 递归遍历布局树，构建命中条目
 	hm.walkAndBuild(root, 0)
 
 	// 按 Z-order 排序（确保上层节点优先）
-	hm.sortByZOrder()
+	if !hm.zSorted {
+		hm.sortByZOrder()
+	}
 
 	return hm
+}
+
+func countHitMapEntries(node layout.Node) int {
+	if node == nil {
+		return 0
+	}
+
+	count := 0
+	width, height := node.GetSize()
+	if width > 0 && height > 0 {
+		count++
+	}
+
+	for _, child := range node.Children() {
+		count += countHitMapEntries(child)
+	}
+
+	return count
 }
 
 // walkAndBuild 递归遍历布局树并构建命中条目
@@ -185,6 +215,10 @@ func (hm *HitMap) walkAndBuild(node layout.Node, zOrder int) {
 		ZOrder: zOrder,
 	}
 
+	if len(hm.entries) > 0 && zOrder < hm.lastZ {
+		hm.zSorted = false
+	}
+	hm.lastZ = zOrder
 	hm.entries = append(hm.entries, entry)
 
 	// 递归处理子节点（子节点的 Z-order 更高）

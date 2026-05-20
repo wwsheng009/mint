@@ -265,7 +265,7 @@ func IsCellChanged(cell, prevCell Cell) bool {
 	if prevCell.Width == 2 && cell.Width == 0 {
 		return true
 	}
-	
+
 	// 正常比较 Cluster、Style 和 Selected（文本选择高亮）
 	return cell.Cluster != prevCell.Cluster ||
 		cell.Style != prevCell.Style ||
@@ -450,23 +450,12 @@ func (b *Buffer) StringOptimized() string {
 	}
 
 	var output bytes.Buffer
+	output.Grow(h*(w+2) + len("\x1b[0m"))
 	styleMachine := NewStyleStateMachine()
 
 	for y := 0; y < h; y++ {
-		// Line tracking for newline handling
-		hasContent := false
-
-		// Emit runs with merge optimization
-		runs := b.encodeRuns(y, w)
-		for _, run := range runs {
-			hasContent = true
-			b.emitRunOptimized(&output, styleMachine, run)
-		}
-
-		// Add newline at end of each line
-		if hasContent {
-			output.WriteString("\r\n")
-		}
+		b.emitRowOptimized(&output, styleMachine, y, w)
+		output.WriteString("\r\n")
 	}
 
 	// Reset final style
@@ -475,13 +464,51 @@ func (b *Buffer) StringOptimized() string {
 	return output.String()
 }
 
+func (b *Buffer) emitRowOptimized(out *bytes.Buffer, styleMachine *StyleStateMachine, y int, width int) {
+	if y >= len(b.Cells) {
+		return
+	}
+
+	x := 0
+	for x < width {
+		cell := b.Cells[y][x]
+		if cell.IsContinuation {
+			x++
+			continue
+		}
+
+		runStyle := cell.Style
+		if styleMachine.NeedsUpdate(runStyle) {
+			out.WriteString(styleMachine.Update(runStyle))
+		}
+
+		for {
+			if cell.Cluster == "" || cell.Cluster == "\x00" {
+				out.WriteByte(' ')
+			} else {
+				out.WriteString(cell.Cluster)
+			}
+
+			x++
+			if x >= width {
+				break
+			}
+
+			cell = b.Cells[y][x]
+			if cell.IsContinuation || cell.Style != runStyle {
+				break
+			}
+		}
+	}
+}
+
 // encodeRuns encodes a buffer row into runs of identical styles
 func (b *Buffer) encodeRuns(y int, width int) []run {
 	if y >= len(b.Cells) {
 		return nil
 	}
 
-	var runs []run
+	runs := make([]run, 0, 8)
 	x := 0
 
 	for x < width {
@@ -495,14 +522,21 @@ func (b *Buffer) encodeRuns(y int, width int) []run {
 
 		// Start a new run
 		startX := x
-		runText := ""
 		runStyle := cell.Style
+		runWidth := 0
+		var runText strings.Builder
+		runText.Grow(width - x)
 
 		// Build the run
 		if cell.Cluster == "" || cell.Cluster == "\x00" {
-			runText = " "
+			runText.WriteByte(' ')
 		} else {
-			runText = cell.Cluster
+			runText.WriteString(cell.Cluster)
+		}
+		if cell.Width > 0 {
+			runWidth += cell.Width
+		} else {
+			runWidth++
 		}
 
 		// Check if we should merge with next cells
@@ -526,17 +560,19 @@ func (b *Buffer) encodeRuns(y int, width int) []run {
 
 			// Add to run text
 			if nextCell.Cluster == "" || nextCell.Cluster == "\x00" {
-				runText += " "
+				runText.WriteByte(' ')
 			} else {
-				runText += nextCell.Cluster
+				runText.WriteString(nextCell.Cluster)
+			}
+			if nextCell.Width > 0 {
+				runWidth += nextCell.Width
+			} else {
+				runWidth++
 			}
 		}
 
-		// Calculate run width for display
-		runWidth := StringWidth(runText)
-
 		runs = append(runs, run{
-			text:  runText,
+			text:  runText.String(),
 			style: runStyle,
 			start: startX,
 			width: runWidth,
