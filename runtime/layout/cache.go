@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"sync"
 	"time"
 )
 
@@ -13,19 +14,18 @@ import (
 // ==============================================================================
 // 布局结果缓存，避免重复计算
 
-
-
 // Cache 布局缓存
 type Cache struct {
+	mu      sync.Mutex
 	entries map[string]*CachedLayout
 	maxSize int
 }
 
 // CachedLayout 缓存的布局结果
 type CachedLayout struct {
-	Result     *LayoutResult
-	Timestamp  time.Time
-	HitCount   int
+	Result    *LayoutResult
+	Timestamp time.Time
+	HitCount  int
 }
 
 // Get 获取缓存
@@ -36,6 +36,9 @@ func (c *Cache) Get(node Node, constraints Constraints) *LayoutResult {
 	}
 
 	key := c.makeKey(node, constraints)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if entry, ok := c.entries[key]; ok {
 		entry.HitCount++
 		// 返回克隆避免修改缓存
@@ -56,20 +59,26 @@ func (c *Cache) isLeafNode(node Node) bool {
 func (c *Cache) Put(node Node, constraints Constraints, result *LayoutResult) {
 	key := c.makeKey(node, constraints)
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// 如果缓存已满，删除最旧的条目
 	if len(c.entries) >= c.maxSize {
 		c.evict()
 	}
 
 	c.entries[key] = &CachedLayout{
-		Result:     result,
-		Timestamp:  time.Now(),
-		HitCount:   0,
+		Result:    result,
+		Timestamp: time.Now(),
+		HitCount:  0,
 	}
 }
 
 // Clear 清空缓存
 func (c *Cache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.entries = make(map[string]*CachedLayout)
 }
 
