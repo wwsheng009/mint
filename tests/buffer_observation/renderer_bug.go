@@ -5,7 +5,6 @@
 //
 // Purpose: Reproduce bug using full Renderer.Render() path with diff
 // This tests the actual bug scenario from store_mixed_demo
-//
 package main
 
 import (
@@ -13,12 +12,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/tests/buffer_observation/utils"
 	"github.com/wwsheng009/mint/ui"
 )
 

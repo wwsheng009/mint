@@ -58,9 +58,13 @@ func TestActionSystemEnter(t *testing.T) {
 
 	// Tab to Add Count button and press Enter
 	focusButton(t, testApp, focusedAddCountButton)
-	pressEnter(t, testApp) // This should trigger ActionEnter
+	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+		t.Fatalf("InjectSpecialKey(KeyEnter) failed: %v", err)
+	}
 
-	rendered = testApp.GetRenderString()
+	rendered = waitForDemoRender(t, testApp, time.Second, func(rendered string) bool {
+		return strings.Contains(rendered, "Clicks: 1")
+	})
 	t.Logf("After Enter key:\n%s", rendered)
 
 	// Check if count increased
@@ -244,9 +248,13 @@ func TestActionSystemStateUpdate(t *testing.T) {
 
 	// Trigger state update by clicking Add Count
 	focusButton(t, testApp, focusedAddCountButton)
-	pressEnter(t, testApp)
+	if err := testApp.InjectSpecialKey(platform.KeyEnter); err != nil {
+		t.Fatalf("InjectSpecialKey(KeyEnter) failed: %v", err)
+	}
 
-	after := testApp.GetRenderString()
+	after := waitForDemoRender(t, testApp, time.Second, func(rendered string) bool {
+		return strings.Contains(rendered, "Clicks: 1")
+	})
 
 	// Verify something changed
 	if initial != after {

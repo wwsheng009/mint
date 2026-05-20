@@ -1,4 +1,4 @@
-// Package utils 提供示例程序使用的通用工具函数
+// Package utils provides buffer observation helpers for ignored diagnostic tools.
 package utils
 
 import (

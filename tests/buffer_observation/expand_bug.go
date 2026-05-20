@@ -6,10 +6,10 @@
 // Purpose: Reproduce the EXACT bug from store_mixed_demo
 //
 // Bug Scenario:
-//   Frame 1 (count=0): Expanded=false, Counter at position Y=2
-//   Frame 2 (count=1): Expanded=true,  Counter at position Y=5 (pushed down by expanded section)
-//   Bug: Old button at Y=2 remains in buffer
 //
+//	Frame 1 (count=0): Expanded=false, Counter at position Y=2
+//	Frame 2 (count=1): Expanded=true,  Counter at position Y=5 (pushed down by expanded section)
+//	Bug: Old button at Y=2 remains in buffer
 package main
 
 import (
@@ -17,12 +17,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/tests/buffer_observation/utils"
 	"github.com/wwsheng009/mint/ui"
 )
 

@@ -9,6 +9,11 @@ coverage.out
 examples/sandbox/01_event_recording/*.json
 examples/sandbox/dump_buffer/border_outputs/*.txt
 examples/sandbox/dump_buffer/border_outputs/demo.txt
+examples/ui_demos/**/output.txt
+examples/ui_demos/**/*_output.txt
+examples/ui_demos/**/test.txt
+examples/ui_demos/demo2_runtime_internals/inspector_demo/demo2_inspector
+examples/ui_demos/demo2_runtime_internals/inspector_demo/simple/simple_demo
 
 # Analysis and verification documents (temporary)
 docs/theme/*_analysis.md

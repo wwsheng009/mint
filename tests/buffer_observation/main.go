@@ -8,7 +8,6 @@
 //   - One DeclarativeNode instance is maintained across frames
 //   - State changes through the Store trigger re-renders
 //   - Fiber reconciler maintains stable IDs
-//
 package main
 
 import (
@@ -16,12 +15,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/store"
+	"github.com/wwsheng009/mint/tests/buffer_observation/utils"
 	"github.com/wwsheng009/mint/ui"
 )
 

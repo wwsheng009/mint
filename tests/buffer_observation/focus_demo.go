@@ -5,7 +5,6 @@
 //
 // Purpose: Test buffer behavior when focus state changes
 // Focus state change might affect button layout (focus marker, colors, etc.)
-//
 package main
 
 import (
@@ -13,11 +12,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/wwsheng009/mint/examples/utils"
 	"github.com/wwsheng009/mint/framework"
 	"github.com/wwsheng009/mint/framework/component"
 	"github.com/wwsheng009/mint/internal/render"
 	"github.com/wwsheng009/mint/runtime/paint"
+	"github.com/wwsheng009/mint/tests/buffer_observation/utils"
 	"github.com/wwsheng009/mint/ui"
 )
 
@@ -25,7 +24,7 @@ import (
 func ButtonComponent(buttonID string, focused bool) ui.VNode {
 	btnText := "TEST"
 	if focused {
-		btnText = "*TST"  // Simulate focus indicator (shorter text)
+		btnText = "*TST" // Simulate focus indicator (shorter text)
 	}
 
 	if buttonID == "btn1" {
@@ -122,7 +121,7 @@ func main() {
 
 	// Create single node
 	node := render.NewDeclarativeNodeFromFuncWithFiber(func() ui.VNode {
-		return TestView("btn1")  // Start with btn1 focused
+		return TestView("btn1") // Start with btn1 focused
 	})
 	node.SetApp(fwApp)
 	node.SetRenderMode(render.RenderModeFiberFirst)
@@ -157,7 +156,7 @@ func main() {
 
 		// Update the component function (simulating focus state change)
 		node2 := render.NewDeclarativeNodeFromFuncWithFiber(func() ui.VNode {
-			return TestView("btn2")  // Now btn2 focused
+			return TestView("btn2") // Now btn2 focused
 		})
 		node2.SetApp(fwApp)
 		node2.SetRenderMode(render.RenderModeFiberFirst)
