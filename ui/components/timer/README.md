@@ -13,6 +13,7 @@ and short async operation timers.
 - Optional ASCII progress bar for countdown or bounded elapsed windows.
 - Semantic styles for normal, warning, and expired states.
 - Fixed width rendering for status bars and dense toolbars.
+- Operational presets for auto-refresh, retry-after/cooldown, and operation elapsed timers.
 - SDK entry through `ui.NewTimerBuilder()`.
 
 ## Examples
@@ -43,6 +44,16 @@ ui.NewTimerBuilder().
     Build()
 ```
 
+Operational presets:
+
+```go
+ui.AutoRefreshTimer("Refresh", 30*time.Second)
+ui.RetryAfterTimer("Retry", retryAfter)
+ui.OperationElapsedTimer("Reload", startedAt)
+```
+
+Component package helpers expose the same presets as `timer.AutoRefresh(...)`, `timer.RetryAfter(...)`, and `timer.OperationElapsed(...)`.
+
 ## Fiber-first shape
 
 - `VNode` is the immutable declarative description.
@@ -55,4 +66,3 @@ ui.NewTimerBuilder().
 - Unit: `go test ./ui/components/timer`
 - SDK shortcut: `go test ./ui -run Timer`
 - E2E: `go test ./ui/e2e -run "^TestE2ETimer"`
-

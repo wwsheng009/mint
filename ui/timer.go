@@ -45,3 +45,18 @@ func CountdownUntil(label string, deadline time.Time) rtui.VNode {
 		Until(deadline).
 		Build()
 }
+
+// AutoRefreshTimer creates a countdown timer for periodic refresh loops.
+func AutoRefreshTimer(label string, interval time.Duration) rtui.VNode {
+	return timer.AutoRefresh(label, interval)
+}
+
+// RetryAfterTimer creates a countdown timer for retry-after or cooldown windows.
+func RetryAfterTimer(label string, deadline time.Time) rtui.VNode {
+	return timer.RetryAfter(label, deadline)
+}
+
+// OperationElapsedTimer creates an elapsed timer for a running operation.
+func OperationElapsedTimer(label string, startedAt time.Time) rtui.VNode {
+	return timer.OperationElapsed(label, startedAt)
+}
