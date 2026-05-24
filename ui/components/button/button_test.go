@@ -11,6 +11,12 @@ import (
 	"github.com/wwsheng009/mint/ui/components/control"
 )
 
+type buttonSliceIntent struct {
+	Path []int
+}
+
+func (buttonSliceIntent) IntentType() string { return "button.slice" }
+
 // =============================================================================
 // VNode Tests
 // =============================================================================
@@ -224,6 +230,29 @@ func TestInstance_SetProps(t *testing.T) {
 	changed = inst.SetProps(rtui.Props{"label": "Updated"})
 	if changed {
 		t.Error("SetProps should return false when props don't change")
+	}
+}
+
+func TestInstance_SetPropsAllowsNonComparableIntent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"label":       "Open",
+		"pressIntent": buttonSliceIntent{Path: []int{1, 2}},
+	})
+
+	changed := inst.SetProps(rtui.Props{
+		"label":       "Open",
+		"pressIntent": buttonSliceIntent{Path: []int{1, 2}},
+	})
+	if changed {
+		t.Fatal("SetProps should treat equal non-comparable intents as unchanged")
+	}
+
+	changed = inst.SetProps(rtui.Props{
+		"label":       "Open",
+		"pressIntent": buttonSliceIntent{Path: []int{1, 3}},
+	})
+	if !changed {
+		t.Fatal("SetProps should detect non-comparable intent changes")
 	}
 }
 

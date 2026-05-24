@@ -1,7 +1,7 @@
 package button
 
 import (
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	"reflect"
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -12,6 +12,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/control"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 )
 
 // =============================================================================
@@ -179,7 +180,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	}
 
 	// Update pressable behavior intent
-	if inst.pressIntent != oldIntent {
+	intentChanged := !reflect.DeepEqual(oldIntent, inst.pressIntent)
+	if intentChanged {
 		if pressable := inst.behaviors.Get("Pressable"); pressable != nil {
 			if p, ok := pressable.(*control.PressableBehavior); ok {
 				p.SetIntent(inst.pressIntent)
@@ -193,7 +195,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSize != inst.size ||
 		oldDisabled != inst.state.Disabled ||
 		oldFocusStyle != inst.focusStyle ||
-		oldIntent != inst.pressIntent
+		intentChanged
 
 	if changed {
 		inst.dirty = true
