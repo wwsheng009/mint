@@ -214,7 +214,7 @@ Current component groups:
 | Group | Components |
 |---|---|
 | Basic display | Text, Divider, Badge, Tag, Empty, Descriptions, Statistic, Timeline, Clock |
-| Layout | VStack/HStack, Space, Layout, Grid, Row/Col, Panel, ScrollView, Wrap, Absolute |
+| Layout | VStack/HStack, Space, SplitPane, Layout, Grid, Row/Col, Panel, ScrollView, Wrap, Absolute |
 | Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer, Form, Validation |
 | Data | Table, List, VirtualList, TreeView |
 | Feedback | Alert, Progress, Spin, Skeleton, Result, Notification, Toast |
