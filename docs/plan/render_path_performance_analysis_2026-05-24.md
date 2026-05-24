@@ -154,10 +154,12 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `PaintPaintablePlanes` 移除每 box `paint.NewPaintableLayout` 分配。
 - `FiberToPaintableConverter.findFiber` 移除冗余 O(n) fallback，NodeID 字符串格式化改为 `strconv.FormatUint`。
 - `convertLayoutHitMap` 改为每帧先构建 `map[uint64]*Fiber`，再按 HitMap entry O(1) 查找目标 Fiber，避免每个 entry 扫描整棵 Fiber 树。
+- `paintBoxWithMode` 只调用一次 `box.Node.Paint` 并复用 draw commands，避免 cache 探测和正式绘制各调用一次组件 `Paint()`。
+- `PaintEngine.InitCache` 在正常绘制路径不再克隆整帧 buffer；`PaintingContext` 的 dirty rect 能力保留给直接创建 context 的调用方。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
 
 后续建议：
 
 - 为完整 Fiber-first 单帧渲染增加 benchmark，至少覆盖 100/500/1000 节点三档。
-- 重新设计 Paint cache version，使缓存真正跨帧命中。
+- 重新设计 Paint cache key/version，使缓存能基于节点内容版本安全跨帧命中；当前 frame version 策略偏保守但避免 stale 内容。
 - 评估 `buf.Reset` 与 dirty rect 的协同，逐步减少全屏内存写入。

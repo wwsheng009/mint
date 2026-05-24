@@ -60,7 +60,11 @@ func (e *PaintEngine) InitCache(buffer *paint.Buffer) {
 		e.cache = cachepkg.NewPaintCache()
 	}
 	e.version++
-	e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
+	// PaintEngine uses renderer-level dirty tracking and does not call
+	// PaintingContext.GetDirtyRects during normal painting. Avoid cloning the
+	// full frame buffer here; callers that need dirty rects can still create a
+	// PaintingContext with a buffer directly.
+	e.paintContext = cachepkg.NewPaintingContext(e.cache, nil, e.version)
 }
 
 // EnableCache enables or disables the paint cache
@@ -140,10 +144,6 @@ func (e *PaintEngine) beginPaintFrame(buffer *paint.Buffer) {
 
 	if e.enableCache {
 		e.InitCache(buffer)
-		e.version++
-		if e.paintContext == nil {
-			e.paintContext = cachepkg.NewPaintingContext(e.cache, buffer, e.version)
-		}
 		// e.paintContext.UpdateBufferCopy(buffer)
 		// REMOVED: This buffer copy was causing 33% CPU overhead (cloneBuffer).
 		// The system already uses DirtyTracker for diff tracking (runtime/paint/dirty.go).
@@ -197,14 +197,17 @@ func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Bu
 		boundsSetter.SetBounds(box.X, box.Y, box.Width, box.Height)
 	}
 
+	// Query custom paint once. Many component instances allocate draw commands
+	// in Paint(), so probing cacheability and then painting again doubles work.
+	commands := box.Node.Paint(box.X, box.Y)
+
 	// Check cache first (for leaf nodes without custom paint commands)
 	// Skip caching for nodes with dynamic content (like text inputs, animations)
 	cacheKey := e.boxCacheKey(box)
 	if e.enableCache && e.paintContext != nil && cacheKey != "" {
 		// Only try caching for nodes that are likely cacheable (simple layout nodes)
 		// Skip nodes with custom paint commands, children, or dynamic content
-		hasCustomPaint := box.Node.Paint(box.X, box.Y)
-		if len(box.Children) == 0 && len(hasCustomPaint) == 0 {
+		if len(box.Children) == 0 && len(commands) == 0 {
 			// Try to paint from cache
 			if e.paintContext.TryPaintFromCache(buffer, cacheKey, box.X, box.Y) {
 				return nil // Successfully painted from cache
@@ -221,8 +224,6 @@ func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Bu
 	}
 
 	// FIRST: Check if node has custom paint logic
-	commands := box.Node.Paint(box.X, box.Y)
-
 	// Apply custom paint commands if present (for both leaf and container nodes)
 	// Container components like Border return border drawing commands
 	if len(commands) > 0 {
