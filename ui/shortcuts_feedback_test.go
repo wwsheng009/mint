@@ -1,6 +1,9 @@
 package ui
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestFeedbackBuilderFactories(t *testing.T) {
 	if vnode := NewAlertBuilder("Heads up").Warning().Build(); vnode == nil {
@@ -17,6 +20,9 @@ func TestFeedbackBuilderFactories(t *testing.T) {
 	}
 	if vnode := NewClockBuilder().Radius(4).Build(); vnode == nil {
 		t.Fatal("NewClockBuilder().Build() returned nil")
+	}
+	if vnode := NewTimerBuilder().Label("Refresh").Countdown(time.Minute).Build(); vnode == nil {
+		t.Fatal("NewTimerBuilder().Build() returned nil")
 	}
 	if vnode := NewImageBuilder().Alt("Preview").SourceRGBA([]byte{255, 255, 255, 255}, 1, 1).Build(); vnode == nil {
 		t.Fatal("NewImageBuilder().Build() returned nil")
@@ -38,5 +44,8 @@ func TestFeedbackShortcuts(t *testing.T) {
 	}
 	if vnode := Clock(4); vnode.Tag() != "clock" {
 		t.Fatalf("Clock().Tag() = %q, want clock", vnode.Tag())
+	}
+	if vnode := CountdownTimer("Refresh", time.Minute); vnode.Tag() != "timer" {
+		t.Fatalf("CountdownTimer().Tag() = %q, want timer", vnode.Tag())
 	}
 }

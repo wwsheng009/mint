@@ -1,0 +1,58 @@
+# Timer
+
+`timer` is a Fiber-first timer and countdown display for operational TUI status.
+It is designed for auto-refresh countdowns, retry windows, uptime, SLA windows,
+and short async operation timers.
+
+## Capabilities
+
+- Elapsed mode: time since `StartedAt(...)`.
+- Countdown mode: time until `Deadline(...)` or `StartedAt(...) + Duration(...)`.
+- Live ticking through `TickableInstance`.
+- Static deterministic rendering with `Live(false)` or `Static()`.
+- Optional ASCII progress bar for countdown or bounded elapsed windows.
+- Semantic styles for normal, warning, and expired states.
+- Fixed width rendering for status bars and dense toolbars.
+- SDK entry through `ui.NewTimerBuilder()`.
+
+## Examples
+
+```go
+ui.NewTimerBuilder().
+    Label("Refresh").
+    Countdown(30 * time.Second).
+    ShowProgress(true).
+    Build()
+```
+
+```go
+ui.NewTimerBuilder().
+    Label("Uptime").
+    Elapsed().
+    StartedAt(startedAt).
+    Build()
+```
+
+```go
+ui.NewTimerBuilder().
+    Label("Retry").
+    Until(retryAfter).
+    WarningBelow(5 * time.Second).
+    ExpiredText("ready").
+    Width(18).
+    Build()
+```
+
+## Fiber-first shape
+
+- `VNode` is the immutable declarative description.
+- `Instance` owns runtime time state.
+- `Instance` implements `PaintableInstance` and `TickableInstance`.
+- No component state is stored in package globals.
+
+## Tests
+
+- Unit: `go test ./ui/components/timer`
+- SDK shortcut: `go test ./ui -run Timer`
+- E2E: `go test ./ui/e2e -run "^TestE2ETimer"`
+
