@@ -40,6 +40,31 @@ ui.NewTableBuilder().
 
 根包不提供 `ui.Table(...)` 快捷函数，因为该名字已被布局 helper 占用；表格请直接用 `ui.NewTableBuilder()`。
 
+## 数据应用快捷构造
+
+对于后台、运维、管理台一类常见表格，可以使用根包的 `ui.DataTable(...)` 快速配置分页、选择绑定、搜索、空态和标准高亮样式：
+
+```go
+tableView := ui.DataTable(
+    []ui.TableColumn{
+        {Title: "Provider", Width: 20},
+        {Title: "Status", Width: 12},
+    },
+    [][]string{
+        {"openai", "healthy"},
+        {"azure", "degraded"},
+    },
+    ui.DataTablePageSize(10),
+    ui.DataTableSelectedIndex(state.SelectedProviderIndex),
+    ui.DataTableSelectedField("selectedProviderIndex"),
+    ui.DataTableSearch(state.Search),
+    ui.DataTableEmptyText("No providers"),
+    ui.DataTableOperationalStyle(),
+)
+```
+
+如需扩展内置选项，可以实现 `ui.DataTableOption` 并修改公开的 `ui.DataTableConfig`。
+
 ## 测试入口
 
 - 单测：`go test ./ui/components/table`
