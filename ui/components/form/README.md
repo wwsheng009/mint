@@ -36,3 +36,52 @@ loginForm := ui.NewForm("loginForm").
 ```
 
 如果只需要快速把若干字段包进一个默认表单，也可以直接用 `ui.Form(...)`。
+
+## 输入项快捷构造
+
+常见业务表单可以通过 `ui` 包的 `FormInputItem`、`FormPasswordItem`、`FormSearchItem` 快速生成 `FormItem + Input + FieldBinding`，避免在每个页面重复拼装 label、输入框和字段绑定。
+
+```go
+loginForm := ui.NewForm("loginForm").
+    Label("Login").
+    Layout(ui.FormHorizontal).
+    AddChildren(
+        ui.FormInputItem(
+            "baseURL",
+            "Gateway URL",
+            state.BaseURL,
+            ui.FormInputPlaceholder("http://127.0.0.1:8080"),
+            ui.FormInputWidth(72),
+            ui.FormInputForForm("loginForm"),
+            ui.FormInputValidators(ui.Required()),
+        ),
+        ui.FormPasswordItem(
+            "token",
+            "Admin Token",
+            state.Token,
+            ui.FormInputWidth(72),
+            ui.FormInputForForm("loginForm"),
+        ),
+    )
+```
+
+可用选项包括：
+
+- `FormInputPlaceholder(text)`
+- `FormInputWidth(width)`
+- `FormInputType(inputType)`
+- `FormInputDisabled(disabled)`
+- `FormInputReadOnly(readOnly)`
+- `FormInputMaxLen(maxLen)`
+- `FormInputForForm(formID)`
+- `FormInputLayout(layout)`
+- `FormInputValidators(validators...)`
+
+如需扩展内置选项，可以实现 `FormInputItemOption` 并修改公开的 `FormInputItemConfig`：
+
+```go
+custom := func(cfg *ui.FormInputItemConfig) {
+    cfg.Placeholder = "name@example.com"
+    cfg.Validators = []ui.Validator{ui.Email()}
+}
+```
