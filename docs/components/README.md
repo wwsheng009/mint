@@ -13,6 +13,24 @@ Current source facts:
 - Common construction style is a fluent builder such as `button.NewBuilder("OK").Primary().OnPress(MyIntent{}).Build()`.
 - Interaction-oriented components generally emit `runtime/intent` intents rather than storing ad-hoc callbacks in the component tree.
 
+## Operational UI Toolkit Quick Map
+
+For admin consoles, monitoring dashboards and operations tools, the following
+Mint components are already available and should be preferred before building
+project-local equivalents:
+
+| Need | Components | Notes |
+|---|---|---|
+| Status footer / shortcut strip | `statusbar`, `toolbar.UseStatusBar(true)` | Left/center/right slots, fixed widths, hover help and overlay tooltip support. |
+| Page command bar | `toolbar`, `filterbar` | `Toolbar` supports text, badges, buttons, custom nodes and controlled dropdown menu entries backed by `menu.Popup`. |
+| Menus | `menu` | Menu bar, popup, context menu, cascading submenu, shortcuts, typeahead, placement fallback and outside-click/ESC close middleware. |
+| Bounded forms | `formdialog`, `form`, `forminputitem` | Use for short create/edit/audit-reason workflows that should preserve table context. |
+| Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks. |
+| Transfer selection | `transfer` | Dual-list transfer with source/target search, controlled or uncontrolled target keys, field binding and change intents. |
+| Progress and loading | `progress`, `spin`, `skeleton`, `result`, `toast`, `notification` | `Progress` supports line/block/circle/dashboard, active and indeterminate states. |
+| Time state | `timer`, `clock` | Use `timer` for elapsed/countdown/auto-refresh/retry windows with optional ASCII progress. |
+| Simple terminal charts | `charts/sparkline`, `charts/barchart`, `charts/linechart`, `charts/bulletchart`, `charts/heatmap`, `charts/scatterplot`, `charts/candlestick` | Use `sparkline.ASCII()` for simple ASCII trends; use bullet/bar/line/heatmap for compact monitoring views. |
+
 ## Source Layout
 
 ```

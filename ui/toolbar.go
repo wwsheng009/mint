@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	menucomp "github.com/wwsheng009/mint/ui/components/menu"
 	"github.com/wwsheng009/mint/ui/components/toolbar"
 )
 
@@ -15,6 +16,7 @@ const (
 	ToolbarItemText      = toolbar.ItemText
 	ToolbarItemBadge     = toolbar.ItemBadge
 	ToolbarItemButton    = toolbar.ItemButton
+	ToolbarItemMenu      = toolbar.ItemMenu
 	ToolbarItemSeparator = toolbar.ItemSeparator
 	ToolbarItemCustom    = toolbar.ItemCustom
 )
@@ -42,6 +44,11 @@ func ToolbarBadge(key, label string) toolbar.Item {
 // ToolbarButton creates a command toolbar item.
 func ToolbarButton(key, label string, pressIntent intent.Intent) toolbar.Item {
 	return toolbar.Button(key, label, pressIntent)
+}
+
+// ToolbarDropdown creates a controlled toolbar menu item.
+func ToolbarDropdown(key, label string, items []menucomp.MenuItem, open bool) toolbar.Item {
+	return toolbar.Dropdown(key, label, items, open)
 }
 
 // ToolbarSeparator creates a toolbar separator item.

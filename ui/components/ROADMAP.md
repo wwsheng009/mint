@@ -10,9 +10,9 @@
 
 ---
 
-## 当前组件清单（58 个目录 + 1 个内置 Scrollbar）
+## 当前组件清单（71 个目录 + 1 个内置 Scrollbar）
 
-> 排除 `docs/` 与 `internal/` 后，当前共有 58 个组件/支撑目录；其中 54 个严格遵循 `builder.go + vnode.go + instance.go` 结构，`toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块。
+> 排除 `docs/` 与 `internal/` 后，当前共有 71 个组件/支撑目录；多数交互组件遵循 `builder.go + vnode.go + instance.go` 或等价 Fiber-first 结构，`toast`、`statusbar`、`control`、`validation` 等属于 manager / 组合式 / 基础设施特例。
 
 | 组件 | 目录 | 完整度 | 说明 |
 |------|------|--------|------|
@@ -35,7 +35,7 @@
 | DatePicker | `datepicker/` | ★★★☆☆ | 日期选择，支持 `YYYY-MM-DD` 输入、弹出月视图、键盘/鼠标导航、Field/Form 绑定 |
 | TimePicker | `timepicker/` | ★★★☆☆ | 时间选择，支持 `HH:mm` 输入、弹出时间面板、键盘/鼠标导航、Field/Form 绑定 |
 | Cascader | `cascader/` | ★★★☆☆ | 级联选择，支持层级数据、列式展开、键盘/鼠标导航、叶子提交、`changeOnSelect`、Field/Form 绑定 |
-| Transfer | `transfer/` | ★★★☆☆ | 穿梭框，支持双列表迁移、`targetKeys` 受控/非受控、禁用项过滤、Field/Form 绑定 |
+| Transfer | `transfer/` | ★★★☆☆ | 穿梭框，支持双列表迁移、源/目标搜索过滤、`targetKeys` 受控/非受控、禁用项过滤、Field/Form 绑定 |
 | OptionGroup | `optiongroup/` | ★★★☆☆ | 选项组，支持 radio/checkbox 模式 |
 | Form | `form/` | ★★★★☆ | 表单容器，submit/reset intent，已补 FormItem、layout、validator 联动，以及 touched/dirty/submitted/submitCount 等字段状态 |
 | Table | `table/` | ★★★★☆ | 排序、分页、过滤、多选、搜索、滚动，已补 expandable 行、固定列与树形数据 |
@@ -56,9 +56,12 @@
 | Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★★☆ | 已支持 12 方位 placement、auto/显式回退、viewport clamp、delay、layer，且定位 helper 已开始被其他 overlay 复用 |
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
-| Progress | `progress/` | ★★★☆☆ | 线形/圆形/仪表盘进度条，status（normal/success/exception/active），showPercent，`active` tick 动画 |
+| Progress | `progress/` | ★★★☆☆ | line/block/circle/dashboard 进度条，status（normal/success/exception/active），showPercent，`active` 与 indeterminate 动画 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含 help、section 内部组件；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含三槽 section、固定宽度、交互 section、help/tooltip；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
+| Toolbar | `toolbar/` | ★★★☆☆ | 运维/数据页工具栏，支持 left/center/right 槽、title、button/badge/custom/statusbar 模式，以及受控 dropdown menu |
+| Timer | `timer/` | ★★★☆☆ | elapsed/countdown/retry/auto-refresh 计时展示，支持 live ticking、静态渲染、固定宽度和 ASCII progress |
+| Charts | `charts/` | ★★★★☆ | 图表组件族，包含 sparkline、bar、line、bullet、heatmap、scatter、candlestick；sparkline 支持 ASCII 模式 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
 | Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、viewport-aware fallback/clamp、local open intents，以及 Install 后的 ESC / outside-click 收口 |
 | Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、viewport-aware fallback/clamp、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |

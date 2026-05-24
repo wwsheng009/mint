@@ -3,8 +3,10 @@ package toolbar
 import (
 	"testing"
 
+	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	menucomp "github.com/wwsheng009/mint/ui/components/menu"
 )
 
 type testIntent struct {
@@ -115,6 +117,88 @@ func TestRuntimeChildrenBuildStatusBarMode(t *testing.T) {
 	}
 	if findVNodeByKey(root, "ops-status-right-help") == nil {
 		t.Fatal("statusbar help action not found")
+	}
+}
+
+func TestRuntimeChildrenBuildControlledDropdownMenu(t *testing.T) {
+	items := []menucomp.MenuItem{
+		menucomp.Action("reload", "Reload", testIntent{"reload"}),
+		menucomp.Action("inspect", "Inspect", testIntent{"inspect"}).WithDescription("Open diagnostics"),
+	}
+	inst := NewBuilder().
+		Key("ops-toolbar").
+		Right(Dropdown("more", "More", items, true).
+			WithMenuID("ops-actions").
+			WithMenuPlacement(menucomp.PlacementBottomEnd).
+			WithMenuMinWidth(24).
+			WithMenuMaxHeight(8).
+			WithMenuDescriptions(true)).
+		BuildInstance()
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	root := children[0]
+	if root.Tag() != "fragment" {
+		t.Fatalf("root tag = %q, want fragment when dropdown is open", root.Tag())
+	}
+	buttonNode := findVNodeByKey(root, "ops-toolbar-right-more")
+	if buttonNode == nil {
+		t.Fatal("dropdown button not found")
+	}
+	if buttonNode.ID() != "ops-toolbar-right-more" {
+		t.Fatalf("dropdown button ID = %q, want anchorable ID", buttonNode.ID())
+	}
+	pressIntent, ok := buttonNode.Props()["pressIntent"].(menucomp.OpenMenuIntent)
+	if !ok {
+		t.Fatalf("press intent = %T, want menu.OpenMenuIntent", buttonNode.Props()["pressIntent"])
+	}
+	if pressIntent.MenuID != "ops-actions" {
+		t.Fatalf("OpenMenuIntent.MenuID = %q, want ops-actions", pressIntent.MenuID)
+	}
+
+	portal := findVNodeByKey(root, "ops-actions-portal")
+	if portal == nil {
+		t.Fatal("dropdown menu portal not found")
+	}
+	if got, _ := portal.Props()["anchorId"].(string); got != "ops-toolbar-right-more" {
+		t.Fatalf("portal anchorId = %q, want toolbar button ID", got)
+	}
+	if got, _ := portal.Props()["anchor"].(rttypes.Anchor); got != rttypes.AnchorBottomRight {
+		t.Fatalf("portal anchor = %v, want AnchorBottomRight", got)
+	}
+	if got, _ := portal.Props()["popupPlacement"].(string); got != string(menucomp.PlacementBottomEnd) {
+		t.Fatalf("popupPlacement = %q, want bottom-end", got)
+	}
+}
+
+func TestDropdownClosedOnlyRendersButton(t *testing.T) {
+	inst := NewBuilder().
+		Key("ops-toolbar").
+		Right(Dropdown("more", "More", []menucomp.MenuItem{
+			menucomp.Action("reload", "Reload", testIntent{"reload"}),
+		}, false)).
+		BuildInstance()
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	root := children[0]
+	if root.Tag() != "hstack" {
+		t.Fatalf("root tag = %q, want hstack when dropdown is closed", root.Tag())
+	}
+	buttonNode := findVNodeByKey(root, "ops-toolbar-right-more")
+	if buttonNode == nil {
+		t.Fatal("dropdown button not found")
+	}
+	pressIntent, ok := buttonNode.Props()["pressIntent"].(menucomp.OpenMenuIntent)
+	if !ok {
+		t.Fatalf("press intent = %T, want menu.OpenMenuIntent", buttonNode.Props()["pressIntent"])
+	}
+	if pressIntent.MenuID != "ops-toolbar-right-more-menu" {
+		t.Fatalf("OpenMenuIntent.MenuID = %q, want generated menu id", pressIntent.MenuID)
 	}
 }
 

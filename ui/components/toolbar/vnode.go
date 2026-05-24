@@ -7,8 +7,10 @@ import (
 
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
+	rttypes "github.com/wwsheng009/mint/runtime/types"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	menucomp "github.com/wwsheng009/mint/ui/components/menu"
 )
 
 const (
@@ -34,6 +36,7 @@ const (
 	ItemText      ItemKind = "text"
 	ItemBadge     ItemKind = "badge"
 	ItemButton    ItemKind = "button"
+	ItemMenu      ItemKind = "menu"
 	ItemSeparator ItemKind = "separator"
 	ItemCustom    ItemKind = "custom"
 )
@@ -52,6 +55,16 @@ type Item struct {
 	BgColor     string
 	Bold        bool
 	Custom      rtui.VNode
+
+	MenuID               string
+	MenuItems            []menucomp.MenuItem
+	MenuOpen             bool
+	MenuPlacement        menucomp.Placement
+	MenuActivePath       []int
+	MenuMinWidth         int
+	MenuMaxHeight        int
+	MenuShowShortcuts    bool
+	MenuShowDescriptions bool
 }
 
 // VNode is the declarative description of a Toolbar.
@@ -271,6 +284,29 @@ func Button(key, label string, pressIntent intent.Intent) Item {
 	return Item{Key: key, Label: label, Kind: ItemButton, PressIntent: pressIntent}
 }
 
+// Dropdown creates a toolbar button that can render an anchored menu popup.
+//
+// The open flag is intentionally controlled by the application state. Pressing
+// the dropdown emits menu.OpenMenuIntent by default; reducers should set
+// MenuOpen(true) on the next render and close it through the existing menu
+// close/outside-click flow.
+func Dropdown(key, label string, items []menucomp.MenuItem, open bool) Item {
+	return Item{
+		Key:               key,
+		Label:             label,
+		Kind:              ItemMenu,
+		MenuItems:         menucomp.NormalizeItems(items),
+		MenuOpen:          open,
+		MenuPlacement:     menucomp.PlacementBottomStart,
+		MenuShowShortcuts: true,
+	}
+}
+
+// Menu is an alias for Dropdown.
+func Menu(key, label string, items []menucomp.MenuItem, open bool) Item {
+	return Dropdown(key, label, items, open)
+}
+
 // Separator creates a visual separator item.
 func Separator(key string) Item {
 	return Item{Key: key, Kind: ItemSeparator}
@@ -364,6 +400,54 @@ func (i Item) WithBold(bold bool) Item {
 	return i
 }
 
+func (i Item) WithMenuID(menuID string) Item {
+	i.MenuID = strings.TrimSpace(menuID)
+	return i
+}
+
+func (i Item) WithMenuItems(items []menucomp.MenuItem) Item {
+	i.MenuItems = menucomp.NormalizeItems(items)
+	if i.Kind == "" || i.Kind == ItemText || i.Kind == ItemButton {
+		i.Kind = ItemMenu
+	}
+	return i
+}
+
+func (i Item) WithMenuOpen(open bool) Item {
+	i.MenuOpen = open
+	return i
+}
+
+func (i Item) WithMenuPlacement(placement menucomp.Placement) Item {
+	i.MenuPlacement = placement
+	return i
+}
+
+func (i Item) WithMenuActivePath(path ...int) Item {
+	i.MenuActivePath = append([]int(nil), path...)
+	return i
+}
+
+func (i Item) WithMenuMinWidth(width int) Item {
+	i.MenuMinWidth = width
+	return i
+}
+
+func (i Item) WithMenuMaxHeight(height int) Item {
+	i.MenuMaxHeight = height
+	return i
+}
+
+func (i Item) WithMenuShortcuts(show bool) Item {
+	i.MenuShowShortcuts = show
+	return i
+}
+
+func (i Item) WithMenuDescriptions(show bool) Item {
+	i.MenuShowDescriptions = show
+	return i
+}
+
 func normalizeItems(items []Item) []Item {
 	if len(items) == 0 {
 		return nil
@@ -388,7 +472,7 @@ func normalizeItems(items []Item) []Item {
 			normalized[index].Kind = ItemText
 		}
 		switch normalized[index].Kind {
-		case ItemText, ItemBadge, ItemButton, ItemSeparator, ItemCustom:
+		case ItemText, ItemBadge, ItemButton, ItemMenu, ItemSeparator, ItemCustom:
 		default:
 			normalized[index].Kind = ItemText
 		}
@@ -397,6 +481,18 @@ func normalizeItems(items []Item) []Item {
 		}
 		normalized[index].Label = normalizeToolbarText(normalized[index].Label)
 		normalized[index].HelpText = normalizeToolbarText(normalized[index].HelpText)
+		normalized[index].MenuID = strings.TrimSpace(normalized[index].MenuID)
+		normalized[index].MenuItems = menucomp.NormalizeItems(normalized[index].MenuItems)
+		normalized[index].MenuActivePath = append([]int(nil), normalized[index].MenuActivePath...)
+		if normalized[index].MenuPlacement == "" {
+			normalized[index].MenuPlacement = menucomp.PlacementBottomStart
+		}
+		if normalized[index].MenuMinWidth < 0 {
+			normalized[index].MenuMinWidth = 0
+		}
+		if normalized[index].MenuMaxHeight < 0 {
+			normalized[index].MenuMaxHeight = 0
+		}
 	}
 	return normalized
 }
@@ -412,4 +508,17 @@ func cloneItems(items []Item) []Item {
 
 func normalizeToolbarText(content string) string {
 	return strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ").Replace(content)
+}
+
+func menuAnchorForPlacement(placement menucomp.Placement) rttypes.Anchor {
+	switch placement {
+	case menucomp.PlacementTopStart, menucomp.PlacementTopEnd:
+		return rttypes.AnchorTopLeft
+	case menucomp.PlacementRightStart:
+		return rttypes.AnchorTopRight
+	case menucomp.PlacementLeftStart:
+		return rttypes.AnchorTopLeft
+	default:
+		return rttypes.AnchorBottomLeft
+	}
 }

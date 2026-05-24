@@ -9,9 +9,9 @@
 
 `ui/components/` 已经不是“骨架期”，而是“主体组件面已经补齐，后续以文档和局部增强收口为主”的状态。
 
-- 当前共有 58 个组件/支撑目录
-- 其中 54 个严格遵循 `builder.go + vnode.go + instance.go` 规范
-- `toast`、`statusbar`、`control`、`validation` 属于特例或基础设施模块
+- 当前共有 71 个组件/支撑目录
+- 多数组件严格遵循 `builder.go + vnode.go + instance.go` 或等价 Fiber-first 结构
+- `toast`、`statusbar`、`control`、`validation` 属于 manager / 组合式 / 基础设施特例
 - `go test ./ui/components/...` 与 `go test ./ui/e2e/...` 当前可通过；无测试文件的包已不再是主要矛盾，重点已转向高风险交互与跨组件回归
 
 ---
@@ -29,7 +29,7 @@
 
 ### 第二梯队
 
-- `button/`、`input/`、`checkbox/`、`collapse/`、`descriptions/`、`statistic/`、`popover/`、`popconfirm/`、`timeline/`、`result/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/` 已具备稳定可用的 API 与测试基础
+- `button/`、`input/`、`checkbox/`、`collapse/`、`descriptions/`、`statistic/`、`popover/`、`popconfirm/`、`timeline/`、`result/`、`modal/`、`tabs/`、`list/`、`notification/`、`toast/`、`tooltip/`、`grid/`、`panel/`、`statusbar/`、`toolbar/`、`timer/`、`progress/`、`transfer/` 和 `charts/*` 已具备稳定可用的 API 与测试基础
 - `tooltip/` 的实际能力已经超过旧路线图，当前支持 12 方位 placement、候选回退、viewport clamp、delay 和 layer，且定位计算已下沉到内部 helper
 - `statusbar/` 采用“builder + section/help 内部组件”的组合式路线，不是传统单组件目录
 

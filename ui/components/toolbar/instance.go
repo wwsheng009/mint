@@ -8,6 +8,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	menucomp "github.com/wwsheng009/mint/ui/components/menu"
 	"github.com/wwsheng009/mint/ui/components/statusbar"
 	"github.com/wwsheng009/mint/ui/components/tag"
 	"github.com/wwsheng009/mint/ui/components/text"
@@ -157,7 +158,16 @@ func (inst *Instance) buildToolbarRow() rtui.VNode {
 		root.SetStyleProps(inst.rootStyle)
 	}
 	root.SetKey(inst.rootKey())
-	return root.Build()
+	row := root.Build()
+
+	overlays := inst.buildMenuOverlays()
+	if len(overlays) == 0 {
+		return row
+	}
+	nodes := make([]rtui.VNode, 0, 1+len(overlays))
+	nodes = append(nodes, row)
+	nodes = append(nodes, overlays...)
+	return rtui.Fragment(nodes...)
 }
 
 func (inst *Instance) buildTitle() rtui.VNode {
@@ -188,6 +198,8 @@ func (inst *Instance) buildItems(items []Item, slot string) []rtui.VNode {
 
 func (inst *Instance) buildItem(item Item, slot string) rtui.VNode {
 	switch item.Kind {
+	case ItemMenu:
+		return inst.buildMenuButton(item, slot)
 	case ItemButton:
 		return inst.buildButton(item, slot)
 	case ItemBadge:
@@ -226,6 +238,7 @@ func (inst *Instance) buildButton(item Item, slot string) rtui.VNode {
 	}
 	builder := button.NewBuilder(item.Label).
 		Key(inst.itemKey(slot, item)).
+		SetID(inst.itemKey(slot, item)).
 		Variant(item.Variant).
 		Disabled(item.Disabled)
 	if inst.dense {
@@ -238,6 +251,54 @@ func (inst *Instance) buildButton(item Item, slot string) rtui.VNode {
 		builder.Style(inst.explicitItemStyle(item))
 	}
 	return inst.wrapWidthIfNeeded(item, slot, builder.Build())
+}
+
+func (inst *Instance) buildMenuButton(item Item, slot string) rtui.VNode {
+	if strings.TrimSpace(item.Label) == "" {
+		return nil
+	}
+	pressIntent := item.PressIntent
+	if pressIntent == nil {
+		pressIntent = menucomp.OpenMenuIntent{MenuID: inst.menuID(slot, item)}
+	}
+	return inst.buildButton(item.OnPress(pressIntent), slot)
+}
+
+func (inst *Instance) buildMenuOverlays() []rtui.VNode {
+	overlays := make([]rtui.VNode, 0)
+	for _, entry := range []struct {
+		slot  string
+		items []Item
+	}{
+		{"left", inst.leftItems},
+		{"center", inst.centerItems},
+		{"right", inst.rightItems},
+	} {
+		for _, item := range entry.items {
+			if item.Kind != ItemMenu || !item.MenuOpen || len(item.MenuItems) == 0 {
+				continue
+			}
+			overlay := menucomp.NewPopup(item.MenuItems).
+				Key(inst.menuID(entry.slot, item)).
+				ComponentID(inst.menuID(entry.slot, item)).
+				Open(true).
+				AnchorTo(inst.itemKey(entry.slot, item), menuAnchorForPlacement(item.MenuPlacement)).
+				Placement(item.MenuPlacement).
+				ShowShortcuts(item.MenuShowShortcuts).
+				ShowDescriptions(item.MenuShowDescriptions)
+			if len(item.MenuActivePath) > 0 {
+				overlay.ActivePath(item.MenuActivePath...)
+			}
+			if item.MenuMinWidth > 0 {
+				overlay.MinWidth(item.MenuMinWidth)
+			}
+			if item.MenuMaxHeight > 0 {
+				overlay.MaxHeight(item.MenuMaxHeight)
+			}
+			overlays = append(overlays, overlay.Build())
+		}
+	}
+	return overlays
 }
 
 func (inst *Instance) buildStatusBar() rtui.VNode {
@@ -303,8 +364,12 @@ func (inst *Instance) itemToSection(item Item, slot string) (statusbar.Section, 
 	switch item.Kind {
 	case ItemBadge:
 		section = statusbar.Badge(label, firstNonEmpty(item.FgColor, "black"), firstNonEmpty(item.BgColor, "bright-black"))
-	case ItemButton:
-		section = statusbar.ActionText(label, item.PressIntent)
+	case ItemButton, ItemMenu:
+		pressIntent := item.PressIntent
+		if item.Kind == ItemMenu && pressIntent == nil {
+			pressIntent = menucomp.OpenMenuIntent{MenuID: inst.menuID(slot, item)}
+		}
+		section = statusbar.ActionText(label, pressIntent)
 	default:
 		section = statusbar.Text(label)
 	}
@@ -384,6 +449,13 @@ func (inst *Instance) childKey(suffix string) string {
 
 func (inst *Instance) itemKey(slot string, item Item) string {
 	return inst.childKey(slot + "-" + item.Key)
+}
+
+func (inst *Instance) menuID(slot string, item Item) string {
+	if strings.TrimSpace(item.MenuID) != "" {
+		return item.MenuID
+	}
+	return inst.itemKey(slot, item) + "-menu"
 }
 
 func (inst *Instance) normalize() {

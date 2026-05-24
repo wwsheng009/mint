@@ -161,3 +161,89 @@ func TestE2EToolbarStatusBarHelpOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func newToolbarDropdownApp(open bool) ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(1).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Toolbar Dropdown E2E Fixture").Build(),
+				toolbarcomp.NewBuilder().
+					Key("ops-toolbar-dropdown").
+					Title("Runtime").
+					Width(72).
+					Right(toolbarcomp.Dropdown("actions", "Actions", ui.MenuItems(
+						ui.MenuAction("reload", "Reload Runtime", toolbarTestIntent{"toolbar.reload"}).WithDescription("Reload runtime configuration"),
+						ui.MenuAction("diagnostics", "Open Diagnostics", toolbarTestIntent{"toolbar.diagnostics"}),
+					), open).
+						WithMenuID("runtime-actions").
+						WithMenuPlacement(ui.MenuPlacementBottomStart).
+						WithMenuDescriptions(true)).
+					Build(),
+				ui.NewTextBuilder("Workspace body").Build(),
+			})
+	}
+}
+
+func TestE2EToolbarDropdownMenuRendersAnchoredPopup(t *testing.T) {
+	app, err := Run(newToolbarDropdownApp(true), ui.WithSize(88, 18))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, text := range []string{"Toolbar Dropdown E2E Fixture", "Runtime", "Actions", "Reload Runtime", "Open Diagnostics"} {
+		if err := app.AssertVisible(ByText(text)); err != nil {
+			t.Fatalf("expected %q to be visible: %v", text, err)
+		}
+	}
+
+	buttonPoint, err := app.ResolvePoint(ByText("Actions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	menuPoint, err := app.ResolvePoint(ByText("Reload Runtime"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if menuPoint.Y <= buttonPoint.Y {
+		t.Fatalf("expected dropdown menu below toolbar button, got buttonY=%d menuY=%d", buttonPoint.Y, menuPoint.Y)
+	}
+}
+
+func TestE2EToolbarDropdownDispatchesOpenIntent(t *testing.T) {
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters,
+			rt.Register("menu.open", intent.HandlerFunc(func(_ *intent.ActionContext, _ intent.Intent) intent.IntentResult {
+				return intent.HandledResult()
+			})),
+		)
+	}
+	defer func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			unregisters[i]()
+		}
+	}()
+
+	app, err := Run(newToolbarDropdownApp(false), ui.WithSize(88, 18), ui.WithInit(initFn))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByKey("ops-toolbar-dropdown-right-actions")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent("menu.open", 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled("menu.open"); err != nil {
+		t.Fatal(err)
+	}
+}
