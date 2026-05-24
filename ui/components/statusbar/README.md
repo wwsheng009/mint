@@ -24,6 +24,7 @@
 - Overlay arrow themes: `TooltipArrowStyleSharp` / `TooltipArrowStyleRounded`
 - 主题默认值：`Theme(...)` 可为未显式着色的节提供统一样式
 - 外层留白：`Padding(...)` 可用于和正文区域分隔
+- 运维语义预设：`KeyValue(...)`、`MutedKeyValue(...)`、`StateBadge(...)`、`BusyBadge(...)`、`ErrorBadge(...)` 可直接构造 endpoint、selection、同步状态、运行中和错误状态等常见状态栏片段
 
 ## Section API
 
@@ -51,6 +52,11 @@ statusbar.Badge(" INSERT ", "black", "green")
 statusbar.ActionBadge(" SAVE ", "black", "green", SaveIntent{})
 statusbar.Text("Long path").WithWidth(12).WithEllipsis()
 statusbar.Text("Details").OnPress(OpenDetailIntent{}).WithHelp("Open detail panel")
+statusbar.KeyValue("endpoint", "http://localhost:8080").WithWidth(36).WithEllipsis()
+statusbar.MutedKeyValue("selection", "-").WithWidth(24)
+statusbar.StateBadge("healthy")
+statusbar.BusyBadge("loading")
+statusbar.ErrorBadge("failed")
 ```
 
 ### Section 链式方法
@@ -69,6 +75,25 @@ statusbar.Text("Details").OnPress(OpenDetailIntent{}).WithHelp("Open detail pane
 - `WithKey(string)`
 - `WithHelp(text)`
 - `WithTooltip(text)`
+
+### 运维语义预设
+
+```go
+statusbar.StateBadge("healthy")         // black / green
+statusbar.StateBadge("pending_restart") // black / yellow
+statusbar.StateBadge("failed")          // white / red
+statusbar.StateBadge("syncing")         // black / cyan
+statusbar.KeyValue("last sync", "12:34:56").WithWidth(22)
+statusbar.MutedKeyValue("selection", "-").WithWidth(18)
+```
+
+默认状态映射：
+
+- `healthy` / `active` / `available` / `effective` / `enabled` / `ready` / `running` / `in_sync` -> normal
+- `degraded` / `rate_limited` / `pending_restart` / `pending` / `warning` / `lagging` / `reloading` -> warn
+- `unhealthy` / `disabled` / `unauthorized` / `unavailable` / `failed` / `error` / `blocked` / `out_of_sync` -> error
+- `processing` / `loading` / `syncing` / `refreshing` -> info
+- 未识别状态 -> neutral
 
 ## Theme API
 
@@ -165,6 +190,16 @@ bar := ui.StatusBarWithHelpMode(
         ui.StatusBarActionBadge(" TERM ", "bright-white", "bright-black", SetModeIntent{Mode: "terminal_selection"}).WithHelp("Native terminal selection mode"),
     ),
 )
+```
+
+运维快捷片段也通过 `ui` 暴露：
+
+```go
+ui.StatusBarStateBadge("degraded")
+ui.StatusBarKeyValue("endpoint", "http://localhost:8080")
+ui.StatusBarMutedKeyValue("selection", "-")
+ui.StatusBarBusyBadge("loading")
+ui.StatusBarErrorBadge("failed")
 ```
 
 ## 适用场景

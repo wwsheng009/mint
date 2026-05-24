@@ -412,6 +412,7 @@ const (
 type (
 	StatusBarSection           = statusbar.Section
 	StatusBarTheme             = statusbar.Theme
+	StatusBarTone              = statusbar.Tone
 	StatusBarOverflow          = statusbar.OverflowMode
 	StatusBarHelpDisplay       = statusbar.HelpDisplayMode
 	StatusBarTooltipPlacement  = statusbar.TooltipPlacement
@@ -419,6 +420,12 @@ type (
 )
 
 const (
+	StatusBarToneNormal  = statusbar.ToneNormal
+	StatusBarToneWarn    = statusbar.ToneWarn
+	StatusBarToneError   = statusbar.ToneError
+	StatusBarToneNeutral = statusbar.ToneNeutral
+	StatusBarToneInfo    = statusbar.ToneInfo
+
 	StatusBarOverflowEllipsis = statusbar.OverflowEllipsis
 	StatusBarOverflowClip     = statusbar.OverflowClip
 
@@ -998,6 +1005,36 @@ func StatusBarActionBadge(content, fgColor, bgColor string, pressIntent intent.I
 // StatusBarHelp creates a help/tooltip text for a section.
 func StatusBarHelp(section statusbar.Section, helpText string) statusbar.Section {
 	return section.WithHelp(helpText)
+}
+
+// StatusBarKeyValue creates a compact "label: value" status bar section.
+func StatusBarKeyValue(label, value string) statusbar.Section {
+	return statusbar.KeyValue(label, value)
+}
+
+// StatusBarMutedKeyValue creates a low-emphasis "label: value" status bar section.
+func StatusBarMutedKeyValue(label, value string) statusbar.Section {
+	return statusbar.MutedKeyValue(label, value)
+}
+
+// StatusBarStateBadge creates a semantic operational status badge section.
+func StatusBarStateBadge(status string) statusbar.Section {
+	return statusbar.StateBadge(status)
+}
+
+// StatusBarBusyBadge creates a warning-colored status section for running operations.
+func StatusBarBusyBadge(label string) statusbar.Section {
+	return statusbar.BusyBadge(label)
+}
+
+// StatusBarErrorBadge creates an error-colored status section.
+func StatusBarErrorBadge(label string) statusbar.Section {
+	return statusbar.ErrorBadge(label)
+}
+
+// StatusBarDefaultTone maps common operational statuses to status bar tones.
+func StatusBarDefaultTone(status string) statusbar.Tone {
+	return statusbar.DefaultTone(status)
 }
 
 // StatusBarThemeDefault returns the default status bar theme.

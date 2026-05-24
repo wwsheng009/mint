@@ -58,7 +58,7 @@
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
 | Progress | `progress/` | ★★★☆☆ | line/block/circle/dashboard 进度条，status（normal/success/exception/active），showPercent，`active` 与 indeterminate 动画 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
-| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含三槽 section、固定宽度、交互 section、help/tooltip；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
+| StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含三槽 section、固定宽度、交互 section、help/tooltip、运维语义预设；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
 | Toolbar | `toolbar/` | ★★★☆☆ | 运维/数据页工具栏，支持 left/center/right 槽、title、button/badge/custom/statusbar 模式，以及受控 dropdown menu |
 | Timer | `timer/` | ★★★☆☆ | elapsed/countdown/retry/auto-refresh 计时展示，支持 live ticking、静态渲染、固定宽度和 ASCII progress |
 | Charts | `charts/` | ★★★★☆ | 图表组件族，包含 sparkline、bar、line、bullet、heatmap、scatter、candlestick；sparkline 与 barchart 支持 ASCII 模式 |

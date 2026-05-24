@@ -126,3 +126,42 @@ func TestStatusBarTooltipArrowAliases(t *testing.T) {
 		t.Fatalf("theme arrow style = %v, want %v", theme.TooltipArrowStyle, StatusBarTooltipArrowRounded)
 	}
 }
+
+func TestStatusBarOperationalShortcutPresets(t *testing.T) {
+	if StatusBarDefaultTone("healthy") != StatusBarToneNormal {
+		t.Fatalf("healthy tone = %q", StatusBarDefaultTone("healthy"))
+	}
+	if StatusBarDefaultTone("pending_restart") != StatusBarToneWarn {
+		t.Fatalf("pending tone = %q", StatusBarDefaultTone("pending_restart"))
+	}
+	if StatusBarDefaultTone("failed") != StatusBarToneError {
+		t.Fatalf("failed tone = %q", StatusBarDefaultTone("failed"))
+	}
+	if StatusBarDefaultTone("syncing") != StatusBarToneInfo {
+		t.Fatalf("syncing tone = %q", StatusBarDefaultTone("syncing"))
+	}
+	if StatusBarDefaultTone("custom") != StatusBarToneNeutral {
+		t.Fatalf("custom tone = %q", StatusBarDefaultTone("custom"))
+	}
+
+	kv := StatusBarKeyValue("endpoint", "http://localhost:8080")
+	if kv.Text != "endpoint: http://localhost:8080" {
+		t.Fatalf("key value text = %q", kv.Text)
+	}
+	muted := StatusBarMutedKeyValue("selection", "-")
+	if muted.FgColor != "bright-black" {
+		t.Fatalf("muted fg = %q", muted.FgColor)
+	}
+	state := StatusBarStateBadge("degraded")
+	if state.BgColor != "yellow" {
+		t.Fatalf("state bg = %q", state.BgColor)
+	}
+	busy := StatusBarBusyBadge("")
+	if busy.Text != " busy " {
+		t.Fatalf("busy text = %q", busy.Text)
+	}
+	err := StatusBarErrorBadge("failed")
+	if err.BgColor != "red" {
+		t.Fatalf("error bg = %q", err.BgColor)
+	}
+}
