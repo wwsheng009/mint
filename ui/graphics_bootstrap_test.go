@@ -99,7 +99,7 @@ func TestProbeGraphicsBootstrap_InlineImageEnvWithoutVerifiedTerminalFallsBackTo
 func TestProbeGraphicsBootstrap_SixelEnvInstallsPresenter(t *testing.T) {
 	t.Setenv("MINT_GRAPHICS", "sixel")
 	t.Setenv("MINT_CELL_PIXELS", "8x16")
-	t.Setenv("MINT_GRAPHICS_ALLOW_TERMINAL_FRAME", "1")
+	t.Setenv("MINT_GRAPHICS_ALLOW_TERMINAL_FRAME", "")
 	t.Setenv("MINT_GRAPHICS_ALLOW_UNVERIFIED_INLINE_IMAGE", "")
 	t.Setenv("WT_SESSION", "")
 
@@ -118,22 +118,25 @@ func TestProbeGraphicsBootstrap_SixelEnvInstallsPresenter(t *testing.T) {
 	}
 }
 
-func TestProbeGraphicsBootstrap_SixelEnvDisabledWithoutExplicitAllow(t *testing.T) {
-	t.Setenv("MINT_GRAPHICS", "sixel")
+func TestProbeGraphicsBootstrap_AutoWindowsTerminalInstallsSixelPresenterByDefault(t *testing.T) {
+	t.Setenv("MINT_GRAPHICS", "auto")
 	t.Setenv("MINT_CELL_PIXELS", "8x16")
 	t.Setenv("MINT_GRAPHICS_ALLOW_TERMINAL_FRAME", "")
 	t.Setenv("MINT_GRAPHICS_ALLOW_UNVERIFIED_INLINE_IMAGE", "")
-	t.Setenv("WT_SESSION", "")
+	t.Setenv("WT_SESSION", "demo-session")
 
 	caps, presenter := probeGraphicsBootstrap(io.Discard)
-	if caps.Mode != runtimeplatform.GraphicsModeNone {
-		t.Fatalf("caps.Mode = %v, want none when terminal-frame is disabled", caps.Mode)
+	if caps.Mode != runtimeplatform.GraphicsModeSixel {
+		t.Fatalf("caps.Mode = %v, want sixel for windows terminal", caps.Mode)
 	}
-	if caps.ProbeSource != "terminal-frame-disabled" {
-		t.Fatalf("caps.ProbeSource = %q, want terminal-frame-disabled", caps.ProbeSource)
+	if !caps.HasReliableGraphics() {
+		t.Fatalf("caps.Reliable = %v, want true", caps.Reliable)
 	}
-	if presenter != nil {
-		t.Fatalf("presenter = %T, want nil when terminal-frame is disabled", presenter)
+	if presenter == nil {
+		t.Fatal("presenter = nil, want sixel presenter")
+	}
+	if _, ok := presenter.(*runtimeplatform.SixelGraphicsPresenter); !ok {
+		t.Fatalf("presenter type = %T, want *SixelGraphicsPresenter", presenter)
 	}
 }
 

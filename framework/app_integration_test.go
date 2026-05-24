@@ -1492,7 +1492,7 @@ func TestApp_Render_NonDeletableGraphicsSameLayoutDoesNotClearBetweenFrames(t *t
 		t.Fatalf("clear calls = %d, want 0 for same-layout rerender", presenter.clearCalls)
 	}
 	if presenter.presentCalls != 2 {
-		t.Fatalf("present calls = %d, want 2 for same-layout rerender", presenter.presentCalls)
+		t.Fatalf("present calls = %d, want 2 for terminal-frame same-layout rerender", presenter.presentCalls)
 	}
 	if !app.graphicsImagesOn {
 		t.Fatal("expected graphicsImagesOn to remain true after same-layout rerender")
@@ -1502,7 +1502,60 @@ func TestApp_Render_NonDeletableGraphicsSameLayoutDoesNotClearBetweenFrames(t *t
 	}
 }
 
-func TestApp_Render_TerminalFrameGraphicsStableSceneForcesFullTextRepaint(t *testing.T) {
+func TestApp_Render_SameGeometryChangedImageContentPresentsAgain(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeSixel,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelTerminalFrame,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    false,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+
+	firstScene := &paint.SceneFrame{
+		ImageLayers: []paint.ImageLayer{{
+			ID:          "plot",
+			Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+			PixelWidth:  1,
+			PixelHeight: 1,
+			RGBA:        []byte{255, 0, 0, 255},
+		}},
+	}
+	secondScene := &paint.SceneFrame{
+		ImageLayers: []paint.ImageLayer{{
+			ID:          "plot",
+			Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+			PixelWidth:  1,
+			PixelHeight: 1,
+			RGBA:        []byte{0, 255, 0, 255},
+		}},
+	}
+
+	app.root = &renderSceneNode{text: "frame", scene: firstScene}
+	captureStdout(t, func() {
+		app.render()
+	})
+	app.root = &renderSceneNode{text: "frame", scene: secondScene}
+	captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.clearCalls != 0 {
+		t.Fatalf("clear calls = %d, want 0 for same-geometry content update", presenter.clearCalls)
+	}
+	if presenter.presentCalls != 2 {
+		t.Fatalf("present calls = %d, want 2 when image content changes", presenter.presentCalls)
+	}
+}
+
+func TestApp_Render_TerminalFrameGraphicsStableSceneRepresentsWithoutFullTextRepaint(t *testing.T) {
 	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
 
 	app := NewApp()
@@ -1545,8 +1598,8 @@ func TestApp_Render_TerminalFrameGraphicsStableSceneForcesFullTextRepaint(t *tes
 	if presenter.presentCalls != 2 {
 		t.Fatalf("present calls = %d, want 2 for stable terminal-frame rerender", presenter.presentCalls)
 	}
-	if !strings.Contains(output, "stable frame") {
-		t.Fatalf("stdout output = %q, want full text repaint for terminal-frame graphics", output)
+	if strings.Contains(output, "stable frame") {
+		t.Fatalf("stdout output = %q, want diff-based text rendering for unchanged terminal-frame graphics", output)
 	}
 }
 
@@ -1587,8 +1640,8 @@ func TestApp_Render_OverlayGraphicsStableSceneKeepsDiffBasedTextRendering(t *tes
 		app.render()
 	})
 
-	if presenter.presentCalls != 2 {
-		t.Fatalf("present calls = %d, want 2 for overlay rerender", presenter.presentCalls)
+	if presenter.presentCalls != 1 {
+		t.Fatalf("present calls = %d, want 1 for unchanged overlay rerender", presenter.presentCalls)
 	}
 	if strings.Contains(output, "stable frame") {
 		t.Fatalf("stdout output = %q, want diff-based text rendering without forced full repaint", output)

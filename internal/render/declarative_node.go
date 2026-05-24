@@ -2008,6 +2008,9 @@ func collectSceneImageLayerFromBox(box *paint.PaintableBox, layers *[]paint.Imag
 	if !ok {
 		return
 	}
+	if boundsSetter, ok := box.Node.(interface{ SetBounds(int, int, int, int) }); ok {
+		boundsSetter.SetBounds(box.X, box.Y, box.Width, box.Height)
+	}
 	for _, layer := range sceneInst.SceneLayers() {
 		if !layer.HasPixels() || layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
 			continue

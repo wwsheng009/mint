@@ -29,7 +29,7 @@ func ProbeGraphicsCapabilities() GraphicsCapabilities {
 		}
 	}
 
-	if caps.UsesTerminalFramePresentation() && !cfg.AllowTerminalFrame {
+	if caps.UsesTerminalFramePresentation() && !cfg.AllowTerminalFrame && !isExplicitGraphicsMode(cfg) && !isDefaultWindowsTerminalSixel(caps) {
 		notes := append([]string(nil), caps.Notes...)
 		notes = append(
 			notes,
@@ -127,14 +127,14 @@ func probeGraphicsFromEnv(cfg graphicsEnvConfig) (GraphicsCapabilities, bool) {
 		caps := GraphicsCapabilities{
 			Mode:              GraphicsModeSixel,
 			PresentationModel: GraphicsPresentationModelTerminalFrame,
-			Reliable:          cfg.CellPixelsValid,
+			Reliable:          true,
 			SupportsPlacement: true,
 			SupportsReplace:   true,
 			ProbeSource:       "env-override",
 			Notes:             append([]string(nil), cfg.Notes...),
 		}
 		if !cfg.CellPixelsValid {
-			caps = caps.WithNotes("sixel forced via env without cell pixel metrics")
+			caps = caps.WithNotes("sixel forced via env without cell pixel metrics; image size will use source pixels")
 		}
 		return applyGraphicsEnvCellPixels(caps, cfg), true
 	default:
@@ -148,6 +148,14 @@ func probeGraphicsFromEnv(cfg graphicsEnvConfig) (GraphicsCapabilities, bool) {
 			),
 		}, true
 	}
+}
+
+func isExplicitGraphicsMode(cfg graphicsEnvConfig) bool {
+	return cfg.ModeSet && cfg.ModeValid && !cfg.AutoMode && cfg.Mode != GraphicsModeNone
+}
+
+func isDefaultWindowsTerminalSixel(caps GraphicsCapabilities) bool {
+	return caps.Mode == GraphicsModeSixel && caps.ProbeSource == "heuristic-windows-terminal"
 }
 
 func applyGraphicsEnvCellPixels(caps GraphicsCapabilities, cfg graphicsEnvConfig) GraphicsCapabilities {
@@ -216,13 +224,14 @@ func probeGraphicsHeuristics() GraphicsCapabilities {
 		return GraphicsCapabilities{
 			Mode:              GraphicsModeSixel,
 			PresentationModel: GraphicsPresentationModelTerminalFrame,
-			Reliable:          false,
+			Reliable:          true,
 			SupportsPlacement: true,
 			SupportsReplace:   true,
 			ProbeSource:       "heuristic-windows-terminal",
 			Notes: []string{
-				"windows terminal detected heuristically; sixel support/version unverified",
-				"set MINT_GRAPHICS=sixel and MINT_CELL_PIXELS=<width>x<height> to force enable",
+				"windows terminal detected heuristically; sixel enabled by default",
+				"set MINT_GRAPHICS=off to disable terminal graphics",
+				"set MINT_CELL_PIXELS=<width>x<height> to improve image scaling",
 			},
 		}
 	}

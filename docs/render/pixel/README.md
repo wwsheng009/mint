@@ -12,6 +12,7 @@ The current stable renderer is still cell-based text rendering. Pixel/image rend
 | `FRAMEWORK_APP_RENDER_IMAGE_FLOW_SPEC.md` | App render flow sketch for image layers |
 | `RUNTIME_PAINT_SCENE_API_SKETCH.md` | Scene API sketch |
 | `RUNTIME_PLATFORM_GRAPHICS_API_SKETCH.md` | Platform graphics API sketch |
+| `WINDOWS_TERMINAL_SIXEL_RENDERING.md` | Windows Terminal SIXEL defaults, placement, and repaint behavior |
 
 ## Archived Planning Documents
 

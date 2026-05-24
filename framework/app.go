@@ -141,6 +141,7 @@ type App struct {
 	graphicsPresenter  platform.GraphicsPresenter
 	graphicsImagesOn   bool
 	graphicsLayout     []presentedGraphicsLayer
+	graphicsLayoutNext []presentedGraphicsLayer
 
 	// 上一帧缓冲区（用于局部刷新） - deprecated，保留用于兼容
 	prevBuffer [][]paint.Cell
@@ -225,6 +226,7 @@ type presentedGraphicsLayer struct {
 	Bounds      paint.Rect
 	PixelWidth  int
 	PixelHeight int
+	ContentHash uint64
 }
 
 // NewApp 创建新应用 (Phase 1: 初始化 Action 系统)
@@ -2200,7 +2202,13 @@ func (a *App) render() {
 		outputMode := os.Getenv("TUI_OUTPUT_MODE")
 		noAltScreen := os.Getenv("MINT_NO_ALTERNATE_SCREEN") == "true"
 		dirtyHints := a.collectPaintDirtyHints()
-		clearGraphicsBeforeText := a.shouldClearGraphicsBeforeText(scene)
+		sceneBypassAsync := a.shouldBypassAsyncForScene(scene)
+		var sceneGraphicsLayout []presentedGraphicsLayer
+		if a.graphicsPresenter != nil && (a.graphicsImagesOn || sceneBypassAsync) {
+			a.graphicsLayoutNext = snapshotPresentedGraphicsInto(a.graphicsLayoutNext, scene)
+			sceneGraphicsLayout = a.graphicsLayoutNext
+		}
+		clearGraphicsBeforeText := a.shouldClearGraphicsBeforeText(sceneGraphicsLayout)
 		if clearGraphicsBeforeText {
 			if err := a.clearPresentedGraphics(); err != nil {
 				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics pre-clear failed: %v", err)
@@ -2209,16 +2217,22 @@ func (a *App) render() {
 			}
 		}
 
-		forceFullSceneText := a.shouldForceFullTextRenderForScene(scene)
-		if a.shouldBypassAsyncForScene(scene) {
+		sceneGraphicsChanged := a.hasSceneGraphicsChanged(sceneGraphicsLayout)
+		sceneGraphicsPresent := a.shouldPresentSceneFrame(sceneGraphicsLayout)
+		forceFullSceneText := a.shouldForceFullTextRenderForScene(scene, sceneGraphicsChanged || clearGraphicsBeforeText)
+		if sceneBypassAsync {
 			a.maskSceneImageTextRegions(buf, scene)
-			dirtyHints = a.appendSceneImageDirtyHints(dirtyHints, scene)
+			if sceneGraphicsChanged {
+				dirtyHints = a.appendSceneImageDirtyHints(dirtyHints, scene)
+			}
 			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, false, forceFullSceneText)
-			if err := a.presentSceneFrame(scene); err != nil {
-				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics present failed: %v", err)
-				if !clearGraphicsBeforeText {
-					if clearErr := a.clearPresentedGraphics(); clearErr != nil {
-						log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
+			if sceneGraphicsPresent {
+				if err := a.presentSceneFrame(scene, sceneGraphicsLayout); err != nil {
+					log.RenderLogger.IfEnabled().Debug("[APP] scene graphics present failed: %v", err)
+					if !clearGraphicsBeforeText {
+						if clearErr := a.clearPresentedGraphics(); clearErr != nil {
+							log.RenderLogger.IfEnabled().Debug("[APP] scene graphics clear failed: %v", clearErr)
+						}
 					}
 				}
 			}
@@ -2696,7 +2710,7 @@ func (a *App) shouldBypassAsyncForScene(scene *paint.SceneFrame) bool {
 	return a.graphicsPresenter.Capabilities().HasReliableGraphics()
 }
 
-func (a *App) shouldClearGraphicsBeforeText(scene *paint.SceneFrame) bool {
+func (a *App) shouldClearGraphicsBeforeText(nextLayout []presentedGraphicsLayer) bool {
 	if a == nil || a.graphicsPresenter == nil || !a.graphicsImagesOn {
 		return false
 	}
@@ -2704,18 +2718,40 @@ func (a *App) shouldClearGraphicsBeforeText(scene *paint.SceneFrame) bool {
 		return false
 	}
 
-	nextLayout := snapshotPresentedGraphics(scene)
 	if len(nextLayout) == 0 {
+		return true
+	}
+	return !presentedGraphicsGeometryEqual(a.graphicsLayout, nextLayout)
+}
+
+func (a *App) hasSceneGraphicsChanged(nextLayout []presentedGraphicsLayer) bool {
+	if a == nil || len(nextLayout) == 0 || a.graphicsPresenter == nil {
+		return false
+	}
+	if !a.graphicsImagesOn {
 		return true
 	}
 	return !presentedGraphicsLayoutEqual(a.graphicsLayout, nextLayout)
 }
 
-func (a *App) shouldForceFullTextRenderForScene(scene *paint.SceneFrame) bool {
+func (a *App) shouldPresentSceneFrame(nextLayout []presentedGraphicsLayer) bool {
+	if a == nil || len(nextLayout) == 0 || a.graphicsPresenter == nil {
+		return false
+	}
+	if !a.graphicsImagesOn {
+		return true
+	}
+	if a.graphicsPresenter.Capabilities().UsesTerminalFramePresentation() {
+		return true
+	}
+	return !presentedGraphicsLayoutEqual(a.graphicsLayout, nextLayout)
+}
+
+func (a *App) shouldForceFullTextRenderForScene(scene *paint.SceneFrame, graphicsUpdate bool) bool {
 	if a == nil || scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
 		return false
 	}
-	return a.graphicsPresenter.Capabilities().UsesTerminalFramePresentation()
+	return graphicsUpdate && a.graphicsPresenter.Capabilities().UsesTerminalFramePresentation()
 }
 
 func (a *App) invalidateRenderedTextState() {
@@ -2808,30 +2844,59 @@ func (a *App) maskSceneImageTextRegions(buf *paint.Buffer, scene *paint.SceneFra
 		if layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
 			continue
 		}
-		for row := 0; row < layer.Bounds.Height; row++ {
-			y := layer.Bounds.Y + row
-			if y < 0 || y >= buf.Height {
-				continue
+		x0 := appMaxInt(layer.Bounds.X, 0)
+		y0 := appMaxInt(layer.Bounds.Y, 0)
+		x1 := appMinInt(layer.Bounds.X+layer.Bounds.Width, buf.Width)
+		y1 := appMinInt(layer.Bounds.Y+layer.Bounds.Height, buf.Height)
+		maskBufferTextRegion(buf, x0, y0, x1, y1)
+	}
+}
+
+func maskBufferTextRegion(buf *paint.Buffer, x0, y0, x1, y1 int) {
+	if x0 >= x1 || y0 >= y1 {
+		return
+	}
+
+	space := paint.Cell{Cluster: " ", Style: style.Style{}, Width: 1}
+	for y := y0; y < y1; y++ {
+		row := buf.Cells[y]
+		if x0 > 0 {
+			head := row[x0-1]
+			if row[x0].IsContinuation && head.Width == 2 && head.Cluster != "" {
+				row[x0-1] = space
 			}
-			for col := 0; col < layer.Bounds.Width; col++ {
-				x := layer.Bounds.X + col
-				if x < 0 || x >= buf.Width {
-					continue
-				}
-				buf.SetCell(x, y, ' ', style.Style{})
+		}
+		if x1 < buf.Width {
+			last := row[x1-1]
+			if last.Width == 2 {
+				row[x1] = space
 			}
+		}
+		for x := x0; x < x1; x++ {
+			row[x] = space
 		}
 	}
 }
 
-func (a *App) presentSceneFrame(scene *paint.SceneFrame) error {
+func appMinInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func appMaxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (a *App) presentSceneFrame(scene *paint.SceneFrame, nextState []presentedGraphicsLayer) error {
 	if scene == nil || !scene.HasImageLayers() || a.graphicsPresenter == nil {
 		return nil
 	}
 
-	caps := a.graphicsPresenter.Capabilities()
-	terminalFrame := caps.UsesTerminalFramePresentation()
-	nextState := snapshotPresentedGraphics(scene)
 	presentedAny := false
 	for _, layer := range scene.ImageLayers {
 		if !layer.HasPixels() {
@@ -2852,9 +2917,6 @@ func (a *App) presentSceneFrame(scene *paint.SceneFrame) error {
 		if err != nil {
 			if presentedAny {
 				a.graphicsImagesOn = true
-				if terminalFrame {
-					a.invalidateRenderedTextState()
-				}
 			}
 			return err
 		}
@@ -2863,10 +2925,7 @@ func (a *App) presentSceneFrame(scene *paint.SceneFrame) error {
 
 	a.graphicsImagesOn = presentedAny
 	if presentedAny {
-		a.graphicsLayout = nextState
-		if terminalFrame {
-			a.invalidateRenderedTextState()
-		}
+		a.graphicsLayout = append(a.graphicsLayout[:0], nextState...)
 	}
 	return nil
 }
@@ -2879,25 +2938,72 @@ func (a *App) clearPresentedGraphics() error {
 		return err
 	}
 	a.graphicsImagesOn = false
-	a.graphicsLayout = nil
+	a.graphicsLayout = a.graphicsLayout[:0]
 	return nil
 }
 
 func snapshotPresentedGraphics(scene *paint.SceneFrame) []presentedGraphicsLayer {
+	return snapshotPresentedGraphicsInto(nil, scene)
+}
+
+func snapshotPresentedGraphicsInto(dst []presentedGraphicsLayer, scene *paint.SceneFrame) []presentedGraphicsLayer {
+	dst = dst[:0]
 	if scene == nil || !scene.HasImageLayers() {
-		return nil
+		return dst
 	}
 
-	layout := make([]presentedGraphicsLayer, 0, len(scene.ImageLayers))
 	for _, layer := range scene.ImageLayers {
-		layout = append(layout, presentedGraphicsLayer{
+		dst = append(dst, presentedGraphicsLayer{
 			ID:          layer.ID,
 			Bounds:      layer.Bounds,
 			PixelWidth:  layer.PixelWidth,
 			PixelHeight: layer.PixelHeight,
+			ContentHash: hashImageLayerContent(layer),
 		})
 	}
-	return layout
+	return dst
+}
+
+func hashImageLayerContent(layer paint.ImageLayer) uint64 {
+	h := fnv1aUint64(fnv64aOffset, uint64(layer.PixelWidth))
+	h = fnv1aUint64(h, uint64(layer.PixelHeight))
+	for _, b := range layer.RGBA {
+		h ^= uint64(b)
+		h *= fnv64aPrime
+	}
+	return h
+}
+
+const (
+	fnv64aOffset uint64 = 14695981039346656037
+	fnv64aPrime  uint64 = 1099511628211
+)
+
+func fnv1aUint64(h, v uint64) uint64 {
+	for i := 0; i < 8; i++ {
+		h ^= uint64(byte(v))
+		h *= fnv64aPrime
+		v >>= 8
+	}
+	return h
+}
+
+func presentedGraphicsGeometryEqual(a, b []presentedGraphicsLayer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID {
+			return false
+		}
+		if a[i].Bounds != b[i].Bounds {
+			return false
+		}
+		if a[i].PixelWidth != b[i].PixelWidth || a[i].PixelHeight != b[i].PixelHeight {
+			return false
+		}
+	}
+	return true
 }
 
 func presentedGraphicsLayoutEqual(a, b []presentedGraphicsLayer) bool {
@@ -2912,6 +3018,9 @@ func presentedGraphicsLayoutEqual(a, b []presentedGraphicsLayer) bool {
 			return false
 		}
 		if a[i].PixelWidth != b[i].PixelWidth || a[i].PixelHeight != b[i].PixelHeight {
+			return false
+		}
+		if a[i].ContentHash != b[i].ContentHash {
 			return false
 		}
 	}

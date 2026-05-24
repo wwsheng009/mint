@@ -121,7 +121,7 @@ func TestProbeGraphicsCapabilities_EnvSixelWithCellPixelsIsReliable(t *testing.T
 	t.Setenv(graphicsModeEnvVar, "sixel")
 	t.Setenv(cellPixelsEnvVar, "8x16")
 	t.Setenv(graphicsStrictEnvVar, "")
-	t.Setenv(allowTerminalFrameEnvVar, "1")
+	t.Setenv(allowTerminalFrameEnvVar, "")
 	t.Setenv(allowUnverifiedInlineImageEnvVar, "")
 	t.Setenv("WT_SESSION", "")
 
@@ -137,6 +137,26 @@ func TestProbeGraphicsCapabilities_EnvSixelWithCellPixelsIsReliable(t *testing.T
 	}
 	if caps.EffectivePresentationModel() != GraphicsPresentationModelTerminalFrame {
 		t.Fatalf("sixel presentation model = %v, want terminal-frame", caps.EffectivePresentationModel())
+	}
+}
+
+func TestProbeGraphicsCapabilities_EnvSixelWithoutCellPixelsStillForcesReliable(t *testing.T) {
+	t.Setenv(graphicsModeEnvVar, "sixel")
+	t.Setenv(cellPixelsEnvVar, "")
+	t.Setenv(graphicsStrictEnvVar, "")
+	t.Setenv(allowTerminalFrameEnvVar, "")
+	t.Setenv(allowUnverifiedInlineImageEnvVar, "")
+	t.Setenv("WT_SESSION", "")
+
+	caps := ProbeGraphicsCapabilities()
+	if caps.Mode != GraphicsModeSixel || !caps.Reliable {
+		t.Fatalf("expected explicit sixel to force reliable graphics, got %+v", caps)
+	}
+	if caps.CellPixelsKnown() {
+		t.Fatalf("cell pixels should remain unknown without env metrics: %+v", caps)
+	}
+	if !notesContainProbeNote(caps.Notes, "without cell pixel metrics") {
+		t.Fatalf("expected missing cell pixel note, got %+v", caps.Notes)
 	}
 }
 
@@ -177,7 +197,7 @@ func TestProbeGraphicsCapabilities_HeuristicKittyNeedsCellPixelsForReliability(t
 	}
 }
 
-func TestProbeGraphicsCapabilities_HeuristicWindowsTerminalSixelUnreliableByDefault(t *testing.T) {
+func TestProbeGraphicsCapabilities_HeuristicWindowsTerminalSixelReliableByDefault(t *testing.T) {
 	t.Setenv(graphicsModeEnvVar, "")
 	t.Setenv(cellPixelsEnvVar, "")
 	t.Setenv(graphicsStrictEnvVar, "")
@@ -189,17 +209,17 @@ func TestProbeGraphicsCapabilities_HeuristicWindowsTerminalSixelUnreliableByDefa
 	t.Setenv("WT_SESSION", "demo-session")
 
 	caps := ProbeGraphicsCapabilities()
-	if caps.Mode != GraphicsModeNone {
-		t.Fatalf("mode = %v, want none when terminal-frame is disabled by default", caps.Mode)
+	if caps.Mode != GraphicsModeSixel {
+		t.Fatalf("mode = %v, want sixel for windows terminal", caps.Mode)
 	}
 	if !caps.Reliable {
-		t.Fatalf("expected disabled fallback to be reliable none mode: %+v", caps)
+		t.Fatalf("expected windows terminal sixel to be reliable by default: %+v", caps)
 	}
-	if caps.ProbeSource != "terminal-frame-disabled" {
-		t.Fatalf("ProbeSource = %q, want terminal-frame-disabled", caps.ProbeSource)
+	if caps.ProbeSource != "heuristic-windows-terminal" {
+		t.Fatalf("ProbeSource = %q, want heuristic-windows-terminal", caps.ProbeSource)
 	}
 	if len(caps.Notes) == 0 {
-		t.Fatalf("expected disable note, got %+v", caps)
+		t.Fatalf("expected windows terminal notes, got %+v", caps)
 	}
 }
 
@@ -306,20 +326,20 @@ func TestProbeGraphicsCapabilities_EnvCellPixelsUpgradeHeuristicKitty(t *testing
 	}
 }
 
-func TestProbeGraphicsCapabilities_EnvSixelWithoutExplicitAllowFallsBackToNone(t *testing.T) {
-	t.Setenv(graphicsModeEnvVar, "sixel")
+func TestProbeGraphicsCapabilities_AutoWindowsTerminalDefaultsToSixel(t *testing.T) {
+	t.Setenv(graphicsModeEnvVar, "auto")
 	t.Setenv(cellPixelsEnvVar, "8x16")
 	t.Setenv(graphicsStrictEnvVar, "")
 	t.Setenv(allowTerminalFrameEnvVar, "")
 	t.Setenv(allowUnverifiedInlineImageEnvVar, "")
-	t.Setenv("WT_SESSION", "")
+	t.Setenv("WT_SESSION", "demo-session")
 
 	caps := ProbeGraphicsCapabilities()
-	if caps.Mode != GraphicsModeNone || caps.ProbeSource != "terminal-frame-disabled" || !caps.Reliable {
+	if caps.Mode != GraphicsModeSixel || caps.ProbeSource != "heuristic-windows-terminal" || !caps.Reliable {
 		t.Fatalf("unexpected capabilities: %+v", caps)
 	}
-	if len(caps.Notes) == 0 {
-		t.Fatalf("expected terminal-frame disable notes, got %+v", caps)
+	if caps.CellPixelWidth != 8 || caps.CellPixelHeight != 16 {
+		t.Fatalf("expected cell pixel env to apply, got %+v", caps)
 	}
 }
 

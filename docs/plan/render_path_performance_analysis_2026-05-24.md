@@ -11,6 +11,7 @@ Mint 当前主渲染路径已经具备双缓冲、异步提交、行级 diff、�
 3. `FiberToPaintableConverter.findFiber` 已经构建了 `fiberMap`，但 miss 时仍会线性扫描并 `fmt.Sprintf` 比较 NodeID，属于可消除的 O(n) fallback。
 4. `PaintEngine` 的 cache 设计当前按 frame version 匹配，但 version 每次绘制递增，缓存命中率容易被压低；同时 cache key 与 tracking key 都使用格式化字符串，热路径分配较多。
 5. `framework.App.render` 每帧都 `buf.Reset` 整个终端 buffer，后续虽然用 renderer diff 输出到终端，但内存写入仍是全屏级别。这个属于更大范围优化，需要和 dirty rect 语义一起处理。
+6. Scene graphics 路径在同一帧内可能多次调用 `snapshotPresentedGraphics`，每次都会遍历图片层并扫描 RGBA 计算内容 hash；对大图或多图层会把同一份像素数据重复扫多遍。
 
 本次优先实施低风险优化：让 `PaintPaintablePlanes` 在一个 frame 内只初始化一次 paint frame 状态，并直接调用 `paintBox`，移除每个 box 的临时 `PaintableLayout` 创建与重复 `paintLayout` 初始化。
 
@@ -130,6 +131,31 @@ cache 使用 `boxID + version` 匹配，但 version 按绘制推进。若 versio
 - 将 cache version 改为节点内容版本或 dirty generation，而不是 frame generation。
 - 为 `PaintableNode` 增加轻量 `HasCustomPaint` / `IsCacheable` 能力，避免为探测而调用 `Paint`。
 
+### 6. Scene graphics layout/hash 在同一帧重复计算
+
+位置：`framework/app.go`
+
+当前逻辑：
+
+- `shouldClearGraphicsBeforeText` 会根据下一帧 image layer 几何信息判断是否需要先清理旧图像。
+- `shouldPresentSceneFrame` 会根据下一帧 image layer 的几何和内容 hash 判断是否需要重新 present。
+- `presentSceneFrame` 成功后又会再次生成 presented graphics state。
+- 每次生成 state 都会遍历 image layers，并对 `RGBA` 逐字节计算内容 hash。
+
+影响：
+
+- 对图片层较大时，同一帧会重复扫描同一份 RGBA 像素数据。
+- 旧实现使用 `fmt.Fprintf` + `fnv.New64a` 计算 hash，热路径存在接口调用与格式化开销。
+
+本次优化：
+
+- `framework.App.render` 每帧只生成一次 `sceneGraphicsLayout`，并复用于 clear 判定、present 判定和 present 成功后的状态保存。
+- 没有 graphics presenter、且当前帧不会走可靠 graphics present、也没有已展示图像需要清理时，跳过 scene graphics snapshot，避免无效 hash。
+- `App` 复用 `graphicsLayoutNext` scratch 切片生成下一帧 scene graphics snapshot，稳定图片帧不再为 `[]presentedGraphicsLayer` 反复分配；present 成功时再复制到持久 `graphicsLayout` 状态。
+- 内容 hash 改为内联 FNV-1a：先以固定 8 字节形式写入 pixel width/height，再逐字节混入 RGBA，避免 `fmt.Fprintf` 与 `hash.Hash64` 接口开销。
+- Scene graphics 未变化时不再追加 image dirty hints；overlay 模式可跳过重新 present，terminal-frame 模式保留重新 present 以维持终端帧图像可见性，但不再强制 full text repaint。
+- `maskSceneImageTextRegions` 改为按行裁剪后直接写空格 cell，并只在左右边界处理宽字符跨界清理，避免图片遮罩区域对每个 cell 调用通用 `SetCell` 路径。
+
 ## 已执行验证基线
 
 命令：
@@ -162,6 +188,8 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `runtime/paint.Renderer` 复用 full-line 标记 scratch，合并 rendered line 计数，减少每帧 bool slice 分配。
 - `runtime/paint.Renderer` 复用 run text buffer，并直接写入输出缓冲，避免每个 style run 创建临时 buffer 和 string。
 - `runtime/paint.LineDiffInto` 支持调用方复用 changed-lines 切片，Renderer 通过 scratch 避免每帧 `ChangedLines` 分配。
+- Scene graphics 路径复用同一帧的 presented graphics snapshot，避免 clear/present/state 保存阶段重复扫描图片 RGBA；同时复用 `graphicsLayoutNext` scratch，减少稳定图片帧的 layout slice 分配；图片内容 hash 改为无格式化、无接口分配的内联 FNV-1a；overlay 稳定帧跳过重复 present，terminal-frame 稳定帧仅重新 present 图像、不再触发完整文本重绘。
+- Scene image 文本遮罩路径跳过每 cell `SetCell` 的 rune 宽度计算、字符串转换和重复边界检查，改为裁剪后的 row 写入；仍保留遮罩边界宽字符清理语义。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
 
 后续建议：
