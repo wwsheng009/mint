@@ -77,3 +77,28 @@ func ChangeWithID(componentID string, direction MoveDirection, movedKeys, source
 	change.ComponentID = componentID
 	return change
 }
+
+// SearchSide identifies which list search input changed.
+type SearchSide string
+
+const (
+	SearchSideSource SearchSide = "source"
+	SearchSideTarget SearchSide = "target"
+)
+
+// SearchChangeIntent updates the source or target search query.
+type SearchChangeIntent struct {
+	ComponentID string
+	Side        SearchSide
+	Value       string
+}
+
+func (SearchChangeIntent) IntentType() string              { return "transfer.SearchChangeIntent" }
+func (SearchChangeIntent) Priority() intent.ActionPriority { return intent.PriorityNormal }
+func (SearchChangeIntent) IsTransition() bool              { return false }
+func (SearchChangeIntent) IsGlobal() bool                  { return false }
+func (i SearchChangeIntent) GetComponentID() string        { return i.ComponentID }
+func (i SearchChangeIntent) WithValue(value string) intent.Intent {
+	i.Value = value
+	return i
+}

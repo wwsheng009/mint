@@ -21,16 +21,22 @@ const (
 	propListHeight           = "listHeight"
 	propListWidth            = "listWidth"
 	propOperations           = "operations"
+	propSearchable           = "searchable"
+	propSearchControlled     = "searchControlled"
+	propSearchPlaceholders   = "searchPlaceholders"
+	propSourceSearch         = "sourceSearch"
 	propStyle                = "style"
 	propTargetKeys           = "targetKeys"
 	propTargetKeysControlled = "targetKeysControlled"
+	propTargetSearch         = "targetSearch"
 	propTitles               = "titles"
 	propWidth                = "width"
 )
 
 var (
-	defaultTitles     = [2]string{"Source", "Target"}
-	defaultOperations = [2]string{">", "<"}
+	defaultTitles             = [2]string{"Source", "Target"}
+	defaultOperations         = [2]string{">", "<"}
+	defaultSearchPlaceholders = [2]string{"Search source", "Search target"}
 )
 
 // Item describes a single transfer row.
@@ -50,8 +56,13 @@ type VNode struct {
 	items                []Item
 	titles               [2]string
 	operations           [2]string
+	searchable           bool
+	searchControlled     bool
+	searchPlaceholders   [2]string
+	sourceSearch         string
 	targetKeys           []string
 	targetKeysControlled bool
+	targetSearch         string
 	listWidth            int
 	listHeight           int
 	width                int
@@ -71,6 +82,7 @@ func New() *VNode {
 		ElementVNode:         rtui.NewElement("transfer"),
 		titles:               defaultTitles,
 		operations:           defaultOperations,
+		searchPlaceholders:   defaultSearchPlaceholders,
 		listWidth:            defaultListWidth,
 		listHeight:           defaultListHeight,
 		targetKeysControlled: false,
@@ -129,9 +141,14 @@ func (v *VNode) Props() rtui.Props {
 		propListHeight:           v.listHeight,
 		propListWidth:            v.listWidth,
 		propOperations:           v.operations,
+		propSearchable:           v.searchable,
+		propSearchControlled:     v.searchControlled,
+		propSearchPlaceholders:   v.searchPlaceholders,
+		propSourceSearch:         v.sourceSearch,
 		propStyle:                v.rootStyle,
 		propTargetKeys:           append([]string(nil), v.targetKeys...),
 		propTargetKeysControlled: v.targetKeysControlled,
+		propTargetSearch:         v.targetSearch,
 		propTitles:               v.titles,
 		propWidth:                v.width,
 	}
@@ -153,11 +170,26 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	if operations, ok := props[propOperations].([2]string); ok {
 		v.operations = operations
 	}
+	if searchable, ok := props[propSearchable].(bool); ok {
+		v.searchable = searchable
+	}
+	if controlled, ok := props[propSearchControlled].(bool); ok {
+		v.searchControlled = controlled
+	}
+	if placeholders, ok := props[propSearchPlaceholders].([2]string); ok {
+		v.searchPlaceholders = placeholders
+	}
+	if sourceSearch, ok := props[propSourceSearch].(string); ok {
+		v.sourceSearch = strings.TrimSpace(sourceSearch)
+	}
 	if targetKeys, ok := props[propTargetKeys].([]string); ok {
 		v.targetKeys = append([]string(nil), targetKeys...)
 	}
 	if controlled, ok := props[propTargetKeysControlled].(bool); ok {
 		v.targetKeysControlled = controlled
+	}
+	if targetSearch, ok := props[propTargetSearch].(string); ok {
+		v.targetSearch = strings.TrimSpace(targetSearch)
 	}
 	if listWidth, ok := props[propListWidth].(int); ok {
 		v.listWidth = listWidth
@@ -206,6 +238,30 @@ func (v *VNode) SetTitles(source, target string) *VNode {
 
 func (v *VNode) SetOperations(toTarget, toSource string) *VNode {
 	v.operations = [2]string{toTarget, toSource}
+	return v
+}
+
+func (v *VNode) SetSearchable(searchable bool) *VNode {
+	v.searchable = searchable
+	return v
+}
+
+func (v *VNode) SetSearchPlaceholders(source, target string) *VNode {
+	v.searchPlaceholders = [2]string{source, target}
+	return v
+}
+
+func (v *VNode) SetSearchValues(source, target string) *VNode {
+	v.sourceSearch = strings.TrimSpace(source)
+	v.targetSearch = strings.TrimSpace(target)
+	v.searchControlled = true
+	return v
+}
+
+func (v *VNode) SetInitialSearchValues(source, target string) *VNode {
+	v.sourceSearch = strings.TrimSpace(source)
+	v.targetSearch = strings.TrimSpace(target)
+	v.searchControlled = false
 	return v
 }
 

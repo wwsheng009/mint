@@ -11,6 +11,7 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/form"
+	"github.com/wwsheng009/mint/ui/components/input"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"github.com/wwsheng009/mint/ui/components/list"
 )
@@ -24,6 +25,11 @@ type Instance struct {
 	items                []Item
 	titles               [2]string
 	operations           [2]string
+	searchable           bool
+	searchControlled     bool
+	searchPlaceholders   [2]string
+	sourceSearch         string
+	targetSearch         string
 	targetKeys           []string
 	targetKeysControlled bool
 	selectedSourceKeys   []string
@@ -58,6 +64,11 @@ func NewInstance(props rtui.Props) *Instance {
 		items:                getItemsProp(props),
 		titles:               getTitlesProp(props, defaultTitles),
 		operations:           getOperationsProp(props, defaultOperations),
+		searchable:           proputil.GetBool(props, propSearchable, false),
+		searchControlled:     proputil.GetBool(props, propSearchControlled, false),
+		searchPlaceholders:   getSearchPlaceholdersProp(props, defaultSearchPlaceholders),
+		sourceSearch:         strings.TrimSpace(proputil.GetString(props, propSourceSearch, "")),
+		targetSearch:         strings.TrimSpace(proputil.GetString(props, propTargetSearch, "")),
 		targetKeys:           getStringSliceProp(props, propTargetKeys, nil),
 		targetKeysControlled: proputil.GetBool(props, propTargetKeysControlled, false),
 		listWidth:            proputil.GetInt(props, propListWidth, defaultListWidth),
@@ -141,6 +152,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldItems := cloneItems(inst.items)
 	oldTitles := inst.titles
 	oldOperations := inst.operations
+	oldSearchable := inst.searchable
+	oldSearchControlled := inst.searchControlled
+	oldSearchPlaceholders := inst.searchPlaceholders
+	oldSourceSearch := inst.sourceSearch
+	oldTargetSearch := inst.targetSearch
 	oldTargetKeys := append([]string(nil), inst.targetKeys...)
 	oldControlled := inst.targetKeysControlled
 	oldListWidth := inst.listWidth
@@ -157,6 +173,14 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.items = getItemsPropOr(props, inst.items)
 	inst.titles = getTitlesProp(props, inst.titles)
 	inst.operations = getOperationsProp(props, inst.operations)
+	inst.searchable = proputil.GetBool(props, propSearchable, inst.searchable)
+	nextSearchControlled := proputil.GetBool(props, propSearchControlled, inst.searchControlled)
+	if nextSearchControlled || inst.searchControlled != nextSearchControlled {
+		inst.sourceSearch = strings.TrimSpace(proputil.GetString(props, propSourceSearch, inst.sourceSearch))
+		inst.targetSearch = strings.TrimSpace(proputil.GetString(props, propTargetSearch, inst.targetSearch))
+	}
+	inst.searchControlled = nextSearchControlled
+	inst.searchPlaceholders = getSearchPlaceholdersProp(props, inst.searchPlaceholders)
 	nextControlled := proputil.GetBool(props, propTargetKeysControlled, inst.targetKeysControlled)
 	if nextControlled {
 		inst.targetKeys = getStringSliceProp(props, propTargetKeys, inst.targetKeys)
@@ -176,6 +200,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	changed := !reflect.DeepEqual(oldItems, inst.items) ||
 		oldTitles != inst.titles ||
 		oldOperations != inst.operations ||
+		oldSearchable != inst.searchable ||
+		oldSearchControlled != inst.searchControlled ||
+		oldSearchPlaceholders != inst.searchPlaceholders ||
+		oldSourceSearch != inst.sourceSearch ||
+		oldTargetSearch != inst.targetSearch ||
 		!equalStrings(oldTargetKeys, inst.targetKeys) ||
 		oldControlled != inst.targetKeysControlled ||
 		oldListWidth != inst.listWidth ||
@@ -202,9 +231,14 @@ func (inst *Instance) GetProps() rtui.Props {
 		propListHeight:           inst.listHeight,
 		propListWidth:            inst.listWidth,
 		propOperations:           inst.operations,
+		propSearchable:           inst.searchable,
+		propSearchControlled:     inst.searchControlled,
+		propSearchPlaceholders:   inst.searchPlaceholders,
+		propSourceSearch:         inst.sourceSearch,
 		propStyle:                inst.rootStyle,
 		propTargetKeys:           append([]string(nil), inst.targetKeys...),
 		propTargetKeysControlled: inst.targetKeysControlled,
+		propTargetSearch:         inst.targetSearch,
 		propTitles:               inst.titles,
 		propWidth:                inst.width,
 	}
@@ -220,9 +254,9 @@ func (inst *Instance) SetIntentEmitter(fn func(runtimeintent.Intent)) { inst.int
 
 func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	root := rtui.HStackBuilder(
-		inst.buildListNode(inst.titles[0], inst.sourceItems(), inst.selectedSourceKeys, inst.sourceListID(), inst.sourceListKey()),
+		inst.buildListNode(inst.titles[0], inst.sourceItems(), inst.sourceVisibleItems(), inst.selectedSourceKeys, inst.sourceListID(), inst.sourceListKey(), inst.sourceSearchField(), inst.sourceSearch, inst.searchPlaceholders[0]),
 		inst.buildOperationsNode(),
-		inst.buildListNode(inst.titles[1], inst.targetItems(), inst.selectedTargetKeys, inst.targetListID(), inst.targetListKey()),
+		inst.buildListNode(inst.titles[1], inst.targetItems(), inst.targetVisibleItems(), inst.selectedTargetKeys, inst.targetListID(), inst.targetListKey(), inst.targetSearchField(), inst.targetSearch, inst.searchPlaceholders[1]),
 	).Gap(1).AlignCross(rtui.AlignStart)
 	if inst.width > 0 {
 		root.Width(inst.width)
@@ -240,6 +274,12 @@ func (inst *Instance) HandleIntent(i runtimeintent.Intent) bool {
 	if selection, ok := i.(list.SelectionChangeIntent); ok {
 		return inst.handleSelectionChange(selection)
 	}
+	if search, ok := i.(SearchChangeIntent); ok {
+		return inst.handleSearchIntent(search)
+	}
+	if change, ok := i.(runtimeintent.FieldChangeIntent); ok {
+		return inst.handleSearchChange(change)
+	}
 	if !runtimeintent.ShouldHandleIntentWithID(inst.componentID, i) {
 		return false
 	}
@@ -253,7 +293,7 @@ func (inst *Instance) HandleIntent(i runtimeintent.Intent) bool {
 func (inst *Instance) handleSelectionChange(selection list.SelectionChangeIntent) bool {
 	switch selection.ComponentID {
 	case inst.sourceListID():
-		keys, rejected := selectedKeysFromIndices(inst.sourceItems(), selection.CheckedIndices)
+		keys, rejected := selectedKeysFromIndices(inst.sourceVisibleItems(), selection.CheckedIndices)
 		if rejected {
 			inst.sourceListVersion++
 		}
@@ -264,7 +304,7 @@ func (inst *Instance) handleSelectionChange(selection list.SelectionChangeIntent
 		inst.dirty = true
 		return true
 	case inst.targetListID():
-		keys, rejected := selectedKeysFromIndices(inst.targetItems(), selection.CheckedIndices)
+		keys, rejected := selectedKeysFromIndices(inst.targetVisibleItems(), selection.CheckedIndices)
 		if rejected {
 			inst.targetListVersion++
 		}
@@ -277,6 +317,48 @@ func (inst *Instance) handleSelectionChange(selection list.SelectionChangeIntent
 	default:
 		return false
 	}
+}
+
+func (inst *Instance) handleSearchChange(change runtimeintent.FieldChangeIntent) bool {
+	if change.Field != inst.sourceSearchField() && change.Field != inst.targetSearchField() {
+		return false
+	}
+	side := SearchSideSource
+	if change.Field == inst.targetSearchField() {
+		side = SearchSideTarget
+	}
+	return inst.applySearch(side, change.Value)
+}
+
+func (inst *Instance) handleSearchIntent(search SearchChangeIntent) bool {
+	if !runtimeintent.ShouldHandleIntentWithID(inst.componentID, search) {
+		return false
+	}
+	return inst.applySearch(search.Side, search.Value)
+}
+
+func (inst *Instance) applySearch(side SearchSide, rawValue string) bool {
+	value := strings.TrimSpace(rawValue)
+	switch side {
+	case SearchSideSource:
+		if inst.sourceSearch == value {
+			return false
+		}
+		inst.sourceSearch = value
+		inst.selectedSourceKeys = normalizeKeysForItems(inst.sourceVisibleItems(), inst.selectedSourceKeys)
+		inst.sourceListVersion++
+	case SearchSideTarget:
+		if inst.targetSearch == value {
+			return false
+		}
+		inst.targetSearch = value
+		inst.selectedTargetKeys = normalizeKeysForItems(inst.targetVisibleItems(), inst.selectedTargetKeys)
+		inst.targetListVersion++
+	default:
+		return false
+	}
+	inst.dirty = true
+	return true
 }
 
 func (inst *Instance) move(direction MoveDirection) bool {
@@ -304,12 +386,12 @@ func (inst *Instance) move(direction MoveDirection) bool {
 	return true
 }
 
-func (inst *Instance) buildListNode(title string, items []Item, selectedKeys []string, componentID, key string) rtui.VNode {
+func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item, selectedKeys []string, componentID, key, searchField, searchValue, searchPlaceholder string) rtui.VNode {
 	rowStyleFn := func(index int, row string) style.Style {
-		if index < 0 || index >= len(items) {
+		if index < 0 || index >= len(visibleItems) {
 			return style.Style{}
 		}
-		if items[index].Disabled {
+		if visibleItems[index].Disabled {
 			return style.NewStyle().Foreground(theme.DisabledFG()).Background(theme.Surface())
 		}
 		return style.Style{}
@@ -318,15 +400,29 @@ func (inst *Instance) buildListNode(title string, items []Item, selectedKeys []s
 	listNode := list.NewBuilder().
 		Key(key).
 		ComponentID(componentID).
-		Header(titleWithCount(title, len(items))).
-		Rows(renderRows(items)).
+		Header(titleWithCount(title, len(visibleItems), len(allItems))).
+		Rows(renderRows(visibleItems)).
 		MultiSelect().
-		CheckedIndices(checkedIndices(items, selectedKeys)...).
+		CheckedIndices(checkedIndices(visibleItems, selectedKeys)...).
 		ViewportHeight(inst.listHeight).
 		RowStyleFn(rowStyleFn).
 		Build()
 
-	wrapper := rtui.VStackBuilder(listNode).Gap(0).AlignCross(rtui.AlignStart).Stretch()
+	children := []rtui.VNode{listNode}
+	if inst.searchable {
+		searchNode := input.NewBuilder().
+			Key(searchField).
+			SetID(searchField).
+			Search().
+			Placeholder(searchPlaceholder).
+			Value(searchValue).
+			Width(inst.listWidth).
+			OnChange(SearchChangeIntent{ComponentID: inst.componentID, Side: searchSideFromField(inst, searchField)}).
+			Build()
+		children = append([]rtui.VNode{searchNode}, children...)
+	}
+
+	wrapper := rtui.VStackBuilder(children...).Gap(0).AlignCross(rtui.AlignStart).Stretch()
 	if inst.listWidth > 0 {
 		wrapper.Width(inst.listWidth)
 	}
@@ -370,6 +466,12 @@ func (inst *Instance) normalize() {
 	}
 	if inst.operations[1] == "" {
 		inst.operations[1] = defaultOperations[1]
+	}
+	if inst.searchPlaceholders[0] == "" {
+		inst.searchPlaceholders[0] = defaultSearchPlaceholders[0]
+	}
+	if inst.searchPlaceholders[1] == "" {
+		inst.searchPlaceholders[1] = defaultSearchPlaceholders[1]
 	}
 	if inst.listWidth <= 0 {
 		inst.listWidth = defaultListWidth
@@ -434,12 +536,20 @@ func (inst *Instance) targetItems() []Item {
 	return items
 }
 
+func (inst *Instance) sourceVisibleItems() []Item {
+	return filterItems(inst.sourceItems(), inst.sourceSearch)
+}
+
+func (inst *Instance) targetVisibleItems() []Item {
+	return filterItems(inst.targetItems(), inst.targetSearch)
+}
+
 func (inst *Instance) movableKeys(direction MoveDirection) []string {
 	switch direction {
 	case MoveDirectionToTarget:
-		return normalizeKeysForItems(inst.sourceItems(), inst.selectedSourceKeys)
+		return normalizeKeysForItems(inst.sourceVisibleItems(), inst.selectedSourceKeys)
 	case MoveDirectionToSource:
-		return normalizeKeysForItems(inst.targetItems(), inst.selectedTargetKeys)
+		return normalizeKeysForItems(inst.targetVisibleItems(), inst.selectedTargetKeys)
 	default:
 		return nil
 	}
@@ -448,6 +558,17 @@ func (inst *Instance) movableKeys(direction MoveDirection) []string {
 func (inst *Instance) sourceListID() string { return inst.baseKey("source") }
 
 func (inst *Instance) targetListID() string { return inst.baseKey("target") }
+
+func (inst *Instance) sourceSearchField() string { return inst.baseKey("source-search") }
+
+func (inst *Instance) targetSearchField() string { return inst.baseKey("target-search") }
+
+func searchSideFromField(inst *Instance, field string) SearchSide {
+	if field == inst.targetSearchField() {
+		return SearchSideTarget
+	}
+	return SearchSideSource
+}
 
 func (inst *Instance) sourceListKey() string {
 	return inst.baseKey("source-list-" + strconv.Itoa(inst.sourceListVersion))
@@ -470,8 +591,17 @@ func (inst *Instance) baseKey(suffix string) string {
 	return base + "-" + suffix
 }
 
-func titleWithCount(title string, count int) string {
-	return title + " (" + strconv.Itoa(count) + ")"
+func titleWithCount(title string, visibleCount, totalCount int) string {
+	if totalCount < 0 {
+		totalCount = 0
+	}
+	if visibleCount < 0 {
+		visibleCount = 0
+	}
+	if visibleCount == totalCount {
+		return title + " (" + strconv.Itoa(visibleCount) + ")"
+	}
+	return title + " (" + strconv.Itoa(visibleCount) + "/" + strconv.Itoa(totalCount) + ")"
 }
 
 func renderRows(items []Item) []string {
@@ -495,6 +625,32 @@ func renderRow(item Item) string {
 		return title
 	}
 	return title + " - " + description
+}
+
+func filterItems(items []Item, query string) []Item {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" || len(items) == 0 {
+		return items
+	}
+	terms := strings.Fields(query)
+	if len(terms) == 0 {
+		return items
+	}
+	filtered := make([]Item, 0, len(items))
+	for _, item := range items {
+		haystack := strings.ToLower(strings.Join([]string{item.Key, item.Title, item.Description}, " "))
+		matched := true
+		for _, term := range terms {
+			if !strings.Contains(haystack, term) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 func selectedKeysFromIndices(items []Item, indices []int) ([]string, bool) {
@@ -710,6 +866,15 @@ func getOperationsProp(props rtui.Props, def [2]string) [2]string {
 	if value, ok := props[propOperations]; ok {
 		if operations, ok := value.([2]string); ok {
 			return operations
+		}
+	}
+	return def
+}
+
+func getSearchPlaceholdersProp(props rtui.Props, def [2]string) [2]string {
+	if value, ok := props[propSearchPlaceholders]; ok {
+		if placeholders, ok := value.([2]string); ok {
+			return placeholders
 		}
 	}
 	return def

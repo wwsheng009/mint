@@ -31,7 +31,8 @@ const (
 // It persists across renders and holds all state including cursor position.
 type Instance struct {
 	// === Identification ===
-	key string
+	key    string
+	parent rtui.ComponentInstance
 
 	// === Props (from VNode, may change each render) ===
 	placeholder   string
@@ -175,10 +176,14 @@ func (inst *Instance) SetKey(key string) {
 	inst.key = key
 }
 
-// Parent implements TreeComponent interface (intent bubble).
-// Returns nil as Input is a leaf component without parent tracking.
+// Parent implements TreeComponent interface for local intent bubbling.
 func (inst *Instance) Parent() interface{} {
-	return nil
+	return inst.parent
+}
+
+// SetParent stores the runtime parent instance for local intent bubbling.
+func (inst *Instance) SetParent(parent rtui.ComponentInstance) {
+	inst.parent = parent
 }
 
 // Init implements ComponentInstance.
@@ -1369,6 +1374,12 @@ func (inst *Instance) emitFieldValueChanged() {
 	}
 
 	// Original MVP behavior: emit FieldChangeIntent
+	if valueIntent, ok := inst.changeIntent.(interface {
+		WithValue(string) intent.Intent
+	}); ok {
+		inst.intentEmitter(valueIntent.WithValue(inst.value))
+		return
+	}
 	if fieldIntent, ok := inst.changeIntent.(intent.FieldIntent); ok {
 		changeIntent := intent.FieldChangeIntent{
 			Field: fieldIntent.GetField(),

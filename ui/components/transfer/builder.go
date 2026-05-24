@@ -51,6 +51,26 @@ func (b *Builder) Operations(toTarget, toSource string) *Builder {
 	return b
 }
 
+func (b *Builder) Searchable(searchable bool) *Builder {
+	b.node.SetSearchable(searchable)
+	return b
+}
+
+func (b *Builder) SearchPlaceholders(source, target string) *Builder {
+	b.node.SetSearchPlaceholders(source, target)
+	return b
+}
+
+func (b *Builder) SearchValues(source, target string) *Builder {
+	b.node.SetSearchValues(source, target)
+	return b
+}
+
+func (b *Builder) InitialSearchValues(source, target string) *Builder {
+	b.node.SetInitialSearchValues(source, target)
+	return b
+}
+
 func (b *Builder) TargetKeys(keys []string) *Builder {
 	b.node.SetTargetKeys(keys)
 	return b

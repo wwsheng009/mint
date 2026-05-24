@@ -28,6 +28,9 @@ func TestBuilderFluentAPI(t *testing.T) {
 		ComponentID("members-transfer").
 		Titles("Available", "Chosen").
 		Operations(">>", "<<").
+		Searchable(true).
+		SearchPlaceholders("Find available", "Find chosen").
+		InitialSearchValues("alp", "").
 		InitialTargetKeys([]string{"b"}).
 		ListWidth(30).
 		ListHeight(10).
@@ -49,6 +52,12 @@ func TestBuilderFluentAPI(t *testing.T) {
 	}
 	if node.operations != [2]string{">>", "<<"} {
 		t.Fatalf("operations = %#v", node.operations)
+	}
+	if !node.searchable || node.searchControlled {
+		t.Fatalf("search config = searchable:%v controlled:%v, want searchable uncontrolled", node.searchable, node.searchControlled)
+	}
+	if node.searchPlaceholders != [2]string{"Find available", "Find chosen"} || node.sourceSearch != "alp" {
+		t.Fatalf("search values = placeholders:%#v source:%q target:%q", node.searchPlaceholders, node.sourceSearch, node.targetSearch)
 	}
 	if !reflect.DeepEqual(node.targetKeys, []string{"b"}) {
 		t.Fatalf("targetKeys = %#v, want []string{\"b\"}", node.targetKeys)
@@ -101,6 +110,83 @@ func TestRuntimeChildrenBuildsDualLists(t *testing.T) {
 	rightList := rightWrapper.Children()[0]
 	if header, _ := rightList.Props()["header"].(string); header != "Target (1)" {
 		t.Fatalf("right header = %q, want Target (1)", header)
+	}
+}
+
+func TestRuntimeChildrenSearchableFiltersLists(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:        "members",
+		propSearchable:         true,
+		propSearchPlaceholders: [2]string{"Find source", "Find target"},
+		propSourceSearch:       "alp",
+		propItems: []Item{
+			{Key: "a", Title: "Alpha"},
+			{Key: "b", Title: "Beta"},
+			{Key: "c", Title: "Gamma"},
+			{Key: "d", Title: "Delta"},
+		},
+		propTargetKeys: []string{"d"},
+	})
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	root := children[0]
+	leftWrapper := root.Children()[0]
+	if len(leftWrapper.Children()) != 2 {
+		t.Fatalf("searchable wrapper children len = %d, want 2", len(leftWrapper.Children()))
+	}
+	searchInput := leftWrapper.Children()[0]
+	if searchInput.Tag() != "input" || searchInput.ID() != inst.sourceSearchField() {
+		t.Fatalf("search input tag/id = %q/%q, want input/%q", searchInput.Tag(), searchInput.ID(), inst.sourceSearchField())
+	}
+	leftList := leftWrapper.Children()[1]
+	if header, _ := leftList.Props()["header"].(string); header != "Source (1/3)" {
+		t.Fatalf("left header = %q, want Source (1/3)", header)
+	}
+	if rows, _ := leftList.Props()["rows"].([]string); !reflect.DeepEqual(rows, []string{"Alpha"}) {
+		t.Fatalf("left rows = %#v, want Alpha only", rows)
+	}
+
+	if !inst.HandleIntent(list.SelectionChangeWithID(inst.sourceListID(), list.SelectionMultiple, []int{0}, []string{"Alpha"})) {
+		t.Fatal("selection intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.selectedSourceKeys, []string{"a"}) {
+		t.Fatalf("selectedSourceKeys = %#v, want []string{\"a\"}", inst.selectedSourceKeys)
+	}
+	if !inst.HandleIntent(MoveToTargetWithID("members")) {
+		t.Fatal("move-to-target intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.targetKeys, []string{"a", "d"}) {
+		t.Fatalf("targetKeys = %#v, want []string{\"a\", \"d\"}", inst.targetKeys)
+	}
+}
+
+func TestSearchFieldChangeUpdatesVisibleRows(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "members",
+		propSearchable:  true,
+		propItems: []Item{
+			{Key: "a", Title: "Alpha"},
+			{Key: "b", Title: "Beta"},
+			{Key: "c", Title: "Gamma"},
+		},
+	})
+
+	if !inst.HandleIntent(runtimeintent.FieldChangeIntent{Field: inst.sourceSearchField(), Value: "bet"}) {
+		t.Fatal("source search field change should be handled")
+	}
+	if inst.sourceSearch != "bet" {
+		t.Fatalf("sourceSearch = %q, want bet", inst.sourceSearch)
+	}
+	children := inst.RuntimeChildren()
+	leftList := children[0].Children()[0].Children()[1]
+	if header, _ := leftList.Props()["header"].(string); header != "Source (1/3)" {
+		t.Fatalf("left header = %q, want Source (1/3)", header)
+	}
+	if rows, _ := leftList.Props()["rows"].([]string); !reflect.DeepEqual(rows, []string{"Beta"}) {
+		t.Fatalf("left rows = %#v, want Beta only", rows)
 	}
 }
 
