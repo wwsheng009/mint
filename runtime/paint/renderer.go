@@ -43,7 +43,8 @@ type Renderer struct {
 	cursorY    int
 
 	// 输出缓冲
-	output bytes.Buffer
+	output  bytes.Buffer
+	runText bytes.Buffer
 
 	// 渲染模式
 	useLineDiff bool // 是否使用行级 diff（默认 true）
@@ -52,6 +53,7 @@ type Renderer struct {
 	// 脏区域提示（来自 Fiber/PaintableBox 管线）
 	// 注意：这是“提示”，不是强约束；渲染仍以 buffer diff 为准保证正确性。
 	dirtyHints []Rect
+	fullMarks  []bool
 
 	// 统计信息
 	changedLines int // 最近一次渲染变化的行数
@@ -144,8 +146,9 @@ func (r *Renderer) Render() string {
 		}
 	}
 
-	partialLineRanges := subtractFullLines(hintRanges, fullLines, r.back.Height)
-	r.changedLines = countRenderedLines(fullLines, partialLineRanges, r.back.Height)
+	fullMarks, fullLineCount := r.markFullLines(fullLines, r.back.Height)
+	partialLineRanges := subtractFullLines(hintRanges, fullMarks, r.back.Height)
+	r.changedLines = fullLineCount + countPartialLines(partialLineRanges, r.back.Height)
 	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v, UseLineDiff=%v, HintRects=%d, ForceFull=%v",
 		hasChanges, r.changedLines, diff.HasScroll, r.useLineDiff, len(r.dirtyHints), r.forceFull)
 
@@ -157,13 +160,6 @@ func (r *Renderer) Render() string {
 	// 处理滚动（如果检测到）
 	if r.useLineDiff && !r.forceFull && diff.HasScroll {
 		r.emitScroll(diff.ScrollAmount)
-	}
-
-	fullMarks := make([]bool, r.back.Height)
-	for _, y := range fullLines {
-		if y >= 0 && y < r.back.Height {
-			fullMarks[y] = true
-		}
 	}
 
 	// 渲染变化内容：优先整行，其次渲染提示区间
@@ -232,7 +228,8 @@ func (r *Renderer) renderFullLine(y int) {
 		// 尝试合并相邻同样式的单元格
 		startX := x
 		runStyle := cell.Style
-		var runText bytes.Buffer
+		runText := &r.runText
+		runText.Reset()
 		totalWidth := 0
 
 		// 收集连续同样式的单元格
@@ -267,7 +264,7 @@ func (r *Renderer) renderFullLine(y int) {
 
 		// 输出合并的 run
 		if runText.Len() > 0 {
-			r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
+			r.emitRunBufferWithWidth(startX, y, runStyle, runText, totalWidth)
 		}
 	}
 
@@ -308,7 +305,8 @@ func (r *Renderer) renderLineRanges(y int, ranges []lineRange) {
 
 			startX := x
 			runStyle := cell.Style
-			var runText bytes.Buffer
+			runText := &r.runText
+			runText.Reset()
 			totalWidth := 0
 
 			for x < end {
@@ -339,7 +337,7 @@ func (r *Renderer) renderLineRanges(y int, ranges []lineRange) {
 			}
 
 			if runText.Len() > 0 {
-				r.emitRunWithWidth(startX, y, runStyle, runText.String(), totalWidth)
+				r.emitRunBufferWithWidth(startX, y, runStyle, runText, totalWidth)
 				continue
 			}
 
@@ -349,31 +347,23 @@ func (r *Renderer) renderLineRanges(y int, ranges []lineRange) {
 	}
 }
 
-// emitRunWithWidth 输出一个渲染批次（带宽度参数，用于正确跟踪光标）
-// 对于边框字符，使用 cell width 而非 runewidth.StringWidth，避免光标位置错误
-func (r *Renderer) emitRunWithWidth(x, y int, runStyle style.Style, text string, textWidth int) {
-	if text == "" {
-		// 空文本也要更新内部光标状态，避免后续相对移动基准错误。
+func (r *Renderer) emitRunBufferWithWidth(x, y int, runStyle style.Style, text *bytes.Buffer, textWidth int) {
+	if text == nil || text.Len() == 0 {
 		r.cursorX = x + textWidth
 		r.cursorY = y
 		return
 	}
 
-	// 移动光标
 	cursorCmd := r.moveCursorOptimized(x, y)
 	if cursorCmd != "" {
 		r.output.WriteString(cursorCmd)
 	}
 
-	// 设置样式（只输出变化部分）
 	if r.styleState.NeedsUpdate(runStyle) {
 		r.output.WriteString(r.styleState.Update(runStyle))
 	}
 
-	// 输出文本
-	r.output.WriteString(text)
-
-	// 文本写入后，更新内部光标到 run 末尾
+	r.output.Write(text.Bytes())
 	r.cursorX = x + textWidth
 	r.cursorY = y
 }
@@ -631,6 +621,28 @@ func (r *Renderer) clearFrameHintsLocked() {
 	}
 }
 
+func (r *Renderer) markFullLines(lines []int, height int) ([]bool, int) {
+	if height <= 0 {
+		return nil, 0
+	}
+	if cap(r.fullMarks) < height {
+		r.fullMarks = make([]bool, height)
+	} else {
+		r.fullMarks = r.fullMarks[:height]
+		clear(r.fullMarks)
+	}
+
+	count := 0
+	for _, y := range lines {
+		if y < 0 || y >= height || r.fullMarks[y] {
+			continue
+		}
+		r.fullMarks[y] = true
+		count++
+	}
+	return r.fullMarks, count
+}
+
 func allLines(height int) []int {
 	if height <= 0 {
 		return nil
@@ -723,16 +735,9 @@ func mergeLineRanges(ranges []lineRange) []lineRange {
 	return merged
 }
 
-func subtractFullLines(hints map[int][]lineRange, fullLines []int, height int) map[int][]lineRange {
+func subtractFullLines(hints map[int][]lineRange, fullMarks []bool, height int) map[int][]lineRange {
 	if len(hints) == 0 || height <= 0 {
 		return nil
-	}
-
-	fullMarks := make([]bool, height)
-	for _, y := range fullLines {
-		if y >= 0 && y < height {
-			fullMarks[y] = true
-		}
 	}
 
 	out := make(map[int][]lineRange, len(hints))
@@ -745,24 +750,13 @@ func subtractFullLines(hints map[int][]lineRange, fullLines []int, height int) m
 	return out
 }
 
-func countRenderedLines(fullLines []int, partial map[int][]lineRange, height int) int {
+func countPartialLines(partial map[int][]lineRange, height int) int {
 	if height <= 0 {
 		return 0
 	}
-	marks := make([]bool, height)
-	for _, y := range fullLines {
-		if y >= 0 && y < height {
-			marks[y] = true
-		}
-	}
+	count := 0
 	for y, ranges := range partial {
 		if y >= 0 && y < height && len(ranges) > 0 {
-			marks[y] = true
-		}
-	}
-	count := 0
-	for _, marked := range marks {
-		if marked {
 			count++
 		}
 	}

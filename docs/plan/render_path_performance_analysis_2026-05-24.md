@@ -159,6 +159,8 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `PaintEngine` 复用 `parentBackground` 与 frame box tracking map，通过 `clear` 清空，减少每帧 map 分配。
 - App 侧 `collectPaintDirtyHints` 直接使用 provider 返回值，避免二次切片复制；scene image dirty hints 改为 append 到已有切片。
 - `DeclarativeNode.fiberFirstPaint` 在构建 PaintablePlanes 的同一次遍历中收集 dirty rects 和 scene image layers，避免 `PaintScene` 和 dirty rect 收集额外遍历 PaintableBox 树。
+- `runtime/paint.Renderer` 复用 full-line 标记 scratch，合并 rendered line 计数，减少每帧 bool slice 分配。
+- `runtime/paint.Renderer` 复用 run text buffer，并直接写入输出缓冲，避免每个 style run 创建临时 buffer 和 string。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
 
 后续建议：
