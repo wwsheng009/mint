@@ -151,7 +151,11 @@ func (e *PaintEngine) beginPaintFrame(buffer *paint.Buffer) {
 	}
 
 	// Clear parent background map at the start of each frame
-	e.parentBackground = make(map[*paint.PaintableBox]style.Color)
+	if e.parentBackground == nil {
+		e.parentBackground = make(map[*paint.PaintableBox]style.Color)
+	} else {
+		clear(e.parentBackground)
+	}
 
 	if e.forceFullRender {
 		e.forceFullRender = false
@@ -703,7 +707,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	e.beginPaintFrame(buffer)
 
 	// Phase 1: Collect all boxes in current frame for tracking
-	e.currentFrameBoxes = make(map[string]runtime.Box)
+	clear(e.currentFrameBoxes)
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
 		for _, box := range boxes {
@@ -743,8 +747,10 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	}
 
 	// Phase 4: Update tracking maps for next frame
+	reusableFrameBoxes := e.previousFrameBoxes
 	e.previousFrameBoxes = e.currentFrameBoxes
-	e.currentFrameBoxes = make(map[string]runtime.Box) // Reset for next frame
+	e.currentFrameBoxes = reusableFrameBoxes
+	clear(e.currentFrameBoxes)
 
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil

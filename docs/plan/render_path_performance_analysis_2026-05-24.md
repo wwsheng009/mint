@@ -156,6 +156,7 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `convertLayoutHitMap` 改为每帧先构建 `map[uint64]*Fiber`，再按 HitMap entry O(1) 查找目标 Fiber，避免每个 entry 扫描整棵 Fiber 树。
 - `paintBoxWithMode` 只调用一次 `box.Node.Paint` 并复用 draw commands，避免 cache 探测和正式绘制各调用一次组件 `Paint()`。
 - `PaintEngine.InitCache` 在正常绘制路径不再克隆整帧 buffer；`PaintingContext` 的 dirty rect 能力保留给直接创建 context 的调用方。
+- `PaintEngine` 复用 `parentBackground` 与 frame box tracking map，通过 `clear` 清空，减少每帧 map 分配。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
 
 后续建议：
