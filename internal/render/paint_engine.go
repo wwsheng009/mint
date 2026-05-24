@@ -125,7 +125,19 @@ func (e *PaintEngine) paintLayout(layout *paint.PaintableLayout, buffer *paint.B
 		return nil
 	}
 
-	// Initialize or update paint context for caching
+	e.beginPaintFrame(buffer)
+
+	return e.paintBox(layout.Root, buffer)
+}
+
+// beginPaintFrame initializes per-frame paint state once for a top-level paint
+// operation. PaintPaintablePlanes may paint many boxes in one frame, so this
+// must not be repeated for each individual box.
+func (e *PaintEngine) beginPaintFrame(buffer *paint.Buffer) {
+	if buffer == nil {
+		return
+	}
+
 	if e.enableCache {
 		e.InitCache(buffer)
 		e.version++
@@ -153,12 +165,21 @@ func (e *PaintEngine) paintLayout(layout *paint.PaintableLayout, buffer *paint.B
 			e.cache.InvalidateAll()
 		}
 	}
-
-	return e.paintBox(layout.Root, buffer)
 }
 
-// paintBox recursively paints a PaintableBox and its children
+// paintBox recursively paints a PaintableBox and its children.
 func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) error {
+	return e.paintBoxWithMode(box, buffer, true)
+}
+
+// paintBoxOnly paints only the current PaintableBox. PaintablePlanes already
+// contains every box in layer order, so recursive painting there would repaint
+// descendants once for every ancestor.
+func (e *PaintEngine) paintBoxOnly(box *paint.PaintableBox, buffer *paint.Buffer) error {
+	return e.paintBoxWithMode(box, buffer, false)
+}
+
+func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Buffer, paintChildren bool) error {
 	if box == nil || box.Node == nil {
 		return nil
 	}
@@ -240,17 +261,23 @@ func (e *PaintEngine) paintBox(box *paint.PaintableBox, buffer *paint.Buffer) er
 	case paint.NodeTypeElement:
 		e.paintElementBox(box, buffer)
 	case paint.NodeTypeFragment:
-		return e.paintBoxChildren(box, buffer)
+		if paintChildren {
+			return e.paintBoxChildren(box, buffer)
+		}
+		return nil
 	}
 
 	// Handle bordered elements (legacy path - for nodes without custom Paint)
 	if bs, bc, bl := box.GetBorderInfo(); bs != paint.BorderStyleNone && len(commands) == 0 {
-		e.paintBorderedBox(box, buffer, bs, bc, bl)
+		e.paintBorderedBox(box, buffer, bs, bc, bl, paintChildren)
 		return nil
 	}
 
 	// Paint children
-	return e.paintBoxChildren(box, buffer)
+	if paintChildren {
+		return e.paintBoxChildren(box, buffer)
+	}
+	return nil
 }
 
 // paintTextBox paints a text node (PaintableBox version)
@@ -326,8 +353,8 @@ func (e *PaintEngine) paintBoxChildren(box *paint.PaintableBox, buffer *paint.Bu
 	return nil
 }
 
-// paintBorderedBox paints a bordered PaintableBox
-func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Buffer, bs paint.BorderStyle, bc, bl string) {
+// paintBorderedBox paints a bordered PaintableBox.
+func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Buffer, bs paint.BorderStyle, bc, bl string, paintChildren bool) {
 	// Convert border style
 	var borderStyle border.Style
 	switch bs {
@@ -369,9 +396,11 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 			buffer.SetCell(px, py, ch, s)
 		})
 
-	for _, childBox := range box.Children {
-		if err := e.paintBox(childBox, buffer); err != nil && e.debug {
-			log.PaintLogger.IfEnabled().Debug("[paintBorderedBox] error: %v", err)
+	if paintChildren {
+		for _, childBox := range box.Children {
+			if err := e.paintBox(childBox, buffer); err != nil && e.debug {
+				log.PaintLogger.IfEnabled().Debug("[paintBorderedBox] error: %v", err)
+			}
 		}
 	}
 }
@@ -657,6 +686,9 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	if planes == nil {
 		return nil
 	}
+	if buffer == nil {
+		return nil
+	}
 
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] START: boxes=%d", planes.CountBoxes())
 
@@ -667,6 +699,7 @@ func (e *PaintEngine) PaintPaintablePlanes(
 		e.forceFullRender = true
 	}
 	e.lastHadModal = hasModal
+	e.beginPaintFrame(buffer)
 
 	// Phase 1: Collect all boxes in current frame for tracking
 	e.currentFrameBoxes = make(map[string]runtime.Box)
@@ -680,6 +713,8 @@ func (e *PaintEngine) PaintPaintablePlanes(
 	// Phase 2: Clear outdated painted regions (smart buffer clearing)
 	e.clearOutdatedRegions(buffer)
 
+	paintChildren := !e.paintablePlanesContainDescendants(planes)
+
 	// Phase 3: Paint all boxes in current frame
 	for _, layer := range planes.GetRenderOrder() {
 		boxes := planes.GetLayer(layer)
@@ -690,9 +725,13 @@ func (e *PaintEngine) PaintPaintablePlanes(
 		log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] Layer %s: %d boxes", layer.String(), len(boxes))
 
 		for _, box := range boxes {
-			layout := paint.NewPaintableLayout(box)
-			// Per-box render: never allow a zero-sized child to clear the full buffer.
-			if err := e.paintLayout(layout, buffer, false); err != nil {
+			var err error
+			if paintChildren {
+				err = e.paintBox(box, buffer)
+			} else {
+				err = e.paintBoxOnly(box, buffer)
+			}
+			if err != nil {
 				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
 			}
 		}
@@ -708,6 +747,36 @@ func (e *PaintEngine) PaintPaintablePlanes(
 
 	log.PaintLogger.IfEnabled().Debug("[PaintEngine.PaintPaintablePlanes] END")
 	return nil
+}
+
+func (e *PaintEngine) paintablePlanesContainDescendants(planes *paint.PaintablePlanes) bool {
+	if planes == nil {
+		return false
+	}
+
+	boxSet := make(map[*paint.PaintableBox]struct{}, planes.CountBoxes())
+	for _, layer := range planes.GetRenderOrder() {
+		for _, box := range planes.GetLayer(layer) {
+			if box != nil {
+				boxSet[box] = struct{}{}
+			}
+		}
+	}
+	if len(boxSet) == 0 {
+		return false
+	}
+
+	for box := range boxSet {
+		for _, child := range box.Children {
+			if child == nil {
+				continue
+			}
+			if _, ok := boxSet[child]; !ok {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // clearOutdatedRegions smartly clears regions that need refreshing

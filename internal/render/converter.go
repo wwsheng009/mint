@@ -2,7 +2,7 @@
 package render
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime/layout"
@@ -59,8 +59,7 @@ func (c *FiberToPaintableConverter) buildFiberMap(fiber *reconciler.Fiber) {
 		c.fiberMap[fiber.Key] = fiber
 	}
 	// Index by NodeID string
-	nodeIDKey := fmt.Sprintf("%d", fiber.NodeID)
-	c.fiberMap[nodeIDKey] = fiber
+	c.fiberMap[strconv.FormatUint(fiber.NodeID, 10)] = fiber
 
 	// Recursively index children
 	for child := fiber.Child; child != nil; child = child.Sibling {
@@ -135,13 +134,6 @@ func (c *FiberToPaintableConverter) findFiber(id string) *reconciler.Fiber {
 		return f
 	}
 
-	// Strategy 2: Match by NodeID format
-	for _, f := range c.fiberMap {
-		if fmt.Sprintf("%d", f.NodeID) == id {
-			return f
-		}
-	}
-
 	return nil
 }
 
@@ -193,7 +185,7 @@ func (n *FiberPaintableNode) ID() string {
 		return ""
 	}
 	if n.fiber.NodeID != 0 {
-		return fmt.Sprintf("fiber-node-%d", n.fiber.NodeID)
+		return "fiber-node-" + strconv.FormatUint(n.fiber.NodeID, 10)
 	}
 	if n.fiber.DiffKey != "" {
 		return n.fiber.DiffKey

@@ -210,6 +210,8 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 		return nil
 	}
 
+	fiberByID := buildFiberNodeIDIndex(fiberRoot)
+
 	// Build entries for event.HitMap
 	entries := make([]event.HitMapEntryInternal, 0, len(allEntries))
 	for _, layoutEntry := range allEntries {
@@ -225,8 +227,8 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 		var targetFiber interface {
 			GetActionTargetID() string
 		}
-		if fiberRoot != nil {
-			if fiber := rtui.FindFiberByID(fiberRoot, nodeID); fiber != nil {
+		if fiberByID != nil {
+			if fiber := fiberByID[nodeID]; fiber != nil {
 				targetFiber = fiber
 				if boundsAware, ok := fiber.Instance.(interface{ GetBounds() (int, int, int, int) }); ok {
 					x, y, width, height := boundsAware.GetBounds()
@@ -250,6 +252,21 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 	}
 
 	return event.BuildHitMapFromEntries(entries)
+}
+
+func buildFiberNodeIDIndex(root *rtui.Fiber) map[uint64]*rtui.Fiber {
+	if root == nil {
+		return nil
+	}
+
+	index := make(map[uint64]*rtui.Fiber)
+	rtui.WalkFiberDepthFirst(root, func(fiber *rtui.Fiber) bool {
+		if fiber != nil && fiber.NodeID != 0 {
+			index[fiber.NodeID] = fiber
+		}
+		return true
+	})
+	return index
 }
 
 // =============================================================================
