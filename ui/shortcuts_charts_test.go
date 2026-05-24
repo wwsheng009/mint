@@ -34,6 +34,9 @@ func TestChartShortcuts(t *testing.T) {
 	if vnode := Sparkline([]float64{1, 2, 3}); vnode.Tag() != "sparkline" {
 		t.Fatalf("Sparkline().Tag() = %q, want sparkline", vnode.Tag())
 	}
+	if vnode := ASCIISparkline([]float64{1, 2, 3}); vnode.Tag() != "sparkline" {
+		t.Fatalf("ASCIISparkline().Tag() = %q, want sparkline", vnode.Tag())
+	}
 	if vnode := BulletChart(60, 75, 100); vnode.Tag() != "bulletchart" {
 		t.Fatalf("BulletChart().Tag() = %q, want bulletchart", vnode.Tag())
 	}

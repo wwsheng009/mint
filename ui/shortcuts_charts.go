@@ -48,6 +48,12 @@ func Sparkline(data []float64) rtui.VNode {
 	return sparkline.NewBuilder(data).Build()
 }
 
+func ASCIISparkline(data []float64) rtui.VNode {
+	return sparkline.NewBuilder(data).
+		ASCII().
+		Build()
+}
+
 func BulletChart(value, target, max int) rtui.VNode {
 	return bulletchart.NewBuilder().
 		Value(value).
