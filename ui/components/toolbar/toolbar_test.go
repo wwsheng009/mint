@@ -26,7 +26,7 @@ func TestBuilderAndProps(t *testing.T) {
 		Left(Text("scope", "group: default").WithWidth(18)).
 		Center(Badge("state", "degraded").WithColors("black", "yellow")).
 		Action(Button("refresh", "Refresh", testIntent{"refresh"}).Primary().WithHelp("Reload current page")).
-		Action(Button("reset", "Reset", testIntent{"reset"}).Danger().WithDisabled(true)).
+		Action(Button("reset", "Reset", testIntent{"reset"}).Danger().WithDisabledReason("Select a provider before reset")).
 		BuildVNode()
 
 	if bar.Key() != "ops-toolbar" {
@@ -57,6 +57,9 @@ func TestBuilderAndProps(t *testing.T) {
 	if len(right) != 2 || right[0].Variant != button.VariantPrimary || right[1].Variant != button.VariantDanger {
 		t.Fatalf("right items = %#v", right)
 	}
+	if !right[1].Disabled || right[1].DisabledReason != "Select a provider before reset" {
+		t.Fatalf("reset disabled reason = disabled:%v reason:%q", right[1].Disabled, right[1].DisabledReason)
+	}
 }
 
 func TestRuntimeChildrenBuildToolbarControls(t *testing.T) {
@@ -65,7 +68,7 @@ func TestRuntimeChildrenBuildToolbarControls(t *testing.T) {
 		Title("Runtime").
 		Left(Text("focus", "F2 Load Balancer")).
 		Right(Button("refresh", "Refresh", testIntent{"refresh"}).Primary()).
-		Right(Button("reload", "Reload", testIntent{"reload"}).Danger().WithDisabled(true)).
+		Right(Button("reload", "Reload", testIntent{"reload"}).Danger().WithDisabledReason("Runtime is already reloading")).
 		BuildInstance()
 
 	children := inst.RuntimeChildren()
@@ -93,6 +96,13 @@ func TestRuntimeChildrenBuildToolbarControls(t *testing.T) {
 	if got := reload.Props()["disabled"]; got != true {
 		t.Fatalf("reload disabled = %v, want true", got)
 	}
+	tooltip := findVNodeByKey(root, "ops-toolbar-right-reload-tooltip")
+	if tooltip == nil {
+		t.Fatal("reload disabled reason tooltip not found")
+	}
+	if got := tooltip.Props()["text"]; got != "Runtime is already reloading" {
+		t.Fatalf("tooltip text = %v, want disabled reason", got)
+	}
 }
 
 func TestRuntimeChildrenBuildStatusBarMode(t *testing.T) {
@@ -101,7 +111,7 @@ func TestRuntimeChildrenBuildStatusBarMode(t *testing.T) {
 		Title("Manager").
 		UseStatusBar(true).
 		Left(Badge("mode", "ADMIN").WithHelp("Admin mode")).
-		Right(Button("help", "F10 Help", testIntent{"help"}).WithHelp("Open help")).
+		Right(Button("reload", "Reload", testIntent{"reload"}).WithDisabledReason("Select a target first")).
 		BuildInstance()
 
 	children := inst.RuntimeChildren()
@@ -115,8 +125,8 @@ func TestRuntimeChildrenBuildStatusBarMode(t *testing.T) {
 	if findVNodeByKey(root, "ops-status-left-mode") == nil {
 		t.Fatal("statusbar badge section not found")
 	}
-	if findVNodeByKey(root, "ops-status-right-help") == nil {
-		t.Fatal("statusbar help action not found")
+	if findVNodeByKey(root, "ops-status-right-reload") == nil {
+		t.Fatal("statusbar disabled action not found")
 	}
 }
 

@@ -32,7 +32,7 @@ func newToolbarStaticApp() ui.ComponentFunc {
 					Left(toolbarcomp.Text("scope", "group: default")).
 					Center(toolbarcomp.Badge("state", "degraded").WithColors("black", "yellow")).
 					Right(toolbarcomp.Button("refresh", "Refresh", toolbarTestIntent{"toolbar.refresh"}).Primary()).
-					Right(toolbarcomp.Button("reset", "Reset Runtime", toolbarTestIntent{"toolbar.reset"}).Danger().WithDisabled(true)).
+					Right(toolbarcomp.Button("reset", "Reset Runtime", toolbarTestIntent{"toolbar.reset"}).Danger().WithDisabledReason("Select a provider before reset")).
 					Build(),
 				ui.DataTable(
 					[]ui.TableColumn{
@@ -73,6 +73,27 @@ func TestE2EToolbarRendersAboveTable(t *testing.T) {
 	}
 	if toolbarPoint.Y >= tablePoint.Y {
 		t.Fatalf("expected toolbar above table, got toolbarY=%d tableY=%d", toolbarPoint.Y, tablePoint.Y)
+	}
+}
+
+func TestE2EToolbarDisabledReasonTooltip(t *testing.T) {
+	app, err := Run(newToolbarStaticApp(), ui.WithSize(96, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Select a provider before reset")); err == nil {
+		t.Fatal("disabled reason tooltip should be hidden before hover")
+	}
+
+	if err := app.Driver().Move(ByKey("ops-toolbar-right-reset-tooltip")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("Select a provider before reset"))
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

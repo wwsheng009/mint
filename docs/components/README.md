@@ -22,7 +22,7 @@ project-local equivalents:
 | Need | Components | Notes |
 |---|---|---|
 | Status footer / shortcut strip | `statusbar`, `toolbar.UseStatusBar(true)` | Left/center/right slots, fixed widths, hover help and overlay tooltip support. |
-| Page command bar | `toolbar`, `filterbar` | `Toolbar` supports text, badges, buttons, custom nodes and controlled dropdown menu entries backed by `menu.Popup`. |
+| Page command bar | `toolbar`, `filterbar` | `Toolbar` supports text, badges, buttons, custom nodes, disabled reasons, hover help and controlled dropdown menu entries backed by `menu.Popup`. |
 | Menus | `menu` | Menu bar, popup, context menu, cascading submenu, shortcuts, typeahead, placement fallback and outside-click/ESC close middleware. |
 | Bounded forms | `formdialog`, `form`, `forminputitem` | Use for short create/edit/audit-reason workflows that should preserve table context; `FormDialog` includes danger reason action presets. |
 | Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks; `ConfirmDialog` includes danger operation presets. |

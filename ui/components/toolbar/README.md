@@ -10,7 +10,8 @@
 - 受控下拉菜单项：`Dropdown(...)` / `Menu(...)` 会把 toolbar button 与 anchored `menu.Popup` 组合起来。
 - intent-first：按钮通过 `intent.Intent` 派发动作，不持有闭包。
 - 禁用态：`WithDisabled(...)`。
-- 帮助文本：`WithHelp(...)` / `WithTooltip(...)`，在 `UseStatusBar(true)` 模式下复用 `StatusBar` overlay help。
+- 禁用原因：`WithDisabledReason(...)` 会同时禁用操作并提供 hover/statusbar help。
+- 帮助文本：`WithHelp(...)` / `WithTooltip(...)`，普通工具栏会渲染 hover tooltip，`UseStatusBar(true)` 模式下复用 `StatusBar` overlay help。
 - 密集模式：`Dense(true)` 会使用小尺寸按钮。
 - 子目录组件结构：`ui/components/toolbar/`。
 - Fiber-first：`VNode + Instance + RuntimeChildrenProvider`。
@@ -25,7 +26,7 @@ toolbar.NewBuilder().
     Left(toolbar.Text("scope", "group: default").WithWidth(20)).
     Center(toolbar.Badge("state", "degraded").WithColors("black", "yellow")).
     Right(toolbar.Button("refresh", "Refresh", RefreshIntent{}).Primary()).
-    Right(toolbar.Button("reset", "Reset Runtime", ResetIntent{}).Danger().WithDisabled(true).WithHelp("Requires selected target and reason")).
+    Right(toolbar.Button("reset", "Reset Runtime", ResetIntent{}).Danger().WithDisabledReason("Requires selected target and reason")).
     Build()
 ```
 

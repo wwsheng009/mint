@@ -43,18 +43,19 @@ const (
 
 // Item describes one visible Toolbar entry.
 type Item struct {
-	Key         string
-	Label       string
-	Kind        ItemKind
-	PressIntent intent.Intent
-	Variant     button.Variant
-	Disabled    bool
-	HelpText    string
-	Width       int
-	FgColor     string
-	BgColor     string
-	Bold        bool
-	Custom      rtui.VNode
+	Key            string
+	Label          string
+	Kind           ItemKind
+	PressIntent    intent.Intent
+	Variant        button.Variant
+	Disabled       bool
+	HelpText       string
+	DisabledReason string
+	Width          int
+	FgColor        string
+	BgColor        string
+	Bold           bool
+	Custom         rtui.VNode
 
 	MenuID               string
 	MenuItems            []menucomp.MenuItem
@@ -365,6 +366,12 @@ func (i Item) WithDisabled(disabled bool) Item {
 	return i
 }
 
+func (i Item) WithDisabledReason(reason string) Item {
+	i.Disabled = true
+	i.DisabledReason = normalizeToolbarText(reason)
+	return i
+}
+
 func (i Item) WithHelp(helpText string) Item {
 	i.HelpText = normalizeToolbarText(helpText)
 	return i
@@ -481,6 +488,7 @@ func normalizeItems(items []Item) []Item {
 		}
 		normalized[index].Label = normalizeToolbarText(normalized[index].Label)
 		normalized[index].HelpText = normalizeToolbarText(normalized[index].HelpText)
+		normalized[index].DisabledReason = normalizeToolbarText(normalized[index].DisabledReason)
 		normalized[index].MenuID = strings.TrimSpace(normalized[index].MenuID)
 		normalized[index].MenuItems = menucomp.NormalizeItems(normalized[index].MenuItems)
 		normalized[index].MenuActivePath = append([]int(nil), normalized[index].MenuActivePath...)

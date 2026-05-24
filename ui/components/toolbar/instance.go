@@ -3,6 +3,7 @@ package toolbar
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -12,6 +13,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/statusbar"
 	"github.com/wwsheng009/mint/ui/components/tag"
 	"github.com/wwsheng009/mint/ui/components/text"
+	"github.com/wwsheng009/mint/ui/components/tooltip"
 )
 
 // Instance is the runtime entity for Toolbar.
@@ -203,7 +205,7 @@ func (inst *Instance) buildItem(item Item, slot string) rtui.VNode {
 	case ItemButton:
 		return inst.buildButton(item, slot)
 	case ItemBadge:
-		return inst.wrapWidthIfNeeded(item, slot, tag.NewBuilder(item.Label).
+		return inst.wrapItemNode(item, slot, tag.NewBuilder(item.Label).
 			Key(inst.itemKey(slot, item)).
 			Style(inst.itemStyle(item, style.NewStyle().Foreground(style.Black).Background(style.BrightBlack).Bold(true))).
 			Build())
@@ -223,9 +225,9 @@ func (inst *Instance) buildItem(item Item, slot string) rtui.VNode {
 		if item.Custom.Key() == "" {
 			item.Custom.SetKey(inst.itemKey(slot, item))
 		}
-		return inst.wrapWidthIfNeeded(item, slot, item.Custom)
+		return inst.wrapItemNode(item, slot, item.Custom)
 	default:
-		return inst.wrapWidthIfNeeded(item, slot, text.NewBuilder(item.Label).
+		return inst.wrapItemNode(item, slot, text.NewBuilder(item.Label).
 			Key(inst.itemKey(slot, item)).
 			Style(inst.itemStyle(item, style.NewStyle().Foreground(theme.Text()))).
 			Build())
@@ -250,7 +252,7 @@ func (inst *Instance) buildButton(item Item, slot string) rtui.VNode {
 	if !inst.explicitItemStyle(item).IsEmpty() {
 		builder.Style(inst.explicitItemStyle(item))
 	}
-	return inst.wrapWidthIfNeeded(item, slot, builder.Build())
+	return inst.wrapItemNode(item, slot, builder.Build())
 }
 
 func (inst *Instance) buildMenuButton(item Item, slot string) rtui.VNode {
@@ -389,10 +391,26 @@ func (inst *Instance) itemToSection(item Item, slot string) (statusbar.Section, 
 	if item.PressIntent != nil && item.Kind != ItemButton {
 		section = section.OnPress(item.PressIntent)
 	}
-	if item.HelpText != "" {
-		section = section.WithHelp(item.HelpText)
+	if helpText := inst.itemHelpText(item); helpText != "" {
+		section = section.WithHelp(helpText)
 	}
 	return section, true
+}
+
+func (inst *Instance) wrapItemNode(item Item, slot string, node rtui.VNode) rtui.VNode {
+	if node == nil {
+		return nil
+	}
+	node = inst.wrapWidthIfNeeded(item, slot, node)
+	helpText := inst.itemHelpText(item)
+	if helpText == "" {
+		return node
+	}
+	return tooltip.NewBuilder(node, helpText).
+		Key(inst.itemKey(slot, item) + "-tooltip").
+		Bottom().
+		Delay(0 * time.Millisecond).
+		Build()
 }
 
 func (inst *Instance) wrapWidthIfNeeded(item Item, slot string, node rtui.VNode) rtui.VNode {
@@ -402,6 +420,13 @@ func (inst *Instance) wrapWidthIfNeeded(item Item, slot string, node rtui.VNode)
 	box := rtui.Box().Width(item.Width).Child(node).Build()
 	box.SetKey(inst.itemKey(slot, item) + "-box")
 	return box
+}
+
+func (inst *Instance) itemHelpText(item Item) string {
+	if item.Disabled && strings.TrimSpace(item.DisabledReason) != "" {
+		return strings.TrimSpace(item.DisabledReason)
+	}
+	return strings.TrimSpace(item.HelpText)
 }
 
 func (inst *Instance) itemStyle(item Item, fallback style.Style) style.Style {
