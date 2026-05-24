@@ -1,4 +1,4 @@
-package ui
+package datatable
 
 import (
 	"testing"
@@ -8,9 +8,9 @@ import (
 	"github.com/wwsheng009/mint/ui/components/table"
 )
 
-func TestDataTableShortcut(t *testing.T) {
-	node := DataTable(
-		[]TableColumn{
+func TestNew(t *testing.T) {
+	node := New(
+		[]table.TableColumn{
 			{Title: "Name", Width: 12},
 			{Title: "Status", Width: 10},
 		},
@@ -18,16 +18,16 @@ func TestDataTableShortcut(t *testing.T) {
 			{"provider-a", "healthy"},
 			{"provider-b", "degraded"},
 		},
-		DataTableKey("providers"),
-		DataTableComponentID("providers.table"),
-		DataTablePageSize(8),
-		DataTableSelectedIndex(1),
-		DataTableSelectedField("selectedProvider"),
-		DataTableSearch("provider"),
-		DataTableEmptyText("No providers"),
-		DataTableShowFooter(true),
-		DataTableShowScrollbar(true),
-		DataTableOperationalStyle(),
+		Key("providers"),
+		ComponentID("providers.table"),
+		PageSize(8),
+		SelectedIndex(1),
+		SelectedField("selectedProvider"),
+		Search("provider"),
+		EmptyText("No providers"),
+		ShowFooter(true),
+		ShowScrollbar(true),
+		OperationalStyle(),
 	)
 
 	props := node.Props()
@@ -75,11 +75,11 @@ func TestDataTableShortcut(t *testing.T) {
 	}
 }
 
-func TestDataTableCustomOption(t *testing.T) {
-	node := DataTable(
-		[]TableColumn{{Title: "Name"}},
+func TestCustomOption(t *testing.T) {
+	node := New(
+		[]table.TableColumn{{Title: "Name"}},
 		[][]string{{"a"}},
-		func(cfg *DataTableConfig) {
+		func(cfg *Config) {
 			cfg.EmptyText = "custom empty"
 			cfg.ShowFooter = boolPtr(false)
 		},

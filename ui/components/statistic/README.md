@@ -24,7 +24,7 @@ ui.NewStatisticBuilder().
 
 ## 指标行快捷构造
 
-如果需要在运维概览、后台首页或详情页顶部展示多个紧凑指标，可以使用根包的 `ui.MetricRow(...)`。它基于现有 `Panel` 和 `Text` 组合，不引入新的运行时组件。
+如果需要在运维概览、后台首页或详情页顶部展示多个紧凑指标，可以使用 `ui/components/metricrow` 提供的声明式组合能力；根包 `ui.MetricRow(...)` 是面向 SDK 使用者的薄转发入口。它基于现有 `Panel` 和 `Text` 组合，不引入新的运行时组件。
 
 ```go
 summary := ui.MetricRow(

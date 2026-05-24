@@ -39,7 +39,7 @@ loginForm := ui.NewForm("loginForm").
 
 ## 输入项快捷构造
 
-常见业务表单可以通过 `ui` 包的 `FormInputItem`、`FormPasswordItem`、`FormSearchItem` 快速生成 `FormItem + Input + FieldBinding`，避免在每个页面重复拼装 label、输入框和字段绑定。
+常见业务表单可以通过 `ui/components/forminputitem` 提供的声明式组合能力快速生成 `FormItem + Input + FieldBinding`；根包 `ui.FormInputItem`、`ui.FormPasswordItem`、`ui.FormSearchItem` 是面向 SDK 使用者的薄转发入口，避免在每个页面重复拼装 label、输入框和字段绑定。
 
 ```go
 loginForm := ui.NewForm("loginForm").

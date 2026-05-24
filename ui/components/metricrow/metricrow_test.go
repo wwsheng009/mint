@@ -1,22 +1,23 @@
-package ui
+package metricrow
 
 import (
 	"testing"
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
+	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-func TestMetricRow(t *testing.T) {
-	row := MetricRow(
-		[]MetricItem{
+func TestNew(t *testing.T) {
+	row := New(
+		[]Item{
 			{Title: "Runtime", Value: "healthy"},
 			{Title: "Requests", Value: 42},
 			{Title: "Missing", Value: nil},
 		},
-		MetricRowItemWidth(24),
-		MetricRowGap(2),
-		MetricRowBorder(layout.BorderDouble, style.Color("green")),
+		ItemWidth(24),
+		Gap(2),
+		Border(layout.BorderDouble, style.Color("green")),
 	)
 
 	if row.Tag() != "hstack" {
@@ -45,10 +46,10 @@ func TestMetricRow(t *testing.T) {
 	}
 }
 
-func TestMetricRowFormatter(t *testing.T) {
-	row := MetricRow(
-		[]MetricItem{{Title: "Rate", Value: 0.95}},
-		MetricRowFormatter(func(value interface{}) string {
+func TestFormatter(t *testing.T) {
+	row := New(
+		[]Item{{Title: "Rate", Value: 0.95}},
+		Formatter(func(value interface{}) string {
 			return "95%"
 		}),
 	)
@@ -57,7 +58,7 @@ func TestMetricRowFormatter(t *testing.T) {
 		t.Fatalf("children len = %d, want 1", len(children))
 	}
 	content := children[0].Props()["content"]
-	contentNode, ok := content.(VNode)
+	contentNode, ok := content.(rtui.VNode)
 	if !ok {
 		t.Fatalf("metric content = %T, want ui.VNode", content)
 	}

@@ -42,7 +42,7 @@ ui.NewTableBuilder().
 
 ## 数据应用快捷构造
 
-对于后台、运维、管理台一类常见表格，可以使用根包的 `ui.DataTable(...)` 快速配置分页、选择绑定、搜索、空态和标准高亮样式：
+对于后台、运维、管理台一类常见表格，可以使用 `ui/components/datatable` 提供的声明式组合能力；根包 `ui.DataTable(...)` 是面向 SDK 使用者的薄转发入口，可快速配置分页、选择绑定、搜索、空态和标准高亮样式：
 
 ```go
 tableView := ui.DataTable(
@@ -67,6 +67,6 @@ tableView := ui.DataTable(
 
 ## 测试入口
 
-- 单测：`go test ./ui/components/table`
+- 单测：`go test ./ui/components/table ./ui/components/datatable`
 - 重点覆盖：`table_test.go` 中的排序 / 分页 / 过滤、expandable rows、fixed columns、tree data、字段同步与 `StateChangeIntent`
 - E2E：`go test ./ui/e2e -run TestE2ETable`
