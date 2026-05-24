@@ -6,7 +6,7 @@ This directory contains user-facing component notes and historical component des
 
 Current source facts:
 
-- 66 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
+- 67 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
 - Every top-level component package currently has a local `README.md`.
 - Component regression tests are split between package tests under `../../ui/components/**` and end-to-end tests under `../../ui/e2e`.
 - Chart components live under `../../ui/components/charts` and use shared internal chart helpers.
@@ -85,6 +85,7 @@ Not every component has every file listed above; small display components can be
 | TimePicker | `../../ui/components/timepicker/README.md` | Time segment picker. |
 | Transfer | `../../ui/components/transfer/README.md` | Transfer list. |
 | Form | `../../ui/components/form/README.md` | Form item/context and field integration. |
+| FilterBar | `../../ui/components/filterbar/README.md` | Search/filter toolbar for data pages. |
 | OptionGroup | `../../ui/components/optiongroup/README.md` | Shared option/radio/checkbox style grouping. |
 | Validation | `../../ui/components/validation/README.md` | Validation helpers. |
 
