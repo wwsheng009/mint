@@ -85,6 +85,29 @@ func TestVNode_Builder_Block(t *testing.T) {
 	}
 }
 
+func TestVNode_Builder_Indeterminate(t *testing.T) {
+	p := NewBuilder().
+		Label("Reloading").
+		Indeterminate().
+		Build()
+
+	vnode := p.(*VNode)
+	if !vnode.IsIndeterminate() {
+		t.Fatal("IsIndeterminate() = false, want true")
+	}
+	if vnode.Status() != StatusActive {
+		t.Fatalf("Status() = %v, want %v", vnode.Status(), StatusActive)
+	}
+	if vnode.Label() != "Reloading" {
+		t.Fatalf("Label() = %q, want Reloading", vnode.Label())
+	}
+
+	vnode.Determinate()
+	if vnode.IsIndeterminate() {
+		t.Fatal("IsIndeterminate() after Determinate() = true, want false")
+	}
+}
+
 func TestVNode_Percent(t *testing.T) {
 	tests := []struct {
 		value int
@@ -126,6 +149,55 @@ func TestVNode_CreateInstance(t *testing.T) {
 	}
 	if ci.status != StatusActive {
 		t.Errorf("Status = %v, want %v", ci.status, StatusActive)
+	}
+}
+
+func TestInstance_IndeterminateLineAnimatesWithoutPercent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propIndeterminate: true,
+		propLabel:         "Reloading",
+		propWidth:         12,
+	})
+
+	if !inst.WantsTick() {
+		t.Fatal("WantsTick() should be true for indeterminate progress")
+	}
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 2 {
+		t.Fatalf("Paint() returned %d commands, want at least 2", len(cmds))
+	}
+	if got, want := cmds[0].Text, "[>>>-------]"; got != want {
+		t.Fatalf("line row = %q, want %q", got, want)
+	}
+	if got, want := cmds[1].Text, "Reloading: ..."; got != want {
+		t.Fatalf("label = %q, want %q", got, want)
+	}
+
+	if !inst.Tick(time.Unix(0, 0)) {
+		t.Fatal("first Tick should advance indeterminate progress")
+	}
+	next := inst.Paint(0, 0)[0].Text
+	if next == cmds[0].Text {
+		t.Fatalf("indeterminate row should change after tick: %q", next)
+	}
+}
+
+func TestInstance_IndeterminateCircleAndDashboardRenderActiveSegments(t *testing.T) {
+	for _, typ := range []Type{TypeCircle, TypeDashboard} {
+		inst := NewInstance(rtui.Props{
+			propIndeterminate: true,
+			propType:          typ,
+			propShowPercent:   false,
+		})
+		rows := inst.visualRows()
+		joined := strings.Join(rows, "\n")
+		if !strings.Contains(joined, "@") {
+			t.Fatalf("type %v indeterminate rows = %q, want active @ segment", typ, joined)
+		}
+		if !strings.Contains(joined, "o") {
+			t.Fatalf("type %v indeterminate rows = %q, want track o segment", typ, joined)
+		}
 	}
 }
 

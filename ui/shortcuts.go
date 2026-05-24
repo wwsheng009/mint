@@ -1110,6 +1110,11 @@ func ProgressPercent(percent int) rtui.VNode {
 	return progress.NewBuilder().Value(percent).Max(100).Build()
 }
 
+// ProgressIndeterminate creates an animated progress bar for work without a known total.
+func ProgressIndeterminate(label string) rtui.VNode {
+	return progress.NewBuilder().Indeterminate().Label(label).Build()
+}
+
 // Clock creates a realtime clock with the requested radius.
 func Clock(radius int) rtui.VNode {
 	return clock.NewBuilder().Radius(radius).Build()

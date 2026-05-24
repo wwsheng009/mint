@@ -65,6 +65,12 @@ func newProgressStaticApp() ui.ComponentFunc {
 					Active().
 					Build(),
 				progresscomp.NewBuilder().
+					SetID("progress-indeterminate").
+					Width(12).
+					Label("Resolving").
+					Indeterminate().
+					Build(),
+				progresscomp.NewBuilder().
 					SetID("progress-circle").
 					Value(100).
 					Max(100).
@@ -193,6 +199,12 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 	if err := app.AssertVisible(ByText("Syncing")); err != nil {
 		t.Fatal(err)
 	}
+	if err := app.AssertVisible(ByID("progress-indeterminate")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Resolving: ...")); err != nil {
+		t.Fatal(err)
+	}
 	if err := app.AssertVisible(ByText(" ### ")); err != nil {
 		t.Fatal(err)
 	}
@@ -227,6 +239,14 @@ func TestE2EProgressStatusStylesRender(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := app.AssertStyle(ByText("Syncing"), StyleExpect{
+		HasFG:   true,
+		FG:      fwtheme.Focus(),
+		HasBold: true,
+		Bold:    true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertStyle(ByText("Resolving: ..."), StyleExpect{
 		HasFG:   true,
 		FG:      fwtheme.Focus(),
 		HasBold: true,

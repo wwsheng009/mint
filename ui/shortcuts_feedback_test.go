@@ -48,4 +48,7 @@ func TestFeedbackShortcuts(t *testing.T) {
 	if vnode := CountdownTimer("Refresh", time.Minute); vnode.Tag() != "timer" {
 		t.Fatalf("CountdownTimer().Tag() = %q, want timer", vnode.Tag())
 	}
+	if vnode := ProgressIndeterminate("Reloading"); vnode.Tag() != "progress" {
+		t.Fatalf("ProgressIndeterminate().Tag() = %q, want progress", vnode.Tag())
+	}
 }

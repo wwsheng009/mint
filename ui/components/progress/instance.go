@@ -43,6 +43,7 @@ type Instance struct {
 	width          int
 	value          int
 	max            int
+	indeterminate  bool
 	progressType   Type
 	status         Status
 	showPercent    bool
@@ -77,6 +78,7 @@ func NewInstance(props rtui.Props) *Instance {
 		width:          proputil.GetInt(props, propWidth, 30),
 		value:          value,
 		max:            max,
+		indeterminate:  proputil.GetBool(props, propIndeterminate, false),
 		progressType:   getTypeProp(props, TypeLine),
 		status:         getStatusProp(props, StatusNormal),
 		showPercent:    proputil.GetBool(props, propShowPercent, true),
@@ -107,6 +109,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldWidth := inst.width
 	oldValue := inst.value
 	oldMax := inst.max
+	oldIndeterminate := inst.indeterminate
 	oldType := inst.progressType
 	oldStatus := inst.status
 	oldShowPercent := inst.showPercent
@@ -123,6 +126,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = proputil.GetInt(props, propWidth, inst.width)
 	inst.value = value
 	inst.max = max
+	inst.indeterminate = proputil.GetBool(props, propIndeterminate, inst.indeterminate)
 	inst.progressType = getTypeProp(props, inst.progressType)
 	inst.status = getStatusProp(props, inst.status)
 	inst.showPercent = proputil.GetBool(props, propShowPercent, inst.showPercent)
@@ -131,7 +135,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		inst.startPercentTween(currentPercent, float64(inst.targetPercent()))
 	}
 
-	if oldType != inst.progressType || oldStatus != inst.status {
+	if oldType != inst.progressType || oldStatus != inst.status || oldIndeterminate != inst.indeterminate {
 		inst.resetActiveLoop()
 	} else {
 		inst.syncActiveLoop(false)
@@ -143,6 +147,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldWidth != inst.width ||
 		oldValue != inst.value ||
 		oldMax != inst.max ||
+		oldIndeterminate != inst.indeterminate ||
 		oldType != inst.progressType ||
 		oldStatus != inst.status ||
 		oldShowPercent != inst.showPercent
@@ -154,15 +159,16 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propKey:         inst.key,
-		propLabel:       inst.label,
-		propStyle:       inst.progressStyle,
-		propWidth:       inst.width,
-		propValue:       inst.value,
-		propMax:         inst.max,
-		propType:        inst.progressType,
-		propStatus:      inst.status,
-		propShowPercent: inst.showPercent,
+		propKey:           inst.key,
+		propLabel:         inst.label,
+		propStyle:         inst.progressStyle,
+		propWidth:         inst.width,
+		propValue:         inst.value,
+		propMax:           inst.max,
+		propIndeterminate: inst.indeterminate,
+		propType:          inst.progressType,
+		propStatus:        inst.status,
+		propShowPercent:   inst.showPercent,
 	}
 }
 
@@ -317,6 +323,9 @@ func (inst *Instance) linearRow(filledRune, emptyRune, activeRune rune) string {
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
+	if inst.indeterminate {
+		return inst.indeterminateLinearRow(innerWidth, emptyRune, activeRune)
+	}
 
 	percent := inst.Percent()
 	filledCount := (percent * innerWidth) / 100
@@ -337,6 +346,25 @@ func (inst *Instance) linearRow(filledRune, emptyRune, activeRune rune) string {
 		cells[head] = activeRune
 	}
 
+	return "[" + string(cells) + "]"
+}
+
+func (inst *Instance) indeterminateLinearRow(innerWidth int, emptyRune, activeRune rune) string {
+	cells := make([]rune, innerWidth)
+	for i := range cells {
+		cells[i] = emptyRune
+	}
+	window := innerWidth / 3
+	if window < 1 {
+		window = 1
+	}
+	if window > innerWidth {
+		window = innerWidth
+	}
+	start := inst.activeFrame % innerWidth
+	for i := 0; i < window; i++ {
+		cells[(start+i)%innerWidth] = activeRune
+	}
 	return "[" + string(cells) + "]"
 }
 
@@ -370,6 +398,11 @@ func (inst *Instance) dashboardRows() []string {
 }
 
 func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
+	if inst.indeterminate {
+		inst.fillIndeterminateSegments(grid, positions)
+		return
+	}
+
 	percent := inst.Percent()
 	scaled := float64(percent) * float64(len(positions)) / 100
 	trackRune := 'o'
@@ -391,6 +424,24 @@ func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
 			glyph = '@'
 		}
 		grid[pos.row][pos.col] = glyph
+	}
+}
+
+func (inst *Instance) fillIndeterminateSegments(grid [][]rune, positions []gridPoint) {
+	if len(positions) == 0 {
+		return
+	}
+	for _, pos := range positions {
+		grid[pos.row][pos.col] = 'o'
+	}
+	window := 2
+	if window > len(positions) {
+		window = len(positions)
+	}
+	start := inst.activeFrame % len(positions)
+	for i := 0; i < window; i++ {
+		pos := positions[(start+i)%len(positions)]
+		grid[pos.row][pos.col] = '@'
 	}
 }
 
@@ -431,6 +482,10 @@ func segmentFillRune(fill float64) rune {
 func (inst *Instance) labelText() string {
 	percent := inst.Percent()
 	switch {
+	case inst.indeterminate && inst.label != "" && inst.showPercent:
+		return fmt.Sprintf("%s: ...", inst.label)
+	case inst.indeterminate && inst.showPercent:
+		return "..."
 	case inst.label != "" && inst.showPercent:
 		return fmt.Sprintf("%s: %d%%", inst.label, percent)
 	case inst.label != "":
@@ -541,6 +596,9 @@ func (inst *Instance) syncActiveLoop(reset bool) {
 }
 
 func (inst *Instance) wantsActiveLoop() bool {
+	if inst.indeterminate {
+		return true
+	}
 	percent := inst.Percent()
 	return inst.status == StatusActive && percent > 0 && percent < 100
 }

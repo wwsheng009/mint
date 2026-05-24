@@ -8,6 +8,7 @@
 - `normal` / `success` / `exception` / `active`
 - `value` / `max` 变化时的平滑百分比过渡
 - `active` 状态逐帧动画
+- `indeterminate` 不确定进度动画，适合 reload、reset、后台任务等待等无法得到总量的运维动作
 - 自定义 `label`
 - 自定义 `width`
 - `showPercent`
@@ -25,10 +26,21 @@ ui.NewProgressBuilder().
     Build()
 ```
 
+不确定进度：
+
+```go
+ui.NewProgressBuilder().
+    Label("Reloading").
+    Indeterminate().
+    Width(24).
+    Build()
+```
+
 快捷函数：
 
 ```go
 ui.Progress(60, 100)
+ui.ProgressIndeterminate("Reloading")
 ```
 
 ## 测试

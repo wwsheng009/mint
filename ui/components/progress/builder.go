@@ -75,6 +75,21 @@ func (b *Builder) Active() *Builder {
 	return b
 }
 
+func (b *Builder) Indeterminate() *Builder {
+	b.node.Indeterminate()
+	return b
+}
+
+func (b *Builder) Determinate() *Builder {
+	b.node.Determinate()
+	return b
+}
+
+func (b *Builder) SetIndeterminate(v bool) *Builder {
+	b.node.SetIndeterminate(v)
+	return b
+}
+
 func (b *Builder) Label(label string) *Builder {
 	b.node.SetLabel(label)
 	return b

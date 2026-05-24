@@ -11,15 +11,16 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
-	propKey         = "key"
-	propLabel       = "label"
-	propMax         = "max"
-	propStatus      = "status"
-	propShowPercent = "showPercent"
-	propStyle       = "style"
-	propType        = "type"
-	propValue       = "value"
-	propWidth       = "width"
+	propKey           = "key"
+	propIndeterminate = "indeterminate"
+	propLabel         = "label"
+	propMax           = "max"
+	propStatus        = "status"
+	propShowPercent   = "showPercent"
+	propStyle         = "style"
+	propType          = "type"
+	propValue         = "value"
+	propWidth         = "width"
 )
 
 // =============================================================================
@@ -54,14 +55,15 @@ const (
 type VNode struct {
 	*rtui.ElementVNode
 
-	key          string
-	label        string
-	style        style.Style
-	width        int
-	value, max   int
-	progressType Type
-	status       Status
-	showPercent  bool
+	key           string
+	label         string
+	style         style.Style
+	width         int
+	value, max    int
+	indeterminate bool
+	progressType  Type
+	status        Status
+	showPercent   bool
 }
 
 var (
@@ -97,21 +99,25 @@ func (p *VNode) SetLayer(l rtui.Layer) rtui.VNode             { return p }
 
 func (p *VNode) Props() rtui.Props {
 	return rtui.Props{
-		propKey:         p.key,
-		propLabel:       p.label,
-		propStyle:       p.style,
-		propWidth:       p.width,
-		propValue:       p.value,
-		propMax:         p.max,
-		propType:        p.progressType,
-		propStatus:      p.status,
-		propShowPercent: p.showPercent,
+		propKey:           p.key,
+		propIndeterminate: p.indeterminate,
+		propLabel:         p.label,
+		propStyle:         p.style,
+		propWidth:         p.width,
+		propValue:         p.value,
+		propMax:           p.max,
+		propType:          p.progressType,
+		propStatus:        p.status,
+		propShowPercent:   p.showPercent,
 	}
 }
 
 func (p *VNode) SetProps(props rtui.Props) rtui.VNode {
 	if v, ok := props[propKey].(string); ok {
 		p.key = v
+	}
+	if v, ok := props[propIndeterminate].(bool); ok {
+		p.indeterminate = v
 	}
 	if v, ok := props[propLabel].(string); ok {
 		p.label = v
@@ -156,6 +162,7 @@ func (p *VNode) SetLabel(label string) *VNode   { p.label = label; return p }
 func (p *VNode) SetWidth(width int) *VNode      { p.width = width; return p }
 func (p *VNode) SetValue(value int) *VNode      { p.value = value; return p }
 func (p *VNode) SetMax(max int) *VNode          { p.max = max; return p }
+func (p *VNode) SetIndeterminate(v bool) *VNode { p.indeterminate = v; return p }
 func (p *VNode) SetShowPercent(v bool) *VNode   { p.showPercent = v; return p }
 func (p *VNode) SetType(t Type) *VNode          { p.progressType = t; return p }
 func (p *VNode) SetStatus(status Status) *VNode { p.status = status; return p }
@@ -200,17 +207,29 @@ func (p *VNode) Active() *VNode {
 	return p
 }
 
+func (p *VNode) Indeterminate() *VNode {
+	p.indeterminate = true
+	p.status = StatusActive
+	return p
+}
+
+func (p *VNode) Determinate() *VNode {
+	p.indeterminate = false
+	return p
+}
+
 // =============================================================================
 // Props Accessors
 // =============================================================================
 
-func (p *VNode) Label() string      { return p.label }
-func (p *VNode) Width() int         { return p.width }
-func (p *VNode) Value() int         { return p.value }
-func (p *VNode) Max() int           { return p.max }
-func (p *VNode) ProgressType() Type { return p.progressType }
-func (p *VNode) Status() Status     { return p.status }
-func (p *VNode) ShowPercent() bool  { return p.showPercent }
+func (p *VNode) Label() string         { return p.label }
+func (p *VNode) Width() int            { return p.width }
+func (p *VNode) Value() int            { return p.value }
+func (p *VNode) Max() int              { return p.max }
+func (p *VNode) IsIndeterminate() bool { return p.indeterminate }
+func (p *VNode) ProgressType() Type    { return p.progressType }
+func (p *VNode) Status() Status        { return p.status }
+func (p *VNode) ShowPercent() bool     { return p.showPercent }
 func (p *VNode) Percent() int {
 	if p.max == 0 {
 		return 0
