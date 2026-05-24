@@ -14,6 +14,7 @@ const (
 type MoveIntent struct {
 	ComponentID string
 	Direction   MoveDirection
+	All         bool
 }
 
 func (MoveIntent) IntentType() string              { return "transfer.MoveIntent" }
@@ -57,6 +58,30 @@ func MoveToSource() MoveIntent {
 // MoveToSourceWithID creates a move-to-source intent scoped to one transfer.
 func MoveToSourceWithID(componentID string) MoveIntent {
 	move := MoveToSource()
+	move.ComponentID = componentID
+	return move
+}
+
+// MoveAllToTarget creates a move-to-target intent for all currently visible source items.
+func MoveAllToTarget() MoveIntent {
+	return MoveIntent{Direction: MoveDirectionToTarget, All: true}
+}
+
+// MoveAllToTargetWithID creates a scoped move-to-target intent for all currently visible source items.
+func MoveAllToTargetWithID(componentID string) MoveIntent {
+	move := MoveAllToTarget()
+	move.ComponentID = componentID
+	return move
+}
+
+// MoveAllToSource creates a move-to-source intent for all currently visible target items.
+func MoveAllToSource() MoveIntent {
+	return MoveIntent{Direction: MoveDirectionToSource, All: true}
+}
+
+// MoveAllToSourceWithID creates a scoped move-to-source intent for all currently visible target items.
+func MoveAllToSourceWithID(componentID string) MoveIntent {
+	move := MoveAllToSource()
 	move.ComponentID = componentID
 	return move
 }

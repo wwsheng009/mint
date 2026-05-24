@@ -51,6 +51,16 @@ func (b *Builder) Operations(toTarget, toSource string) *Builder {
 	return b
 }
 
+func (b *Builder) BulkOperations(enabled bool) *Builder {
+	b.node.SetBulkOperations(enabled)
+	return b
+}
+
+func (b *Builder) BulkOperationLabels(toTarget, toSource string) *Builder {
+	b.node.SetBulkOperationLabels(toTarget, toSource)
+	return b
+}
+
 func (b *Builder) Searchable(searchable bool) *Builder {
 	b.node.SetSearchable(searchable)
 	return b

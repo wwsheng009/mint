@@ -6,6 +6,7 @@
 
 - 双列表迁移
 - 源列表 / 目标列表内置搜索过滤
+- 当前过滤结果的批量迁移按钮
 - `targetKeys` 受控 / 非受控模式
 - 禁用项过滤
 - 自定义标题与操作文案
@@ -19,6 +20,8 @@ ui.NewTransferBuilder().
     ComponentID("members-transfer").
     Titles("Available", "Chosen").
     Operations(">>", "<<").
+    BulkOperations(true).
+    BulkOperationLabels("All >>", "<< All").
     Searchable(true).
     SearchPlaceholders("Find available", "Find chosen").
     Items([]ui.TransferItem{
@@ -33,6 +36,8 @@ ui.NewTransferBuilder().
 绑定到字段时，当前目标列表 key 会通过 `FieldChangeIntent` 一起发出。
 
 搜索是组件内部状态，适合大多数本地过滤场景；需要外部状态控制时可使用 `SearchValues(source, target)`，需要非受控初始值时可使用 `InitialSearchValues(source, target)`。过滤匹配 `key`、`title` 和 `description`，并按空格拆分为多个必须命中的关键词。
+
+批量按钮通过 `BulkOperations(true)` 开启，默认文案为 `All >` / `< All`，可通过 `BulkOperationLabels(toTarget, toSource)` 覆盖。批量迁移只作用于当前可见的过滤结果，并跳过禁用项；这让大列表场景可以先搜索收窄，再一次性移动匹配对象。
 
 ## 验证
 

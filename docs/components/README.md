@@ -26,7 +26,7 @@ project-local equivalents:
 | Menus | `menu` | Menu bar, popup, context menu, cascading submenu, shortcuts, typeahead, placement fallback and outside-click/ESC close middleware. |
 | Bounded forms | `formdialog`, `form`, `forminputitem` | Use for short create/edit/audit-reason workflows that should preserve table context; `FormDialog` includes danger reason action presets. |
 | Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks; `ConfirmDialog` includes danger operation presets. |
-| Transfer selection | `transfer` | Dual-list transfer with source/target search, controlled or uncontrolled target keys, field binding and change intents. |
+| Transfer selection | `transfer` | Dual-list transfer with source/target search, bulk move of currently visible enabled items, controlled or uncontrolled target keys, field binding and change intents. |
 | Progress and loading | `progress`, `spin`, `skeleton`, `result`, `toast`, `notification` | `Progress` supports line/block/circle/dashboard, active/indeterminate states, warning status, operational state mapping and resource usage presets. |
 | Time state | `timer`, `clock` | Use `timer` for elapsed/countdown/auto-refresh/retry windows with optional ASCII progress. |
 | Simple terminal charts | `charts/sparkline`, `charts/barchart`, `charts/linechart`, `charts/bulletchart`, `charts/heatmap`, `charts/scatterplot`, `charts/candlestick` | Use `sparkline.ASCII()` for simple ASCII trends; use bullet/bar/line/heatmap for compact monitoring views. |
@@ -101,7 +101,7 @@ Not every component has every file listed above; small display components can be
 | Cascader | `../../ui/components/cascader/README.md` | Cascaded selection. |
 | DatePicker | `../../ui/components/datepicker/README.md` | Date input and popup calendar. |
 | TimePicker | `../../ui/components/timepicker/README.md` | Time segment picker. |
-| Transfer | `../../ui/components/transfer/README.md` | Transfer list. |
+| Transfer | `../../ui/components/transfer/README.md` | Transfer list with search and visible-item bulk operations. |
 | Form | `../../ui/components/form/README.md` | Form item/context and field integration. |
 | FormDialog | `../../ui/components/formdialog/README.md` | Modal form composition for bounded create/edit and operation forms; includes audit reason action presets. |
 | FilterBar | `../../ui/components/filterbar/README.md` | Search/filter toolbar for data pages. |

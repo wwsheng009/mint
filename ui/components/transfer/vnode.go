@@ -14,6 +14,8 @@ const (
 	defaultValueSep   = ","
 
 	propChangeIntent         = "changeIntent"
+	propBulkOperations       = "bulkOperations"
+	propBulkOperationLabels  = "bulkOperationLabels"
 	propComponentID          = "componentID"
 	propFormID               = "formID"
 	propItems                = "items"
@@ -36,6 +38,7 @@ const (
 var (
 	defaultTitles             = [2]string{"Source", "Target"}
 	defaultOperations         = [2]string{">", "<"}
+	defaultBulkOperations     = [2]string{"All >", "< All"}
 	defaultSearchPlaceholders = [2]string{"Search source", "Search target"}
 )
 
@@ -56,6 +59,8 @@ type VNode struct {
 	items                []Item
 	titles               [2]string
 	operations           [2]string
+	bulkOperations       bool
+	bulkOperationLabels  [2]string
 	searchable           bool
 	searchControlled     bool
 	searchPlaceholders   [2]string
@@ -82,6 +87,7 @@ func New() *VNode {
 		ElementVNode:         rtui.NewElement("transfer"),
 		titles:               defaultTitles,
 		operations:           defaultOperations,
+		bulkOperationLabels:  defaultBulkOperations,
 		searchPlaceholders:   defaultSearchPlaceholders,
 		listWidth:            defaultListWidth,
 		listHeight:           defaultListHeight,
@@ -134,6 +140,8 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
 		propChangeIntent:         v.changeIntent,
+		propBulkOperations:       v.bulkOperations,
+		propBulkOperationLabels:  v.bulkOperationLabels,
 		propComponentID:          v.componentID,
 		propFormID:               v.formID,
 		propItems:                cloneItems(v.items),
@@ -169,6 +177,12 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if operations, ok := props[propOperations].([2]string); ok {
 		v.operations = operations
+	}
+	if bulkOperations, ok := props[propBulkOperations].(bool); ok {
+		v.bulkOperations = bulkOperations
+	}
+	if labels, ok := props[propBulkOperationLabels].([2]string); ok {
+		v.bulkOperationLabels = labels
 	}
 	if searchable, ok := props[propSearchable].(bool); ok {
 		v.searchable = searchable
@@ -238,6 +252,16 @@ func (v *VNode) SetTitles(source, target string) *VNode {
 
 func (v *VNode) SetOperations(toTarget, toSource string) *VNode {
 	v.operations = [2]string{toTarget, toSource}
+	return v
+}
+
+func (v *VNode) SetBulkOperations(enabled bool) *VNode {
+	v.bulkOperations = enabled
+	return v
+}
+
+func (v *VNode) SetBulkOperationLabels(toTarget, toSource string) *VNode {
+	v.bulkOperationLabels = [2]string{toTarget, toSource}
 	return v
 }
 

@@ -25,6 +25,8 @@ type Instance struct {
 	items                []Item
 	titles               [2]string
 	operations           [2]string
+	bulkOperations       bool
+	bulkOperationLabels  [2]string
 	searchable           bool
 	searchControlled     bool
 	searchPlaceholders   [2]string
@@ -64,6 +66,8 @@ func NewInstance(props rtui.Props) *Instance {
 		items:                getItemsProp(props),
 		titles:               getTitlesProp(props, defaultTitles),
 		operations:           getOperationsProp(props, defaultOperations),
+		bulkOperations:       proputil.GetBool(props, propBulkOperations, false),
+		bulkOperationLabels:  getBulkOperationLabelsProp(props, defaultBulkOperations),
 		searchable:           proputil.GetBool(props, propSearchable, false),
 		searchControlled:     proputil.GetBool(props, propSearchControlled, false),
 		searchPlaceholders:   getSearchPlaceholdersProp(props, defaultSearchPlaceholders),
@@ -152,6 +156,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldItems := cloneItems(inst.items)
 	oldTitles := inst.titles
 	oldOperations := inst.operations
+	oldBulkOperations := inst.bulkOperations
+	oldBulkOperationLabels := inst.bulkOperationLabels
 	oldSearchable := inst.searchable
 	oldSearchControlled := inst.searchControlled
 	oldSearchPlaceholders := inst.searchPlaceholders
@@ -173,6 +179,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.items = getItemsPropOr(props, inst.items)
 	inst.titles = getTitlesProp(props, inst.titles)
 	inst.operations = getOperationsProp(props, inst.operations)
+	inst.bulkOperations = proputil.GetBool(props, propBulkOperations, inst.bulkOperations)
+	inst.bulkOperationLabels = getBulkOperationLabelsProp(props, inst.bulkOperationLabels)
 	inst.searchable = proputil.GetBool(props, propSearchable, inst.searchable)
 	nextSearchControlled := proputil.GetBool(props, propSearchControlled, inst.searchControlled)
 	if nextSearchControlled || inst.searchControlled != nextSearchControlled {
@@ -200,6 +208,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	changed := !reflect.DeepEqual(oldItems, inst.items) ||
 		oldTitles != inst.titles ||
 		oldOperations != inst.operations ||
+		oldBulkOperations != inst.bulkOperations ||
+		oldBulkOperationLabels != inst.bulkOperationLabels ||
 		oldSearchable != inst.searchable ||
 		oldSearchControlled != inst.searchControlled ||
 		oldSearchPlaceholders != inst.searchPlaceholders ||
@@ -224,6 +234,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
 		propChangeIntent:         inst.changeIntent,
+		propBulkOperations:       inst.bulkOperations,
+		propBulkOperationLabels:  inst.bulkOperationLabels,
 		propComponentID:          inst.componentID,
 		propFormID:               inst.formID,
 		propItems:                cloneItems(inst.items),
@@ -287,7 +299,7 @@ func (inst *Instance) HandleIntent(i runtimeintent.Intent) bool {
 	if !ok {
 		return false
 	}
-	return inst.move(move.Direction)
+	return inst.move(move.Direction, move.All)
 }
 
 func (inst *Instance) handleSelectionChange(selection list.SelectionChangeIntent) bool {
@@ -361,8 +373,11 @@ func (inst *Instance) applySearch(side SearchSide, rawValue string) bool {
 	return true
 }
 
-func (inst *Instance) move(direction MoveDirection) bool {
+func (inst *Instance) move(direction MoveDirection, all bool) bool {
 	moved := inst.movableKeys(direction)
+	if all {
+		moved = inst.movableVisibleKeys(direction)
+	}
 	if len(moved) == 0 {
 		return false
 	}
@@ -434,6 +449,8 @@ func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item,
 func (inst *Instance) buildOperationsNode() rtui.VNode {
 	moveToTargetDisabled := len(inst.movableKeys(MoveDirectionToTarget)) == 0
 	moveToSourceDisabled := len(inst.movableKeys(MoveDirectionToSource)) == 0
+	moveAllToTargetDisabled := len(inst.movableVisibleKeys(MoveDirectionToTarget)) == 0
+	moveAllToSourceDisabled := len(inst.movableVisibleKeys(MoveDirectionToSource)) == 0
 
 	toTarget := button.NewBuilder(inst.operations[0]).
 		Key(inst.baseKey("to-target")).
@@ -448,7 +465,24 @@ func (inst *Instance) buildOperationsNode() rtui.VNode {
 		Disabled(moveToSourceDisabled).
 		Build()
 
-	node := rtui.VStackBuilder(toTarget, toSource).Gap(1).AlignCross(rtui.AlignCenter).Build()
+	children := []rtui.VNode{toTarget, toSource}
+	if inst.bulkOperations {
+		toTargetAll := button.NewBuilder(inst.bulkOperationLabels[0]).
+			Key(inst.baseKey("to-target-all")).
+			Small().
+			OnPress(MoveAllToTargetWithID(inst.componentID)).
+			Disabled(moveAllToTargetDisabled).
+			Build()
+		toSourceAll := button.NewBuilder(inst.bulkOperationLabels[1]).
+			Key(inst.baseKey("to-source-all")).
+			Small().
+			OnPress(MoveAllToSourceWithID(inst.componentID)).
+			Disabled(moveAllToSourceDisabled).
+			Build()
+		children = append(children, toTargetAll, toSourceAll)
+	}
+
+	node := rtui.VStackBuilder(children...).Gap(1).AlignCross(rtui.AlignCenter).Build()
 	node.SetKey(inst.baseKey("operations"))
 	return node
 }
@@ -466,6 +500,12 @@ func (inst *Instance) normalize() {
 	}
 	if inst.operations[1] == "" {
 		inst.operations[1] = defaultOperations[1]
+	}
+	if inst.bulkOperationLabels[0] == "" {
+		inst.bulkOperationLabels[0] = defaultBulkOperations[0]
+	}
+	if inst.bulkOperationLabels[1] == "" {
+		inst.bulkOperationLabels[1] = defaultBulkOperations[1]
 	}
 	if inst.searchPlaceholders[0] == "" {
 		inst.searchPlaceholders[0] = defaultSearchPlaceholders[0]
@@ -550,6 +590,17 @@ func (inst *Instance) movableKeys(direction MoveDirection) []string {
 		return normalizeKeysForItems(inst.sourceVisibleItems(), inst.selectedSourceKeys)
 	case MoveDirectionToSource:
 		return normalizeKeysForItems(inst.targetVisibleItems(), inst.selectedTargetKeys)
+	default:
+		return nil
+	}
+}
+
+func (inst *Instance) movableVisibleKeys(direction MoveDirection) []string {
+	switch direction {
+	case MoveDirectionToTarget:
+		return enabledKeys(inst.sourceVisibleItems())
+	case MoveDirectionToSource:
+		return enabledKeys(inst.targetVisibleItems())
 	default:
 		return nil
 	}
@@ -731,6 +782,29 @@ func normalizeKeysForItems(items []Item, keys []string) []string {
 	return normalized
 }
 
+func enabledKeys(items []Item) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		key := strings.TrimSpace(item.Key)
+		if key == "" || item.Disabled {
+			continue
+		}
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return keys
+}
+
 func normalizeTargetKeys(items []Item, keys []string) []string {
 	if len(items) == 0 || len(keys) == 0 {
 		return nil
@@ -866,6 +940,15 @@ func getOperationsProp(props rtui.Props, def [2]string) [2]string {
 	if value, ok := props[propOperations]; ok {
 		if operations, ok := value.([2]string); ok {
 			return operations
+		}
+	}
+	return def
+}
+
+func getBulkOperationLabelsProp(props rtui.Props, def [2]string) [2]string {
+	if value, ok := props[propBulkOperationLabels]; ok {
+		if labels, ok := value.([2]string); ok {
+			return labels
 		}
 	}
 	return def

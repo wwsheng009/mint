@@ -28,6 +28,8 @@ func TestBuilderFluentAPI(t *testing.T) {
 		ComponentID("members-transfer").
 		Titles("Available", "Chosen").
 		Operations(">>", "<<").
+		BulkOperations(true).
+		BulkOperationLabels("All >>", "<< All").
 		Searchable(true).
 		SearchPlaceholders("Find available", "Find chosen").
 		InitialSearchValues("alp", "").
@@ -52,6 +54,9 @@ func TestBuilderFluentAPI(t *testing.T) {
 	}
 	if node.operations != [2]string{">>", "<<"} {
 		t.Fatalf("operations = %#v", node.operations)
+	}
+	if !node.bulkOperations || node.bulkOperationLabels != [2]string{"All >>", "<< All"} {
+		t.Fatalf("bulk config = enabled:%v labels:%#v, want enabled with custom labels", node.bulkOperations, node.bulkOperationLabels)
 	}
 	if !node.searchable || node.searchControlled {
 		t.Fatalf("search config = searchable:%v controlled:%v, want searchable uncontrolled", node.searchable, node.searchControlled)
@@ -110,6 +115,51 @@ func TestRuntimeChildrenBuildsDualLists(t *testing.T) {
 	rightList := rightWrapper.Children()[0]
 	if header, _ := rightList.Props()["header"].(string); header != "Target (1)" {
 		t.Fatalf("right header = %q, want Target (1)", header)
+	}
+}
+
+func TestRuntimeChildrenBulkOperations(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:         "members",
+		propBulkOperations:      true,
+		propBulkOperationLabels: [2]string{"All Send", "All Return"},
+		propItems: []Item{
+			{Key: "a", Title: "Alpha"},
+			{Key: "b", Title: "Beta"},
+			{Key: "c", Title: "Gamma", Disabled: true},
+			{Key: "d", Title: "Delta"},
+		},
+		propTargetKeys: []string{"d"},
+	})
+
+	children := inst.RuntimeChildren()
+	operations := children[0].Children()[1]
+	buttons := operations.Children()
+	if len(buttons) != 4 {
+		t.Fatalf("operation buttons len = %d, want 4", len(buttons))
+	}
+
+	expected := []struct {
+		key      string
+		label    string
+		disabled bool
+	}{
+		{"members-to-target", ">", true},
+		{"members-to-source", "<", true},
+		{"members-to-target-all", "All Send", false},
+		{"members-to-source-all", "All Return", false},
+	}
+	for index, item := range expected {
+		button := buttons[index]
+		if button.Key() != item.key {
+			t.Fatalf("button[%d] key = %q, want %q", index, button.Key(), item.key)
+		}
+		if label, _ := button.Props()["label"].(string); label != item.label {
+			t.Fatalf("button[%d] label = %q, want %q", index, label, item.label)
+		}
+		if disabled, _ := button.Props()["disabled"].(bool); disabled != item.disabled {
+			t.Fatalf("button[%d] disabled = %v, want %v", index, disabled, item.disabled)
+		}
 	}
 }
 
@@ -234,6 +284,91 @@ func TestHandleSelectionAndMoveRight(t *testing.T) {
 	}
 	if !reflect.DeepEqual(change.MovedKeys, []string{"a", "b"}) {
 		t.Fatalf("movedKeys = %#v, want []string{\"a\", \"b\"}", change.MovedKeys)
+	}
+}
+
+func TestMoveAllToTargetMovesVisibleEnabledItems(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:  "members",
+		propSearchable:   true,
+		propSourceSearch: "a",
+		propItems: []Item{
+			{Key: "alpha", Title: "Alpha"},
+			{Key: "beta", Title: "Beta"},
+			{Key: "gamma", Title: "Gamma", Disabled: true},
+			{Key: "delta", Title: "Delta"},
+		},
+		propTargetKeys: []string{"delta"},
+	})
+
+	var emitted []runtimeintent.Intent
+	inst.SetIntentEmitter(func(i runtimeintent.Intent) {
+		emitted = append(emitted, i)
+	})
+
+	if !inst.HandleIntent(MoveAllToTargetWithID("members")) {
+		t.Fatal("move-all-to-target intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.targetKeys, []string{"alpha", "beta", "delta"}) {
+		t.Fatalf("targetKeys = %#v, want []string{\"alpha\", \"beta\", \"delta\"}", inst.targetKeys)
+	}
+	if !reflect.DeepEqual(inst.selectedSourceKeys, []string(nil)) {
+		t.Fatalf("selectedSourceKeys = %#v, want nil", inst.selectedSourceKeys)
+	}
+	if len(emitted) == 0 {
+		t.Fatal("expected change intent emission")
+	}
+	change, ok := emitted[0].(ChangeIntent)
+	if !ok {
+		t.Fatalf("first emitted intent type = %T, want transfer.ChangeIntent", emitted[0])
+	}
+	if change.Direction != MoveDirectionToTarget {
+		t.Fatalf("change direction = %q, want %q", change.Direction, MoveDirectionToTarget)
+	}
+	if !reflect.DeepEqual(change.MovedKeys, []string{"alpha", "beta"}) {
+		t.Fatalf("movedKeys = %#v, want []string{\"alpha\", \"beta\"}", change.MovedKeys)
+	}
+}
+
+func TestMoveAllToTargetHonorsSourceSearch(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:  "members",
+		propSourceSearch: "alp",
+		propItems: []Item{
+			{Key: "alpha", Title: "Alpha"},
+			{Key: "beta", Title: "Beta"},
+			{Key: "gamma", Title: "Gamma"},
+			{Key: "delta", Title: "Delta"},
+		},
+		propTargetKeys: []string{"delta"},
+	})
+
+	if !inst.HandleIntent(MoveAllToTargetWithID("members")) {
+		t.Fatal("move-all-to-target intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.targetKeys, []string{"alpha", "delta"}) {
+		t.Fatalf("targetKeys = %#v, want []string{\"alpha\", \"delta\"}", inst.targetKeys)
+	}
+}
+
+func TestMoveAllToSourceHonorsTargetSearch(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID:  "members",
+		propTargetSearch: "bet",
+		propItems: []Item{
+			{Key: "alpha", Title: "Alpha"},
+			{Key: "beta", Title: "Beta"},
+			{Key: "gamma", Title: "Gamma"},
+			{Key: "delta", Title: "Delta"},
+		},
+		propTargetKeys: []string{"alpha", "beta", "delta"},
+	})
+
+	if !inst.HandleIntent(MoveAllToSourceWithID("members")) {
+		t.Fatal("move-all-to-source intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.targetKeys, []string{"alpha", "delta"}) {
+		t.Fatalf("targetKeys = %#v, want []string{\"alpha\", \"delta\"}", inst.targetKeys)
 	}
 }
 

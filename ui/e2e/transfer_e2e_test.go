@@ -176,6 +176,8 @@ func newTransferSearchFixture() (ui.ComponentFunc, func(), func(), *store.Store[
 					Titles("Backlog", "Done").
 					Operations("Send", "Return").
 					Searchable(true).
+					BulkOperations(true).
+					BulkOperationLabels("All Send", "All Return").
 					SearchPlaceholders("Find backlog", "Find done").
 					ListWidth(24).
 					ListHeight(4).
@@ -262,6 +264,67 @@ func TestE2ETransferSearchFiltersAndMovesVisibleItem(t *testing.T) {
 	state := fixtureStore.Get()
 	if formatTransferKeys(state.TargetKeys) != "beta,delta" || state.FieldChanges != 1 || state.LastValue != "beta,delta" {
 		t.Fatalf("unexpected transfer search fixture state: %+v", state)
+	}
+}
+
+func TestE2ETransferBulkMovesVisibleFilteredItems(t *testing.T) {
+	appFn, initFn, cleanupFn, fixtureStore, meta := newTransferSearchFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn, ui.WithSize(100, 24), ui.WithInit(initFn))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("All Send")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Driver().Click(ByID(meta.SourceSearchID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitFocus(ByID(meta.SourceSearchID), 500*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	app.ClearIntentLogs()
+	app.ClearRawInputs()
+	for _, key := range []rune{'a', 'l', 'p'} {
+		if err := app.Driver().Key(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		if err := app.AssertVisible(ByText("Backlog (1/3)")); err != nil {
+			return err
+		}
+		return app.AssertVisible(ByText("Alpha"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	app.ClearRawInputs()
+	if err := app.Driver().Click(ByText("All Send")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		if err := app.AssertVisible(ByText("TargetKeys: alpha,delta")); err != nil {
+			return err
+		}
+		if err := app.AssertVisible(ByText("FieldChanges: 1")); err != nil {
+			return err
+		}
+		return app.AssertVisible(ByText("LastValue: alpha,delta"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.FieldChangeIntentType); err != nil {
+		t.Fatal(err)
+	}
+
+	state := fixtureStore.Get()
+	if formatTransferKeys(state.TargetKeys) != "alpha,delta" || state.FieldChanges != 1 || state.LastValue != "alpha,delta" {
+		t.Fatalf("unexpected transfer bulk fixture state: %+v", state)
 	}
 }
 
