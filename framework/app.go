@@ -2212,7 +2212,7 @@ func (a *App) render() {
 		forceFullSceneText := a.shouldForceFullTextRenderForScene(scene)
 		if a.shouldBypassAsyncForScene(scene) {
 			a.maskSceneImageTextRegions(buf, scene)
-			dirtyHints = append(dirtyHints, a.sceneImageDirtyHints(scene)...)
+			dirtyHints = a.appendSceneImageDirtyHints(dirtyHints, scene)
 			a.renderTextFrame(buf, dirtyHints, outputMode, noAltScreen, false, forceFullSceneText)
 			if err := a.presentSceneFrame(scene); err != nil {
 				log.RenderLogger.IfEnabled().Debug("[APP] scene graphics present failed: %v", err)
@@ -2683,13 +2683,10 @@ func (a *App) ForceRenderNow() {
 }
 
 func (a *App) collectPaintDirtyHints() []paint.Rect {
-	dirtyHints := make([]paint.Rect, 0, 8)
 	if dirtyProvider, ok := a.root.(interface{ GetPaintDirtyRects() []paint.Rect }); ok {
-		for _, rect := range dirtyProvider.GetPaintDirtyRects() {
-			dirtyHints = append(dirtyHints, rect)
-		}
+		return dirtyProvider.GetPaintDirtyRects()
 	}
-	return dirtyHints
+	return nil
 }
 
 func (a *App) shouldBypassAsyncForScene(scene *paint.SceneFrame) bool {
@@ -2791,16 +2788,15 @@ func (a *App) renderTextFrame(buf *paint.Buffer, dirtyHints []paint.Rect, output
 	}
 }
 
-func (a *App) sceneImageDirtyHints(scene *paint.SceneFrame) []paint.Rect {
+func (a *App) appendSceneImageDirtyHints(dst []paint.Rect, scene *paint.SceneFrame) []paint.Rect {
 	if scene == nil || !scene.HasImageLayers() {
-		return nil
+		return dst
 	}
 
-	dirty := make([]paint.Rect, 0, len(scene.ImageLayers))
 	for _, layer := range scene.ImageLayers {
-		dirty = append(dirty, layer.Bounds)
+		dst = append(dst, layer.Bounds)
 	}
-	return dirty
+	return dst
 }
 
 func (a *App) maskSceneImageTextRegions(buf *paint.Buffer, scene *paint.SceneFrame) {

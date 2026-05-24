@@ -77,8 +77,9 @@ type DeclarativeNode struct {
 	lastLayoutResult *layout.LayoutResult // Last layout computation result (for GetLayoutBoxes)
 
 	// === Paintable Result Storage ===
-	lastPaintableRoot   *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
-	lastPaintDirtyRects []paint.Rect        // Dirty rect hints from last paintable tree
+	lastPaintableRoot    *paint.PaintableBox // Last paintable layout result (for GetPaintableBoxes)
+	lastPaintDirtyRects  []paint.Rect        // Dirty rect hints from last paintable tree
+	lastSceneImageLayers []paint.ImageLayer  // Raster image layers collected during paint traversal
 
 	// === Portal Box Debug Storage ===
 	lastPortalBoxes []*layout.LayoutBox // Portal boxes from last layout (for debugging)
@@ -586,25 +587,30 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 			return
 		}
 
-		// Save paintable root for GetPaintableBoxes()
-		n.mu.Lock()
-		n.lastPaintableRoot = paintableLayout.Root
-		n.lastPaintDirtyRects = collectPaintableDirtyRects(paintableLayout.Root)
-		n.mu.Unlock()
-
 		// Build PaintablePlanes from PaintableLayout
 		planes := paint.NewPaintablePlanes()
+		dirtyRects := make([]paint.Rect, 0, 8)
+		sceneLayers := make([]paint.ImageLayer, 0, 4)
 		var walkPaintable func(box *paint.PaintableBox)
 		walkPaintable = func(box *paint.PaintableBox) {
 			if box == nil {
 				return
 			}
 			planes.AddToLayer(paint.RenderLayer(box.Layer), box)
+			collectPaintableDirtyRectFromBox(box, &dirtyRects)
+			collectSceneImageLayerFromBox(box, &sceneLayers)
 			for _, child := range box.Children {
 				walkPaintable(child)
 			}
 		}
 		walkPaintable(paintableLayout.Root)
+
+		// Save paintable root for GetPaintableBoxes().
+		n.mu.Lock()
+		n.lastPaintableRoot = paintableLayout.Root
+		n.lastPaintDirtyRects = dirtyRects
+		n.lastSceneImageLayers = sceneLayers
+		n.mu.Unlock()
 
 		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.fiberFirstPaint] PaintablePlanes: %d boxes", planes.CountBoxes())
 
@@ -1584,6 +1590,7 @@ func (n *DeclarativeNode) Unmount() {
 	n.lastLayoutResult = nil
 	n.lastPaintableRoot = nil
 	n.lastPaintDirtyRects = nil
+	n.lastSceneImageLayers = nil
 	n.lastPortalBoxes = nil
 	rtui.SetGlobalRenderScheduler(nil)
 	n.root = nil
@@ -1967,74 +1974,57 @@ func (n *DeclarativeNode) GetPaintDirtyRects() []paint.Rect {
 	return rects
 }
 
-func collectPaintableDirtyRects(root *paint.PaintableBox) []paint.Rect {
-	if root == nil {
-		return nil
+func collectPaintableDirtyRectFromBox(box *paint.PaintableBox, rects *[]paint.Rect) {
+	if box == nil || rects == nil {
+		return
 	}
-
-	rects := make([]paint.Rect, 0, 8)
-	var walk func(box *paint.PaintableBox)
-	walk = func(box *paint.PaintableBox) {
-		if box == nil {
-			return
-		}
-		if box.LayoutDirty && box.Width > 0 && box.Height > 0 {
-			rects = append(rects, paint.Rect{
-				X:      box.X,
-				Y:      box.Y,
-				Width:  box.Width,
-				Height: box.Height,
-			})
-		}
-		for _, child := range box.Children {
-			walk(child)
-		}
+	if box.LayoutDirty && box.Width > 0 && box.Height > 0 {
+		*rects = append(*rects, paint.Rect{
+			X:      box.X,
+			Y:      box.Y,
+			Width:  box.Width,
+			Height: box.Height,
+		})
 	}
-	walk(root)
-	return rects
 }
 
 func (n *DeclarativeNode) collectSceneImageLayers() []paint.ImageLayer {
 	n.mu.RLock()
-	root := n.lastPaintableRoot
+	layers := cloneImageLayers(n.lastSceneImageLayers)
 	n.mu.RUnlock()
 
-	return collectSceneImageLayersFromPaintableRoot(root)
+	return layers
 }
 
-func collectSceneImageLayersFromPaintableRoot(root *paint.PaintableBox) []paint.ImageLayer {
-	if root == nil {
-		return nil
+func collectSceneImageLayerFromBox(box *paint.PaintableBox, layers *[]paint.ImageLayer) {
+	if box == nil || layers == nil {
+		return
 	}
-
-	layers := make([]paint.ImageLayer, 0, 4)
-	var walk func(box *paint.PaintableBox)
-	walk = func(box *paint.PaintableBox) {
-		if box == nil {
-			return
-		}
-
-		if fiberNode, ok := box.Node.(*FiberPaintableNode); ok && fiberNode != nil && fiberNode.fiber != nil {
-			if sceneInst, ok := rtui.AsScenePaintableInstance(fiberNode.fiber.Instance); ok {
-				for _, layer := range sceneInst.SceneLayers() {
-					if !layer.HasPixels() || layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
-						continue
-					}
-					layers = append(layers, layer.Clone())
-				}
-			}
-		}
-
-		for _, child := range box.Children {
-			walk(child)
-		}
+	fiberNode, ok := box.Node.(*FiberPaintableNode)
+	if !ok || fiberNode == nil || fiberNode.fiber == nil {
+		return
 	}
-	walk(root)
+	sceneInst, ok := rtui.AsScenePaintableInstance(fiberNode.fiber.Instance)
+	if !ok {
+		return
+	}
+	for _, layer := range sceneInst.SceneLayers() {
+		if !layer.HasPixels() || layer.Bounds.Width <= 0 || layer.Bounds.Height <= 0 {
+			continue
+		}
+		*layers = append(*layers, layer.Clone())
+	}
+}
 
+func cloneImageLayers(layers []paint.ImageLayer) []paint.ImageLayer {
 	if len(layers) == 0 {
 		return nil
 	}
-	return layers
+	cloned := make([]paint.ImageLayer, 0, len(layers))
+	for _, layer := range layers {
+		cloned = append(cloned, layer.Clone())
+	}
+	return cloned
 }
 
 // =============================================================================
