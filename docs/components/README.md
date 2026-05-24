@@ -6,7 +6,7 @@ This directory contains user-facing component notes and historical component des
 
 Current source facts:
 
-- 67 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
+- 68 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
 - Every top-level component package currently has a local `README.md`.
 - Component regression tests are split between package tests under `../../ui/components/**` and end-to-end tests under `../../ui/e2e`.
 - Chart components live under `../../ui/components/charts` and use shared internal chart helpers.
@@ -113,6 +113,7 @@ Not every component has every file listed above; small display components can be
 | Pagination | `../../ui/components/pagination/README.md` | Pagination control. |
 | Steps | `../../ui/components/steps/README.md` | Step navigation. |
 | Tabs | `../../ui/components/tabs/README.md` | Tabs, positioning, variants, reorder/close intents. |
+| Toolbar | `../../ui/components/toolbar/README.md` | Operation toolbar for data and admin pages. |
 | TreeView | `../../ui/components/treeview/README.md` | Hierarchical tree view. |
 | StatusBar | `../../ui/components/statusbar/README.md` | Status bar and help overlay. |
 

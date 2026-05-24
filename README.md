@@ -218,7 +218,7 @@ Current component groups:
 | Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer, Form, FilterBar, Validation |
 | Data | Table, List, VirtualList, TreeView |
 | Feedback | Alert, Progress, Spin, Skeleton, Result, Notification, Toast |
-| Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, StatusBar |
+| Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, Toolbar, StatusBar |
 | Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm |
 | Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick |
 

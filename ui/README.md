@@ -266,7 +266,19 @@ go test ./ui/... -v -cover
 
 当前测试覆盖率: **40.7%**
 
-## StatusBar ?????
+## Toolbar / StatusBar
+
+```go
+bar := ui.NewToolbarBuilder().
+    Key("ops.toolbar").
+    Title("Load Balancer").
+    TitleWidth(16).
+    Left(ui.ToolbarText("scope", "group: default").WithWidth(20)).
+    Center(ui.ToolbarBadge("state", "degraded").WithColors("black", "yellow")).
+    Right(ui.ToolbarButton("refresh", "Refresh", RefreshIntent{}).Primary()).
+    Right(ui.ToolbarButton("reset", "Reset Runtime", ResetIntent{}).Danger().WithDisabled(true).WithHelp("Requires selected target and reason")).
+    Build()
+```
 
 ```go
 bar := ui.NewStatusBarBuilder().
