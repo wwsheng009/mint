@@ -2714,13 +2714,13 @@ func (a *App) shouldClearGraphicsBeforeText(nextLayout []presentedGraphicsLayer)
 	if a == nil || a.graphicsPresenter == nil || !a.graphicsImagesOn {
 		return false
 	}
+	if len(nextLayout) == 0 {
+		return true
+	}
 	if a.graphicsPresenter.Capabilities().SupportsDelete {
 		return false
 	}
 
-	if len(nextLayout) == 0 {
-		return true
-	}
 	return !presentedGraphicsGeometryEqual(a.graphicsLayout, nextLayout)
 }
 

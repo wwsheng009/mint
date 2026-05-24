@@ -1446,6 +1446,64 @@ func TestApp_Render_NonDeletableGraphicsClearBeforeTextRepaint(t *testing.T) {
 	}
 }
 
+func TestApp_Render_GraphicsRemovalClearsBeforeTextEvenWithDeleteSupport(t *testing.T) {
+	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
+
+	app := NewApp()
+	app.Resize(20, 4)
+	app.asyncRenderer = paint.NewAsyncRenderer(20, 4, paint.AsyncRendererOptions{
+		Output: func(string) {},
+	})
+	presenter := &recordingGraphicsPresenter{
+		caps: runtimeplatform.GraphicsCapabilities{
+			Mode:              runtimeplatform.GraphicsModeKitty,
+			PresentationModel: runtimeplatform.GraphicsPresentationModelOverlay,
+			Reliable:          true,
+			SupportsPlacement: true,
+			SupportsReplace:   true,
+			SupportsDelete:    true,
+		},
+	}
+	app.SetGraphicsPresenter(presenter)
+	app.root = &renderSceneNode{
+		text: "captcha frame",
+		scene: &paint.SceneFrame{
+			ImageLayers: []paint.ImageLayer{{
+				ID:          "captcha",
+				Bounds:      paint.Rect{X: 1, Y: 1, Width: 6, Height: 2},
+				PixelWidth:  12,
+				PixelHeight: 4,
+				RGBA:        []byte{255, 0, 0, 255},
+			}},
+		},
+	}
+
+	captureStdout(t, func() {
+		app.render()
+	})
+	if !app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be true after image frame")
+	}
+
+	app.root = &renderSceneNode{text: "overview frame"}
+	output := captureStdout(t, func() {
+		app.render()
+	})
+
+	if presenter.clearCalls != 1 {
+		t.Fatalf("clear calls = %d, want 1 when graphics disappear", presenter.clearCalls)
+	}
+	if got := app.asyncRenderer.Stats().SubmittedFrames; got != 0 {
+		t.Fatalf("async submitted frames = %d, want 0 after graphics removal full repaint", got)
+	}
+	if app.graphicsImagesOn {
+		t.Fatal("expected graphicsImagesOn to be false after graphics removal")
+	}
+	if !strings.Contains(output, "overview frame") {
+		t.Fatalf("stdout output = %q, want overview frame content", output)
+	}
+}
+
 func TestApp_Render_NonDeletableGraphicsSameLayoutDoesNotClearBetweenFrames(t *testing.T) {
 	t.Setenv("MINT_NO_ALTERNATE_SCREEN", "true")
 
