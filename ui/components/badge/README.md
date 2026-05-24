@@ -28,3 +28,32 @@ ui.NewBadgeBuilder("Inbox").
 ```go
 ui.Badge("Inbox", 12)
 ```
+
+## 状态徽标快捷构造
+
+运维和后台场景中，状态字段可以使用 `ui/components/statusbadge` 提供的声明式组合能力；根包 `ui.StatusBadge(...)` 是面向 SDK 使用者的薄转发入口，它会把常见状态字符串映射为统一语义色：
+
+```go
+ui.StatusBadge("healthy")       // success
+ui.StatusBadge("rate_limited")  // warning
+ui.StatusBadge("unauthorized")  // error
+ui.StatusBadge("syncing")       // processing
+```
+
+默认映射遵循：
+
+- `healthy` / `active` / `available` / `effective` / `enabled`：正常
+- `degraded` / `rate_limited` / `pending_restart` / `cooldown`：警告
+- `unhealthy` / `disabled` / `unauthorized` / `unavailable` / `failed`：异常
+- 其它值：中性
+
+可用选项：
+
+- `StatusBadgeTone(tone)`
+- `StatusBadgeKey(key)`
+- `StatusBadgeLabel(label)`
+- `StatusBadgeText(text)`
+- `StatusBadgeDot()`
+- `StatusBadgeMapper(mapper)`
+- `StatusBadgeLabelStyle(style)`
+- `StatusBadgeStyle(style)`
