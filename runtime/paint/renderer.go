@@ -55,6 +55,8 @@ type Renderer struct {
 	dirtyHints         []Rect
 	fullMarks          []bool
 	changedLineScratch []int
+	lineScratch        []int
+	hintRangeRows      [][]lineRange
 
 	// 统计信息
 	changedLines int // 最近一次渲染变化的行数
@@ -110,47 +112,46 @@ func (r *Renderer) Render() string {
 	}
 
 	// 将脏区域提示转换为行内区间（用于 X/Y 双维度最小化重绘）。
-	hintRanges := rectsToLineRanges(r.dirtyHints, r.back.Width, r.back.Height)
+	hintRanges, hintLineCount := r.rectsToLineRangeRows(r.dirtyHints, r.back.Width, r.back.Height)
 
 	// 默认使用行级 diff，确保正确性
 	diff := LineDiffInto(r.front, r.back, r.changedLineScratch)
 	r.changedLineScratch = diff.ChangedLines
 
 	var fullLines []int
-	hasChanges := diff.HasChanges || len(hintRanges) > 0
+	hasChanges := diff.HasChanges || hintLineCount > 0
 
 	// useLineDiff=false 时，回退为保守策略：有变化则整屏行重绘
 	if !r.useLineDiff {
-		if diff.HasChanges || r.forceFull || len(hintRanges) > 0 {
-			fullLines = allLines(r.back.Height)
+		if diff.HasChanges || r.forceFull || hintLineCount > 0 {
+			fullLines = r.allLines(r.back.Height)
 			hasChanges = len(fullLines) > 0
 		}
 	} else if r.forceFull {
 		// 强制全量渲染
-		fullLines = allLines(r.back.Height)
+		fullLines = r.allLines(r.back.Height)
 		hasChanges = len(fullLines) > 0
 	} else if diff.HasScroll {
 		// 滚动优化：只重绘滚动后新增的尾部行（再合并提示行）。
 		// 其余行由 ANSI scroll 指令完成位置迁移。
-		fullLines = scrollTailLines(r.back.Height, diff.ScrollAmount)
+		fullLines = r.scrollTailLines(r.back.Height, diff.ScrollAmount)
 		if len(fullLines) == 0 {
 			// 防御回退：若尾部计算异常，退回常规 changed lines，保证正确性。
 			fullLines = diff.ChangedLines
 		}
-		if len(fullLines) > 0 || len(hintRanges) > 0 {
+		if len(fullLines) > 0 || hintLineCount > 0 {
 			hasChanges = true
 		}
 	} else {
 		// 常规行级 diff
 		fullLines = diff.ChangedLines
-		if len(fullLines) > 0 || len(hintRanges) > 0 {
+		if len(fullLines) > 0 || hintLineCount > 0 {
 			hasChanges = true
 		}
 	}
 
 	fullMarks, fullLineCount := r.markFullLines(fullLines, r.back.Height)
-	partialLineRanges := subtractFullLines(hintRanges, fullMarks, r.back.Height)
-	r.changedLines = fullLineCount + countPartialLines(partialLineRanges, r.back.Height)
+	r.changedLines = fullLineCount + countPartialLineRows(hintRanges, fullMarks)
 	log.RenderLogger.Debug("[RENDER] HasChanges=%v, ChangedLines=%d, HasScroll=%v, UseLineDiff=%v, HintRects=%d, ForceFull=%v",
 		hasChanges, r.changedLines, diff.HasScroll, r.useLineDiff, len(r.dirtyHints), r.forceFull)
 
@@ -170,7 +171,11 @@ func (r *Renderer) Render() string {
 			r.renderFullLine(y)
 			continue
 		}
-		if ranges := partialLineRanges[y]; len(ranges) > 0 {
+		if y < len(hintRanges) {
+			ranges := hintRanges[y]
+			if len(ranges) == 0 {
+				continue
+			}
 			r.renderLineRanges(y, ranges)
 		}
 	}
@@ -645,14 +650,18 @@ func (r *Renderer) markFullLines(lines []int, height int) ([]bool, int) {
 	return r.fullMarks, count
 }
 
-func allLines(height int) []int {
+func (r *Renderer) allLines(height int) []int {
 	if height <= 0 {
 		return nil
 	}
-	lines := make([]int, 0, height)
+	if cap(r.lineScratch) < height {
+		r.lineScratch = make([]int, 0, height)
+	}
+	lines := r.lineScratch[:0]
 	for y := 0; y < height; y++ {
 		lines = append(lines, y)
 	}
+	r.lineScratch = lines
 	return lines
 }
 
@@ -661,12 +670,14 @@ type lineRange struct {
 	end   int // exclusive
 }
 
-func rectsToLineRanges(rects []Rect, width, height int) map[int][]lineRange {
+func (r *Renderer) rectsToLineRangeRows(rects []Rect, width, height int) ([][]lineRange, int) {
 	if width <= 0 || height <= 0 || len(rects) == 0 {
-		return nil
+		r.hintRangeRows = resetLineRangeRows(r.hintRangeRows, height)
+		return nil, 0
 	}
 
-	rangesByLine := make(map[int][]lineRange, len(rects))
+	r.hintRangeRows = resetLineRangeRows(r.hintRangeRows, height)
+	lineCount := 0
 	for _, rect := range rects {
 		if rect.Width <= 0 || rect.Height <= 0 {
 			continue
@@ -697,15 +708,38 @@ func rectsToLineRanges(rects []Rect, width, height int) map[int][]lineRange {
 		}
 
 		for y := startY; y < endY; y++ {
-			rangesByLine[y] = append(rangesByLine[y], lineRange{start: startX, end: endX})
+			if len(r.hintRangeRows[y]) == 0 {
+				lineCount++
+			}
+			r.hintRangeRows[y] = append(r.hintRangeRows[y], lineRange{start: startX, end: endX})
 		}
 	}
 
-	for y, ranges := range rangesByLine {
-		rangesByLine[y] = mergeLineRanges(ranges)
+	if lineCount == 0 {
+		return nil, 0
 	}
 
-	return rangesByLine
+	for y, ranges := range r.hintRangeRows {
+		if len(ranges) > 1 {
+			r.hintRangeRows[y] = mergeLineRanges(ranges)
+		}
+	}
+
+	return r.hintRangeRows, lineCount
+}
+
+func resetLineRangeRows(rows [][]lineRange, height int) [][]lineRange {
+	if height <= 0 {
+		return rows[:0]
+	}
+	if cap(rows) < height {
+		return make([][]lineRange, height)
+	}
+	rows = rows[:height]
+	for y := range rows {
+		rows[y] = rows[y][:0]
+	}
+	return rows
 }
 
 func mergeLineRanges(ranges []lineRange) []lineRange {
@@ -720,7 +754,7 @@ func mergeLineRanges(ranges []lineRange) []lineRange {
 		return ranges[i].start < ranges[j].start
 	})
 
-	merged := make([]lineRange, 0, len(ranges))
+	merged := ranges[:0]
 	current := ranges[0]
 	for i := 1; i < len(ranges); i++ {
 		next := ranges[i]
@@ -737,28 +771,10 @@ func mergeLineRanges(ranges []lineRange) []lineRange {
 	return merged
 }
 
-func subtractFullLines(hints map[int][]lineRange, fullMarks []bool, height int) map[int][]lineRange {
-	if len(hints) == 0 || height <= 0 {
-		return nil
-	}
-
-	out := make(map[int][]lineRange, len(hints))
-	for y, ranges := range hints {
-		if y < 0 || y >= height || fullMarks[y] || len(ranges) == 0 {
-			continue
-		}
-		out[y] = ranges
-	}
-	return out
-}
-
-func countPartialLines(partial map[int][]lineRange, height int) int {
-	if height <= 0 {
-		return 0
-	}
+func countPartialLineRows(rows [][]lineRange, fullMarks []bool) int {
 	count := 0
-	for y, ranges := range partial {
-		if y >= 0 && y < height && len(ranges) > 0 {
+	for y, ranges := range rows {
+		if y < len(fullMarks) && !fullMarks[y] && len(ranges) > 0 {
 			count++
 		}
 	}
@@ -795,7 +811,7 @@ func normalizeRangeForWideCells(row []Cell, start, end int) (int, int) {
 // after applying terminal scroll commands.
 // amount > 0: scroll up, repaint bottom "amount" lines
 // amount < 0: scroll down, repaint top "-amount" lines
-func scrollTailLines(height, amount int) []int {
+func (r *Renderer) scrollTailLines(height, amount int) []int {
 	if height <= 0 || amount == 0 {
 		return nil
 	}
@@ -805,10 +821,14 @@ func scrollTailLines(height, amount int) []int {
 			amount = height
 		}
 		start := height - amount
-		lines := make([]int, 0, amount)
+		if cap(r.lineScratch) < amount {
+			r.lineScratch = make([]int, 0, amount)
+		}
+		lines := r.lineScratch[:0]
 		for y := start; y < height; y++ {
 			lines = append(lines, y)
 		}
+		r.lineScratch = lines
 		return lines
 	}
 
@@ -817,9 +837,13 @@ func scrollTailLines(height, amount int) []int {
 	if n > height {
 		n = height
 	}
-	lines := make([]int, 0, n)
+	if cap(r.lineScratch) < n {
+		r.lineScratch = make([]int, 0, n)
+	}
+	lines := r.lineScratch[:0]
 	for y := 0; y < n; y++ {
 		lines = append(lines, y)
 	}
+	r.lineScratch = lines
 	return lines
 }

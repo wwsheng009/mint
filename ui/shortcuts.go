@@ -42,6 +42,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/empty"
 	formcomp "github.com/wwsheng009/mint/ui/components/form"
 	"github.com/wwsheng009/mint/ui/components/grid"
+	imagecomp "github.com/wwsheng009/mint/ui/components/image"
 	"github.com/wwsheng009/mint/ui/components/input"
 	layoutcomp "github.com/wwsheng009/mint/ui/components/layout"
 	"github.com/wwsheng009/mint/ui/components/list"
@@ -198,6 +199,10 @@ func NewScrollViewBuilder() *scrollview.Builder {
 
 func NewEmptyBuilder() *empty.Builder {
 	return empty.NewBuilder()
+}
+
+func NewImageBuilder() *imagecomp.Builder {
+	return imagecomp.NewBuilder()
 }
 
 func NewAlertBuilder(message string) *alert.Builder {

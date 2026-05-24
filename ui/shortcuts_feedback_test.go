@@ -18,6 +18,9 @@ func TestFeedbackBuilderFactories(t *testing.T) {
 	if vnode := NewClockBuilder().Radius(4).Build(); vnode == nil {
 		t.Fatal("NewClockBuilder().Build() returned nil")
 	}
+	if vnode := NewImageBuilder().Alt("Preview").SourceRGBA([]byte{255, 255, 255, 255}, 1, 1).Build(); vnode == nil {
+		t.Fatal("NewImageBuilder().Build() returned nil")
+	}
 }
 
 func TestFeedbackShortcuts(t *testing.T) {

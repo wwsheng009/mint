@@ -68,3 +68,22 @@ $env:MINT_CELL_PIXELS = "8x16"
 `MINT_GRAPHICS=sixel` is no longer required on Windows Terminal because `WT_SESSION` enables SIXEL by default. It remains useful for forcing SIXEL in unrecognized environments.
 
 Applications should provide a text fallback for important images. Terminal image protocols are not universally available, and SIXEL behavior can still vary by terminal version and font/cell geometry.
+
+## Linux Terminal Compatibility
+
+Linux terminal support is intentionally capability-based rather than OS-based:
+
+- Kitty-compatible terminals can use the Kitty graphics protocol when detected or forced with `MINT_GRAPHICS=kitty`.
+- WezTerm/iTerm2-style inline images are only enabled for verified terminal markers, or explicitly with `MINT_GRAPHICS=inline-image` plus `MINT_GRAPHICS_ALLOW_UNVERIFIED_INLINE_IMAGE=1`.
+- SIXEL can be forced with `MINT_GRAPHICS=sixel` when the terminal is known to support it.
+- Common Linux desktop terminals can behave differently by distribution, version, profile, and multiplexer. Applications must not assume that a generic Linux terminal supports inline images.
+
+For Linux deployments, the recommended operational model is:
+
+```bash
+MINT_GRAPHICS=kitty app
+MINT_GRAPHICS=sixel MINT_CELL_PIXELS=8x16 app
+MINT_GRAPHICS=off app
+```
+
+Application-level fallbacks should open or save the original image instead of attempting lossy ASCII reconstruction for security-sensitive images such as captchas. ASCII previews lose color, anti-aliasing, distortion, and interference-line detail, so they can mislead operators.

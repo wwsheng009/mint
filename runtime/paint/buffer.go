@@ -24,6 +24,8 @@ type Buffer struct {
 	LineHash []uint64
 }
 
+var blankCell = Cell{Cluster: " ", Width: 1}
+
 // NewBuffer creates a new buffer with the specified dimensions.
 func NewBuffer(width, height int) *Buffer {
 	b := &Buffer{
@@ -38,7 +40,7 @@ func NewBuffer(width, height int) *Buffer {
 		// IMPORTANT: 必须设置 Width=1，否则 Renderer 会跳过这些单元格
 		// 导致未渲染区域在终端上显示为"白色格子"
 		for x := 0; x < width; x++ {
-			b.Cells[y][x] = Cell{Cluster: " ", Width: 1}
+			b.Cells[y][x] = blankCell
 		}
 	}
 
@@ -620,11 +622,7 @@ func (b *Buffer) Clear() {
 	w, h := b.Width, b.Height
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			b.Cells[y][x] = Cell{
-				Cluster: " ",
-				Style:   style.Style{},
-				ZIndex:  0,
-			}
+			b.Cells[y][x] = blankCell
 		}
 	}
 }
@@ -650,11 +648,7 @@ func (b *Buffer) Reset(width, height int) {
 	// Clear all cells
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			b.Cells[y][x] = Cell{
-				Cluster: " ",
-				Style:   style.Style{},
-				ZIndex:  0,
-			}
+			b.Cells[y][x] = blankCell
 		}
 	}
 

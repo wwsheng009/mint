@@ -188,6 +188,8 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `runtime/paint.Renderer` 复用 full-line 标记 scratch，合并 rendered line 计数，减少每帧 bool slice 分配。
 - `runtime/paint.Renderer` 复用 run text buffer，并直接写入输出缓冲，避免每个 style run 创建临时 buffer 和 string。
 - `runtime/paint.LineDiffInto` 支持调用方复用 changed-lines 切片，Renderer 通过 scratch 避免每帧 `ChangedLines` 分配。
+- `runtime/paint.Renderer` 将 dirty rect hint 转换从 `map[int][]lineRange` 改为按行 `[][]lineRange` scratch，去掉每帧 hint map、partial map 和 merge 切片分配；全屏行列表与 scroll tail 行列表也复用 renderer scratch。
+- `runtime/paint.Buffer` 统一复用 `blankCell` 初始化空白 cell，`Reset/Clear` 与 `NewBuffer` 一致保留 `Width:1`，避免热循环重复构造空白 cell 字面量。
 - Scene graphics 路径复用同一帧的 presented graphics snapshot，避免 clear/present/state 保存阶段重复扫描图片 RGBA；同时复用 `graphicsLayoutNext` scratch，减少稳定图片帧的 layout slice 分配；图片内容 hash 改为无格式化、无接口分配的内联 FNV-1a；overlay 稳定帧跳过重复 present，terminal-frame 稳定帧仅重新 present 图像、不再触发完整文本重绘。
 - Scene image 文本遮罩路径跳过每 cell `SetCell` 的 rune 宽度计算、字符串转换和重复边界检查，改为裁剪后的 row 写入；仍保留遮罩边界宽字符清理语义。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
