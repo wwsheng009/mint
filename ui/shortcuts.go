@@ -694,6 +694,21 @@ func NewDescriptionsItem(label string, content rtui.VNode) descriptions.Item {
 	return descriptions.Entry(label, content)
 }
 
+// NewDescriptionsField creates a descriptions item from text.
+func NewDescriptionsField(label, value string) descriptions.Item {
+	return descriptions.Field(label, value)
+}
+
+// NewDescriptionsValue creates a descriptions item from an arbitrary value.
+func NewDescriptionsValue(label string, value interface{}) descriptions.Item {
+	return descriptions.Value(label, value)
+}
+
+// NewSensitiveDescriptionsItem creates a masked descriptions item.
+func NewSensitiveDescriptionsItem(label string, value interface{}) descriptions.Item {
+	return descriptions.SensitiveField(label, value)
+}
+
 // NewTimelineItem creates a timeline item with content text.
 func NewTimelineItem(content string) timeline.Item {
 	return timeline.Event(content)

@@ -15,10 +15,14 @@ const (
 	propColumn       = "column"
 	propContentStyle = "contentStyle"
 	propExtra        = "extra"
+	propEmptyText    = "emptyText"
 	propItems        = "items"
 	propKey          = "key"
+	propContentWidth = "contentWidth"
+	propLabelWidth   = "labelWidth"
 	propLabelStyle   = "labelStyle"
 	propLayout       = "layout"
+	propMaskText     = "maskText"
 	propStyle        = "style"
 	propTitle        = "title"
 	propTitleStyle   = "titleStyle"
@@ -38,7 +42,14 @@ type Item struct {
 	Key          string
 	Label        string
 	Content      rtui.VNode
+	Value        interface{}
+	HasValue     bool
 	Span         int
+	LabelWidth   int
+	ContentWidth int
+	EmptyText    string
+	Sensitive    bool
+	MaskText     string
 	LabelStyle   style.Style
 	ContentStyle style.Style
 }
@@ -54,7 +65,25 @@ func Entry(label string, content rtui.VNode) Item {
 
 // Field creates a text descriptions item.
 func Field(label, value string) Item {
-	return Entry(label, textcomp.New(value))
+	item := Entry(label, textcomp.New(value))
+	item.Value = value
+	item.HasValue = true
+	return item
+}
+
+// Value creates a descriptions item from an arbitrary value.
+func Value(label string, value interface{}) Item {
+	return Item{
+		Label:    label,
+		Value:    value,
+		HasValue: true,
+		Span:     1,
+	}
+}
+
+// SensitiveField creates a masked descriptions item for secrets and tokens.
+func SensitiveField(label string, value interface{}) Item {
+	return Value(label, value).WithSensitive(true)
 }
 
 // WithKey sets the item key.
@@ -66,6 +95,36 @@ func (i Item) WithKey(key string) Item {
 // WithSpan sets the column span.
 func (i Item) WithSpan(span int) Item {
 	i.Span = span
+	return i
+}
+
+// WithLabelWidth sets a fixed label width for this item.
+func (i Item) WithLabelWidth(width int) Item {
+	i.LabelWidth = width
+	return i
+}
+
+// WithContentWidth sets a fixed content width for this item.
+func (i Item) WithContentWidth(width int) Item {
+	i.ContentWidth = width
+	return i
+}
+
+// WithEmptyText sets the placeholder used when this item has an empty value.
+func (i Item) WithEmptyText(emptyText string) Item {
+	i.EmptyText = emptyText
+	return i
+}
+
+// WithSensitive toggles masking for this item.
+func (i Item) WithSensitive(sensitive bool) Item {
+	i.Sensitive = sensitive
+	return i
+}
+
+// WithMaskText sets the masked display text for this item.
+func (i Item) WithMaskText(maskText string) Item {
+	i.MaskText = maskText
 	return i
 }
 
@@ -94,6 +153,10 @@ type VNode struct {
 	colon        bool
 	layout       Layout
 	width        int
+	labelWidth   int
+	contentWidth int
+	emptyText    string
+	maskText     string
 	rootStyle    style.Style
 	titleStyle   style.Style
 	labelStyle   style.Style
@@ -114,6 +177,8 @@ func New(items []Item) *VNode {
 		bordered:     false,
 		colon:        true,
 		layout:       LayoutHorizontal,
+		emptyText:    "-",
+		maskText:     "****",
 	}
 }
 
@@ -147,11 +212,15 @@ func (v *VNode) Props() rtui.Props {
 		propColon:        v.colon,
 		propColumn:       v.column,
 		propContentStyle: v.contentStyle,
+		propContentWidth: v.contentWidth,
+		propEmptyText:    v.emptyText,
 		propExtra:        v.extra,
 		propItems:        cloneItems(v.items),
 		propKey:          v.key,
+		propLabelWidth:   v.labelWidth,
 		propLabelStyle:   v.labelStyle,
 		propLayout:       v.layout,
+		propMaskText:     v.maskText,
 		propStyle:        v.rootStyle,
 		propTitle:        v.title,
 		propTitleStyle:   v.titleStyle,
@@ -186,6 +255,18 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if width, ok := props[propWidth].(int); ok {
 		v.width = width
+	}
+	if labelWidth, ok := props[propLabelWidth].(int); ok {
+		v.labelWidth = labelWidth
+	}
+	if contentWidth, ok := props[propContentWidth].(int); ok {
+		v.contentWidth = contentWidth
+	}
+	if emptyText, ok := props[propEmptyText].(string); ok {
+		v.emptyText = emptyText
+	}
+	if maskText, ok := props[propMaskText].(string); ok {
+		v.maskText = maskText
 	}
 	if s, ok := props[propStyle].(style.Style); ok {
 		v.rootStyle = s
@@ -260,6 +341,30 @@ func (v *VNode) SetWidth(width int) *VNode {
 	return v
 }
 
+// SetLabelWidth sets the default fixed label width.
+func (v *VNode) SetLabelWidth(width int) *VNode {
+	v.labelWidth = width
+	return v
+}
+
+// SetContentWidth sets the default fixed content width.
+func (v *VNode) SetContentWidth(width int) *VNode {
+	v.contentWidth = width
+	return v
+}
+
+// SetEmptyText sets the placeholder for empty values.
+func (v *VNode) SetEmptyText(emptyText string) *VNode {
+	v.emptyText = emptyText
+	return v
+}
+
+// SetMaskText sets the default masked text for sensitive values.
+func (v *VNode) SetMaskText(maskText string) *VNode {
+	v.maskText = maskText
+	return v
+}
+
 // SetTitleStyle sets the title style.
 func (v *VNode) SetTitleStyle(s style.Style) *VNode {
 	v.titleStyle = s
@@ -313,6 +418,12 @@ func normalizeItems(items []Item) []Item {
 		cloned[index].Key = key
 		if cloned[index].Span < 1 {
 			cloned[index].Span = 1
+		}
+		if cloned[index].LabelWidth < 0 {
+			cloned[index].LabelWidth = 0
+		}
+		if cloned[index].ContentWidth < 0 {
+			cloned[index].ContentWidth = 0
 		}
 	}
 	return cloned

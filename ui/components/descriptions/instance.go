@@ -29,6 +29,10 @@ type Instance struct {
 	colon        bool
 	layout       Layout
 	width        int
+	labelWidth   int
+	contentWidth int
+	emptyText    string
+	maskText     string
 	rootStyle    style.Style
 	titleStyle   style.Style
 	labelStyle   style.Style
@@ -53,6 +57,10 @@ func NewInstance(props rtui.Props) *Instance {
 		colon:        proputil.GetBool(props, propColon, true),
 		layout:       getLayoutProp(props, LayoutHorizontal),
 		width:        proputil.GetInt(props, propWidth, 0),
+		labelWidth:   proputil.GetInt(props, propLabelWidth, 0),
+		contentWidth: proputil.GetInt(props, propContentWidth, 0),
+		emptyText:    proputil.GetString(props, propEmptyText, "-"),
+		maskText:     proputil.GetString(props, propMaskText, "****"),
 		rootStyle:    proputil.GetStyle(props, propStyle, style.Style{}),
 		titleStyle:   proputil.GetStyle(props, propTitleStyle, style.Style{}),
 		labelStyle:   proputil.GetStyle(props, propLabelStyle, style.Style{}),
@@ -84,6 +92,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldColon := inst.colon
 	oldLayout := inst.layout
 	oldWidth := inst.width
+	oldLabelWidth := inst.labelWidth
+	oldContentWidth := inst.contentWidth
+	oldEmptyText := inst.emptyText
+	oldMaskText := inst.maskText
 	oldRootStyle := inst.rootStyle
 	oldTitleStyle := inst.titleStyle
 	oldLabelStyle := inst.labelStyle
@@ -98,6 +110,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.colon = proputil.GetBool(props, propColon, inst.colon)
 	inst.layout = getLayoutPropWithDefault(props, inst.layout)
 	inst.width = proputil.GetInt(props, propWidth, inst.width)
+	inst.labelWidth = proputil.GetInt(props, propLabelWidth, inst.labelWidth)
+	inst.contentWidth = proputil.GetInt(props, propContentWidth, inst.contentWidth)
+	inst.emptyText = proputil.GetString(props, propEmptyText, inst.emptyText)
+	inst.maskText = proputil.GetString(props, propMaskText, inst.maskText)
 	inst.rootStyle = proputil.GetStyle(props, propStyle, inst.rootStyle)
 	inst.titleStyle = proputil.GetStyle(props, propTitleStyle, inst.titleStyle)
 	inst.labelStyle = proputil.GetStyle(props, propLabelStyle, inst.labelStyle)
@@ -112,6 +128,10 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldColon != inst.colon ||
 		oldLayout != inst.layout ||
 		oldWidth != inst.width ||
+		oldLabelWidth != inst.labelWidth ||
+		oldContentWidth != inst.contentWidth ||
+		oldEmptyText != inst.emptyText ||
+		oldMaskText != inst.maskText ||
 		oldRootStyle != inst.rootStyle ||
 		oldTitleStyle != inst.titleStyle ||
 		oldLabelStyle != inst.labelStyle ||
@@ -128,11 +148,15 @@ func (inst *Instance) GetProps() rtui.Props {
 		propColon:        inst.colon,
 		propColumn:       inst.column,
 		propContentStyle: inst.contentStyle,
+		propContentWidth: inst.contentWidth,
+		propEmptyText:    inst.emptyText,
 		propExtra:        inst.extra,
 		propItems:        cloneItems(inst.items),
 		propKey:          inst.key,
+		propLabelWidth:   inst.labelWidth,
 		propLabelStyle:   inst.labelStyle,
 		propLayout:       inst.layout,
+		propMaskText:     inst.maskText,
 		propStyle:        inst.rootStyle,
 		propTitle:        inst.title,
 		propTitleStyle:   inst.titleStyle,
@@ -281,27 +305,48 @@ func (inst *Instance) buildItemCell(item Item) rtui.VNode {
 			Merge(inst.labelStyle).
 			Merge(item.LabelStyle),
 		)
-
-	contentNode := item.Content
-	if contentNode == nil {
-		contentNode = textcomp.New("")
+	label := rtui.VNode(labelNode)
+	if width := inst.effectiveLabelWidth(item); width > 0 {
+		box := rtui.Box().Width(width).Child(label)
+		label = box.Build()
+		label.SetKey("descriptions-label-" + item.Key)
 	}
+
+	contentNode := inst.buildContentNode(item)
 	contentNode = inst.wrapContentNode(contentNode, item)
+	if width := inst.effectiveContentWidth(item); width > 0 {
+		box := rtui.Box().Width(width).Child(contentNode)
+		contentNode = box.Build()
+		contentNode.SetKey("descriptions-content-width-" + item.Key)
+	}
 
 	var cell rtui.VNode
 	switch inst.layout {
 	case LayoutVertical:
-		builder := rtui.VStackBuilder(labelNode, contentNode).
+		builder := rtui.VStackBuilder(label, contentNode).
 			Gap(0).
 			AlignCross(rtui.AlignStart)
 		cell = builder.Build()
 	default:
-		builder := rtui.HStackBuilder(labelNode, rtui.Flex(contentNode, 1)).
+		builder := rtui.HStackBuilder(label, rtui.Flex(contentNode, 1)).
 			Gap(1).
 			AlignCross(rtui.AlignStart)
 		cell = builder.Build()
 	}
 	return cell
+}
+
+func (inst *Instance) buildContentNode(item Item) rtui.VNode {
+	if item.Sensitive {
+		return textcomp.New(inst.effectiveMaskText(item))
+	}
+	if item.HasValue {
+		return textcomp.New(inst.formatValue(item.Value, item))
+	}
+	if item.Content == nil {
+		return textcomp.New(inst.effectiveEmptyText(item))
+	}
+	return item.Content
 }
 
 func (inst *Instance) wrapContentNode(content rtui.VNode, item Item) rtui.VNode {
@@ -314,6 +359,51 @@ func (inst *Instance) wrapContentNode(content rtui.VNode, item Item) rtui.VNode 
 	node := wrapper.Build()
 	node.SetKey("descriptions-content-" + item.Key)
 	return node
+}
+
+func (inst *Instance) effectiveLabelWidth(item Item) int {
+	if item.LabelWidth > 0 {
+		return item.LabelWidth
+	}
+	return inst.labelWidth
+}
+
+func (inst *Instance) effectiveContentWidth(item Item) int {
+	if item.ContentWidth > 0 {
+		return item.ContentWidth
+	}
+	return inst.contentWidth
+}
+
+func (inst *Instance) effectiveEmptyText(item Item) string {
+	if item.EmptyText != "" {
+		return item.EmptyText
+	}
+	if inst.emptyText != "" {
+		return inst.emptyText
+	}
+	return "-"
+}
+
+func (inst *Instance) effectiveMaskText(item Item) string {
+	if item.MaskText != "" {
+		return item.MaskText
+	}
+	if inst.maskText != "" {
+		return inst.maskText
+	}
+	return "****"
+}
+
+func (inst *Instance) formatValue(value interface{}, item Item) string {
+	if value == nil {
+		return inst.effectiveEmptyText(item)
+	}
+	text := fmt.Sprint(value)
+	if strings.TrimSpace(text) == "" {
+		return inst.effectiveEmptyText(item)
+	}
+	return text
 }
 
 func (inst *Instance) effectiveColumns() int {
@@ -355,6 +445,18 @@ func (inst *Instance) normalize() {
 	inst.items = normalizeItems(inst.items)
 	if inst.column < 1 {
 		inst.column = 1
+	}
+	if inst.labelWidth < 0 {
+		inst.labelWidth = 0
+	}
+	if inst.contentWidth < 0 {
+		inst.contentWidth = 0
+	}
+	if inst.emptyText == "" {
+		inst.emptyText = "-"
+	}
+	if inst.maskText == "" {
+		inst.maskText = "****"
 	}
 }
 

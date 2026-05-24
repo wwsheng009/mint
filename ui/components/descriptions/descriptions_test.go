@@ -38,6 +38,10 @@ func TestBuilderFluent(t *testing.T) {
 		Colon(false).
 		Vertical().
 		Width(64).
+		LabelWidth(14).
+		ContentWidth(28).
+		EmptyText("-").
+		MaskText("masked").
 		LabelStyle(style.NewStyle().Bold(true)).
 		ContentStyle(style.NewStyle().Foreground(style.Color("cyan"))).
 		Item(Field("Version", "v1.2.3").WithKey("version")).
@@ -57,6 +61,12 @@ func TestBuilderFluent(t *testing.T) {
 	}
 	if v.width != 64 {
 		t.Fatalf("width = %d, want 64", v.width)
+	}
+	if v.labelWidth != 14 || v.contentWidth != 28 {
+		t.Fatalf("width props = (label=%d content=%d), want (14,28)", v.labelWidth, v.contentWidth)
+	}
+	if v.emptyText != "-" || v.maskText != "masked" {
+		t.Fatalf("text props = (empty=%q mask=%q)", v.emptyText, v.maskText)
 	}
 }
 
@@ -91,6 +101,67 @@ func TestPackRowsRespectsSpan(t *testing.T) {
 	}
 	if len(rows[1]) != 1 || rows[1][0].item.Label != "Commit" {
 		t.Fatalf("row 1 = %#v", rows[1])
+	}
+}
+
+func TestValueItemsRenderEmptyAndSensitiveValues(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propColumn:    1,
+		propEmptyText: "-",
+		propMaskText:  "hidden",
+		propItems: []Item{
+			Value("Missing", nil).WithKey("missing"),
+			Value("Blank", "").WithKey("blank"),
+			SensitiveField("Token", "agw_example_token").WithKey("token"),
+		},
+	})
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	root := children[0]
+	if !containsVNodeText(root, "-") {
+		t.Fatal("expected empty placeholder")
+	}
+	if !containsVNodeText(root, "hidden") {
+		t.Fatal("expected sensitive value to be masked")
+	}
+	if containsVNodeText(root, "agw_example_token") {
+		t.Fatal("sensitive value should not be rendered")
+	}
+}
+
+func TestRuntimeChildrenApplyStableLabelAndContentWidths(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propColumn:       1,
+		propLabelWidth:   12,
+		propContentWidth: 24,
+		propItems: []Item{
+			Value("Runtime", "healthy").WithKey("runtime"),
+		},
+	})
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	root := children[0]
+
+	label := findVNodeByKey(root, "descriptions-label-runtime")
+	if label == nil {
+		t.Fatal("expected label width wrapper")
+	}
+	if got := label.Props()["width"]; got != 12 {
+		t.Fatalf("label width = %v, want 12", got)
+	}
+
+	content := findVNodeByKey(root, "descriptions-content-width-runtime")
+	if content == nil {
+		t.Fatal("expected content width wrapper")
+	}
+	if got := content.Props()["width"]; got != 24 {
+		t.Fatalf("content width = %v, want 24", got)
 	}
 }
 
@@ -167,6 +238,18 @@ func TestInstanceEffectiveColumnsResponsiveToWidth(t *testing.T) {
 	}
 }
 
+func TestNormalizeItemsClampsNegativeWidths(t *testing.T) {
+	items := normalizeItems([]Item{
+		Value("Runtime", "healthy").WithLabelWidth(-1).WithContentWidth(-2),
+	})
+	if items[0].LabelWidth != 0 {
+		t.Fatalf("label width = %d, want 0", items[0].LabelWidth)
+	}
+	if items[0].ContentWidth != 0 {
+		t.Fatalf("content width = %d, want 0", items[0].ContentWidth)
+	}
+}
+
 func containsVNodeText(node rtui.VNode, want string) bool {
 	if node == nil {
 		return false
@@ -185,4 +268,19 @@ func containsVNodeText(node rtui.VNode, want string) bool {
 		}
 	}
 	return false
+}
+
+func findVNodeByKey(node rtui.VNode, key string) rtui.VNode {
+	if node == nil {
+		return nil
+	}
+	if node.Key() == key {
+		return node
+	}
+	for _, child := range node.Children() {
+		if found := findVNodeByKey(child, key); found != nil {
+			return found
+		}
+	}
+	return nil
 }

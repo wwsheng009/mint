@@ -93,6 +93,30 @@ func (b *Builder) Width(width int) *Builder {
 	return b
 }
 
+// LabelWidth sets the default fixed label width.
+func (b *Builder) LabelWidth(width int) *Builder {
+	b.node.SetLabelWidth(width)
+	return b
+}
+
+// ContentWidth sets the default fixed content width.
+func (b *Builder) ContentWidth(width int) *Builder {
+	b.node.SetContentWidth(width)
+	return b
+}
+
+// EmptyText sets the placeholder for nil or empty values.
+func (b *Builder) EmptyText(emptyText string) *Builder {
+	b.node.SetEmptyText(emptyText)
+	return b
+}
+
+// MaskText sets the default masked display text for sensitive items.
+func (b *Builder) MaskText(maskText string) *Builder {
+	b.node.SetMaskText(maskText)
+	return b
+}
+
 // Style sets the root style.
 func (b *Builder) Style(s style.Style) *Builder {
 	b.node.SetStyle(s)

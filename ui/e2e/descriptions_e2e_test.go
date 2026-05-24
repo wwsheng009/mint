@@ -20,8 +20,13 @@ func newDescriptionsStaticApp() ui.ComponentFunc {
 					Extra(ui.NewTextBuilder("readonly").Build()).
 					Column(2).
 					Bordered(true).
+					LabelWidth(12).
+					EmptyText("n/a").
+					MaskText("masked").
 					Item(descriptionscomp.Field("Version", "v1.2.3")).
 					Item(descriptionscomp.Field("Commit", "308cc4b5")).
+					Item(descriptionscomp.Value("PID", nil)).
+					Item(descriptionscomp.SensitiveField("Admin Token", "agw_example_token")).
 					Build(),
 				descriptionscomp.NewBuilder().
 					SetID("descriptions-vertical").
@@ -59,10 +64,25 @@ func TestE2EDescriptionsHeaderBorderAndHorizontalFieldsRender(t *testing.T) {
 	if err := app.AssertVisible(ByText("308cc4b5")); err != nil {
 		t.Fatal(err)
 	}
+	if err := app.AssertVisible(ByText("PID:")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("n/a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Admin Token:")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("masked")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("agw_example_token")); err == nil {
+		t.Fatal("sensitive descriptions item should not render the raw token")
+	}
 	if err := app.AssertVisible(ByText("┌")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText("┘")); err != nil {
+	if err := app.AssertVisible(ByText("└")); err != nil {
 		t.Fatal(err)
 	}
 }
