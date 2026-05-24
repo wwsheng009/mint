@@ -33,3 +33,35 @@ func TestConfirmDialogDirectShortcut(t *testing.T) {
 		t.Fatalf("ConfirmDialog().Tag() = %q, want confirmdialog", dialog.Tag())
 	}
 }
+
+func TestConfirmDialogDangerOperationShortcut(t *testing.T) {
+	dialog := ConfirmDangerOperation(
+		"disable-key.confirm",
+		"Disable Provider Key",
+		"Disable the selected key.",
+		"Traffic may fail over.",
+		"Disable",
+		"actionReason",
+		"maintenance",
+		testConfirmDialogIntent{},
+		testConfirmDialogIntent{},
+		ConfirmDialogTargetItem("provider", "Provider", "openai"),
+		ConfirmDialogSensitiveTarget("key", "Key", "provider-key-demo"),
+	)
+	if dialog == nil {
+		t.Fatal("ConfirmDangerOperation() returned nil")
+	}
+	if dialog.Tag() != "confirmdialog" {
+		t.Fatalf("ConfirmDangerOperation().Tag() = %q, want confirmdialog", dialog.Tag())
+	}
+	props := dialog.Props()
+	if got := props["reasonField"]; got != "actionReason" {
+		t.Fatalf("reasonField = %v, want actionReason", got)
+	}
+	if got := props["reasonRequired"]; got != true {
+		t.Fatalf("reasonRequired = %v, want true", got)
+	}
+	if got := props["confirmText"]; got != "Disable" {
+		t.Fatalf("confirmText = %v, want Disable", got)
+	}
+}

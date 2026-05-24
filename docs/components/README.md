@@ -24,8 +24,8 @@ project-local equivalents:
 | Status footer / shortcut strip | `statusbar`, `toolbar.UseStatusBar(true)` | Left/center/right slots, fixed widths, hover help and overlay tooltip support. |
 | Page command bar | `toolbar`, `filterbar` | `Toolbar` supports text, badges, buttons, custom nodes and controlled dropdown menu entries backed by `menu.Popup`. |
 | Menus | `menu` | Menu bar, popup, context menu, cascading submenu, shortcuts, typeahead, placement fallback and outside-click/ESC close middleware. |
-| Bounded forms | `formdialog`, `form`, `forminputitem` | Use for short create/edit/audit-reason workflows that should preserve table context. |
-| Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks. |
+| Bounded forms | `formdialog`, `form`, `forminputitem` | Use for short create/edit/audit-reason workflows that should preserve table context; `FormDialog` includes danger reason action presets. |
+| Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks; `ConfirmDialog` includes danger operation presets. |
 | Transfer selection | `transfer` | Dual-list transfer with source/target search, controlled or uncontrolled target keys, field binding and change intents. |
 | Progress and loading | `progress`, `spin`, `skeleton`, `result`, `toast`, `notification` | `Progress` supports line/block/circle/dashboard, active/indeterminate states, warning status, operational state mapping and resource usage presets. |
 | Time state | `timer`, `clock` | Use `timer` for elapsed/countdown/auto-refresh/retry windows with optional ASCII progress. |
@@ -103,7 +103,7 @@ Not every component has every file listed above; small display components can be
 | TimePicker | `../../ui/components/timepicker/README.md` | Time segment picker. |
 | Transfer | `../../ui/components/transfer/README.md` | Transfer list. |
 | Form | `../../ui/components/form/README.md` | Form item/context and field integration. |
-| FormDialog | `../../ui/components/formdialog/README.md` | Modal form composition for bounded create/edit and operation forms. |
+| FormDialog | `../../ui/components/formdialog/README.md` | Modal form composition for bounded create/edit and operation forms; includes audit reason action presets. |
 | FilterBar | `../../ui/components/filterbar/README.md` | Search/filter toolbar for data pages. |
 | OptionGroup | `../../ui/components/optiongroup/README.md` | Shared option/radio/checkbox style grouping. |
 | Validation | `../../ui/components/validation/README.md` | Validation helpers. |
@@ -148,9 +148,9 @@ Not every component has every file listed above; small display components can be
 
 | Component | Source README | Notes |
 |---|---|---|
-| ConfirmDialog | `../../ui/components/confirmdialog/README.md` | Operation confirmation dialog with target summary and reason input. |
+| ConfirmDialog | `../../ui/components/confirmdialog/README.md` | Operation confirmation dialog with target summary, reason input and danger operation presets. |
 | Drawer | `../../ui/components/drawer/README.md` | Drawer overlay. |
-| FormDialog | `../../ui/components/formdialog/README.md` | Modal form composition with submit/cancel actions. |
+| FormDialog | `../../ui/components/formdialog/README.md` | Modal form composition with submit/cancel actions and danger reason action presets. |
 | Modal | `../../ui/components/modal/README.md` | Modal component and static helpers. |
 | Popconfirm | `../../ui/components/popconfirm/README.md` | Confirmation popup. |
 | Popover | `../../ui/components/popover/README.md` | Popover overlay. |

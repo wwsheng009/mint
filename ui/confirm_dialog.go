@@ -27,6 +27,16 @@ func ConfirmDialog(title, message string, confirmIntent, cancelIntent intent.Int
 		Build()
 }
 
+// NewConfirmDangerOperationBuilder creates an opened high-risk operation dialog builder.
+func NewConfirmDangerOperationBuilder(key, title, message, warning, confirmText, reasonField, reasonValue string, confirmIntent, cancelIntent intent.Intent, targets ...confirmdialog.TargetItem) *confirmdialog.Builder {
+	return confirmdialog.NewDangerOperation(key, title, message, warning, confirmText, reasonField, reasonValue, confirmIntent, cancelIntent, targets...)
+}
+
+// ConfirmDangerOperation creates an opened high-risk operation confirmation dialog.
+func ConfirmDangerOperation(key, title, message, warning, confirmText, reasonField, reasonValue string, confirmIntent, cancelIntent intent.Intent, targets ...confirmdialog.TargetItem) rtui.VNode {
+	return NewConfirmDangerOperationBuilder(key, title, message, warning, confirmText, reasonField, reasonValue, confirmIntent, cancelIntent, targets...).Build()
+}
+
 // ConfirmDialogTarget creates a target summary item.
 func ConfirmDialogTargetItem(key, label, value string) confirmdialog.TargetItem {
 	return confirmdialog.Target(key, label, value)

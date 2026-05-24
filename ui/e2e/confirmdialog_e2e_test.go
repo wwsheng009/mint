@@ -22,22 +22,21 @@ func newConfirmDialogStaticApp(reason string) ui.ComponentFunc {
 			SetGap(1).
 			SetChildrenList([]ui.VNode{
 				ui.NewTextBuilder("ConfirmDialog E2E Fixture").Build(),
-				confirmdialogcomp.NewBuilder().
-					Key("disable-key-confirm").
-					Title("Disable Provider Key").
-					Message("Disable the selected provider key and record an audit reason.").
-					Warning("Traffic may fail over to another available key.").
-					Open(true).
+				confirmdialogcomp.NewDangerOperation(
+					"disable-key-confirm",
+					"Disable Provider Key",
+					"Disable the selected provider key and record an audit reason.",
+					"Traffic may fail over to another available key.",
+					"Disable",
+					"actionReason",
+					reason,
+					confirmDialogTestIntent{"confirmdialog.confirm"},
+					confirmDialogTestIntent{"confirmdialog.cancel"},
+					confirmdialogcomp.Target("provider", "Provider", "openai"),
+					confirmdialogcomp.SensitiveTarget("key", "Key", "provider-key-demo"),
+				).
 					Width(76).
 					Height(20).
-					Target(confirmdialogcomp.Target("provider", "Provider", "openai")).
-					Target(confirmdialogcomp.SensitiveTarget("key", "Key", "provider-key-demo")).
-					ReasonField("actionReason").
-					ReasonValue(reason).
-					ReasonRequired(true).
-					ConfirmText("Disable").
-					OnConfirm(confirmDialogTestIntent{"confirmdialog.confirm"}).
-					OnCancel(confirmDialogTestIntent{"confirmdialog.cancel"}).
 					Build(),
 			})
 	}

@@ -215,11 +215,11 @@ Current component groups:
 |---|---|
 | Basic display | Text, Divider, Badge, Tag, Empty, Descriptions, Statistic, Timeline, Clock, Timer with auto-refresh/retry/elapsed presets |
 | Layout | VStack/HStack, Space, SplitPane, Layout, Grid, Row/Col, Panel, ScrollView, Wrap, Absolute |
-| Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer, Form, FormDialog, FilterBar, Validation |
+| Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer, Form, FormDialog with audit-reason action presets, FilterBar, Validation |
 | Data | Table, List, VirtualList, TreeView |
 | Feedback | Alert, Progress with operational status and usage presets, Spin, Skeleton, Result, Notification, Toast |
 | Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, Toolbar, StatusBar with operational status presets |
-| Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm, ConfirmDialog, FormDialog |
+| Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm, ConfirmDialog with danger operation presets, FormDialog |
 | Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick; includes `ASCIISparkline` and `ASCIIBarChart` shortcuts |
 
 For exact builder methods, read the component README and `builder.go` under `ui/components/<component>/`.

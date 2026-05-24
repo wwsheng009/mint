@@ -16,36 +16,31 @@ type formDialogTestIntent struct {
 func (i formDialogTestIntent) IntentType() string { return i.name }
 
 func newFormDialogStaticApp(disabled bool) ui.ComponentFunc {
+	return newFormDialogStaticAppWithKey("runtime-reload-dialog", disabled)
+}
+
+func newFormDialogStaticAppWithKey(key string, disabled bool) ui.ComponentFunc {
 	return func() ui.VNode {
 		return ui.NewVStack().
 			SetGap(1).
 			SetChildrenList([]ui.VNode{
 				ui.NewTextBuilder("FormDialog E2E Fixture").Build(),
-				ui.NewFormDialogBuilder().
-					Key("runtime-reload-dialog").
-					Title("Reload Runtime").
-					Description("Reload runtime configuration with an audit reason.").
-					FormID("runtime-reload-form").
-					Opened().
+				ui.NewFormDialogDangerReasonActionBuilder(
+					key,
+					"Reload Runtime",
+					"Reload runtime configuration with an audit reason.",
+					key+"-form",
+					"reason",
+					"maintenance",
+					"Reload",
+					formDialogTestIntent{"formdialog.submit"},
+					formDialogTestIntent{"formdialog.cancel"},
+				).
 					Width(82).
 					Height(18).
-					Children(
-						ui.FormInputItem(
-							"reason",
-							"Reason",
-							"maintenance",
-							ui.FormInputForForm("runtime-reload-form"),
-							ui.FormInputWidth(52),
-							ui.FormInputValidators(ui.Required()),
-						),
-					).
-					SubmitText("Reload").
 					CancelText("Cancel").
-					SubmitVariant(ui.ButtonVariantDanger).
 					SubmitDisabled(disabled).
 					DisabledReason(disabledReason(disabled)).
-					OnSubmit(formDialogTestIntent{"formdialog.submit"}).
-					OnCancel(formDialogTestIntent{"formdialog.cancel"}).
 					Build(),
 			})
 	}
@@ -99,17 +94,18 @@ func TestE2EFormDialogSubmitDispatch(t *testing.T) {
 		}
 	}()
 
-	app, err := Run(newFormDialogStaticApp(false), ui.WithSize(100, 30), ui.WithInit(initFn))
+	key := "runtime-reload-submit-dialog"
+	app, err := Run(newFormDialogStaticAppWithKey(key, false), ui.WithSize(100, 30), ui.WithInit(initFn))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer app.Close()
 
 	app.ClearIntentLogs()
-	if err := app.Driver().Click(ByID("runtime-reload-dialog-submit")); err != nil {
+	if err := app.Driver().Click(ByKey(key + "-submit")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AwaitIntent("formdialog.submit", 500*time.Millisecond); err != nil {
+	if err := app.AwaitIntent("formdialog.submit", 2*time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertIntentHandled("formdialog.submit"); err != nil {

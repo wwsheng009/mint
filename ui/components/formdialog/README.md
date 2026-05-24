@@ -13,6 +13,8 @@ short configuration form without leaving the current table or page context.
 - Initial `Values(...)` and `Value(...)`.
 - Submit, cancel, and close intents.
 - Submit button variants, disabled state, and disabled reason text.
+- `AuditReason(field, value)` appends a required audit reason field using the current form id.
+- `NewDangerReasonAction(...)` builds an opened danger form dialog for short operational actions.
 - Close policy fields are part of the declarative contract; app reducers still
   control whether the dialog is shown.
 - Children stay declarative VNodes; no callback state is stored in the component.
@@ -45,6 +47,22 @@ ui.NewFormDialogBuilder().
     OnSubmit(ReloadRuntimeIntent{}).
     OnCancel(CloseDialogIntent{}).
     Build()
+```
+
+For a short high-risk operation form with only an audit reason, use the preset:
+
+```go
+formdialog.NewDangerReasonAction(
+    "reload-runtime-dialog",
+    "Reload Runtime",
+    "Reload runtime configuration for the selected gateway instance.",
+    "reload-runtime-form",
+    "actionReason",
+    state.ActionReason,
+    "Reload",
+    ReloadRuntimeIntent{},
+    CloseDialogIntent{},
+).Build()
 ```
 
 ## Operational Guidance

@@ -58,3 +58,34 @@ func TestFormDialogShortcuts(t *testing.T) {
 		t.Fatalf("open = %v, want true", got)
 	}
 }
+
+func TestFormDialogDangerReasonActionShortcut(t *testing.T) {
+	dialog := FormDialogDangerReasonAction(
+		"runtime-reload-dialog",
+		"Reload Runtime",
+		"Reload runtime configuration.",
+		"runtime-reload-form",
+		"actionReason",
+		"maintenance",
+		"Reload",
+		formDialogShortcutIntent{"formdialog.submit"},
+		formDialogShortcutIntent{"formdialog.cancel"},
+	)
+	if dialog == nil {
+		t.Fatal("FormDialogDangerReasonAction() returned nil")
+	}
+	if dialog.Tag() != "formdialog" {
+		t.Fatalf("FormDialogDangerReasonAction().Tag() = %q, want formdialog", dialog.Tag())
+	}
+	props := dialog.Props()
+	if got := props["formID"]; got != "runtime-reload-form" {
+		t.Fatalf("formID = %v, want runtime-reload-form", got)
+	}
+	if got := props["submitText"]; got != "Reload" {
+		t.Fatalf("submitText = %v, want Reload", got)
+	}
+	values := props["values"].(map[string]interface{})
+	if got := values["actionReason"]; got != "maintenance" {
+		t.Fatalf("actionReason value = %v, want maintenance", got)
+	}
+}

@@ -26,3 +26,13 @@ func FormDialog(title, description, formID string, submitIntent, cancelIntent in
 		OnCancel(cancelIntent).
 		Build()
 }
+
+// NewFormDialogDangerReasonActionBuilder creates an opened danger form dialog builder with a required audit reason field.
+func NewFormDialogDangerReasonActionBuilder(key, title, description, formID, reasonField, reasonValue, submitText string, submitIntent, cancelIntent intent.Intent) *formdialog.Builder {
+	return formdialog.NewDangerReasonAction(key, title, description, formID, reasonField, reasonValue, submitText, submitIntent, cancelIntent)
+}
+
+// FormDialogDangerReasonAction creates an opened danger form dialog with a required audit reason field.
+func FormDialogDangerReasonAction(key, title, description, formID, reasonField, reasonValue, submitText string, submitIntent, cancelIntent intent.Intent) rtui.VNode {
+	return NewFormDialogDangerReasonActionBuilder(key, title, description, formID, reasonField, reasonValue, submitText, submitIntent, cancelIntent).Build()
+}

@@ -9,6 +9,9 @@
 - `Target(...)` / `SensitiveTarget(...)` 展示目标摘要，敏感目标默认脱敏。
 - `ReasonField(...)` 通过 `intent.BindField(...)` 接入 Store/Reducer。
 - `ReasonRequired(true)` 在 reason 为空时禁用确认按钮。
+- `AuditReason(field, value)` 快速启用必填审计 reason。
+- `Danger(confirmText)` 快速配置危险操作确认按钮。
+- `NewDangerOperation(...)` 生成带目标摘要、warning、必填 reason 和 typed intent 的危险操作确认模板。
 - `OnConfirm(...)` / `OnCancel(...)` 派发 typed Intent。
 - `ConfirmVariant(...)`、`ConfirmText(...)`、`CancelText(...)` 定制操作语义。
 - Fiber-first：`VNode + Instance + RuntimeChildrenProvider`。
@@ -32,6 +35,24 @@ confirmdialog.NewBuilder().
     OnConfirm(DisableKeyIntent{}).
     OnCancel(CloseConfirmIntent{}).
     Build()
+```
+
+运维危险操作可以使用预设减少重复配置：
+
+```go
+confirmdialog.NewDangerOperation(
+    "disable-key.confirm",
+    "Disable Provider Key",
+    "Disable the selected provider key and record an audit reason.",
+    "Traffic may fail over to another available key.",
+    "Disable",
+    "actionReason",
+    state.ActionReason,
+    DisableKeyIntent{},
+    CloseConfirmIntent{},
+    confirmdialog.Target("provider", "Provider", providerName),
+    confirmdialog.SensitiveTarget("key", "Key", keyID),
+).Build()
 ```
 
 ## 运维建议
