@@ -219,7 +219,7 @@ Current component groups:
 | Data | Table, List, VirtualList, TreeView |
 | Feedback | Alert, Progress, Spin, Skeleton, Result, Notification, Toast |
 | Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, Toolbar, StatusBar |
-| Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm |
+| Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm, ConfirmDialog |
 | Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick |
 
 For exact builder methods, read the component README and `builder.go` under `ui/components/<component>/`.

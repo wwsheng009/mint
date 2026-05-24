@@ -6,7 +6,7 @@ This directory contains user-facing component notes and historical component des
 
 Current source facts:
 
-- 68 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
+- 69 top-level component packages live in `../../ui/components` excluding `docs` and `internal`.
 - Every top-level component package currently has a local `README.md`.
 - Component regression tests are split between package tests under `../../ui/components/**` and end-to-end tests under `../../ui/e2e`.
 - Chart components live under `../../ui/components/charts` and use shared internal chart helpers.
@@ -129,6 +129,7 @@ Not every component has every file listed above; small display components can be
 
 | Component | Source README | Notes |
 |---|---|---|
+| ConfirmDialog | `../../ui/components/confirmdialog/README.md` | Operation confirmation dialog with target summary and reason input. |
 | Drawer | `../../ui/components/drawer/README.md` | Drawer overlay. |
 | Modal | `../../ui/components/modal/README.md` | Modal component and static helpers. |
 | Popconfirm | `../../ui/components/popconfirm/README.md` | Confirmation popup. |

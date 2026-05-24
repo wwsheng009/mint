@@ -278,6 +278,21 @@ bar := ui.NewToolbarBuilder().
     Right(ui.ToolbarButton("refresh", "Refresh", RefreshIntent{}).Primary()).
     Right(ui.ToolbarButton("reset", "Reset Runtime", ResetIntent{}).Danger().WithDisabled(true).WithHelp("Requires selected target and reason")).
     Build()
+
+confirm := ui.NewConfirmDialogBuilder().
+    Key("ops.confirm").
+    Title("Disable Provider Key").
+    Message("Disable the selected provider key and record an audit reason.").
+    Open(true).
+    Target(ui.ConfirmDialogTargetItem("provider", "Provider", "openai")).
+    Target(ui.ConfirmDialogSensitiveTarget("key", "Key", "provider-key-demo")).
+    ReasonField("actionReason").
+    ReasonValue("maintenance").
+    ReasonRequired(true).
+    ConfirmText("Disable").
+    OnConfirm(DisableKeyIntent{}).
+    OnCancel(CloseConfirmIntent{}).
+    Build()
 ```
 
 ```go
