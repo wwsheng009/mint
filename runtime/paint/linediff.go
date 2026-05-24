@@ -30,8 +30,14 @@ type LineDiffResult struct {
 // LineDiff 执行行级 diff 比较
 // 使用行哈希进行 O(1) 行比较
 func LineDiff(front, back *Buffer) LineDiffResult {
+	return LineDiffInto(front, back, []int{})
+}
+
+// LineDiffInto is LineDiff with caller-owned storage for ChangedLines.
+// The returned ChangedLines slice aliases scratch.
+func LineDiffInto(front, back *Buffer, scratch []int) LineDiffResult {
 	result := LineDiffResult{
-		ChangedLines: []int{},
+		ChangedLines: scratch[:0],
 		HasChanges:   false,
 		ScrollAmount: 0,
 		HasScroll:    false,

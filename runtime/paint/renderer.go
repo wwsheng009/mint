@@ -52,8 +52,9 @@ type Renderer struct {
 
 	// 脏区域提示（来自 Fiber/PaintableBox 管线）
 	// 注意：这是“提示”，不是强约束；渲染仍以 buffer diff 为准保证正确性。
-	dirtyHints []Rect
-	fullMarks  []bool
+	dirtyHints         []Rect
+	fullMarks          []bool
+	changedLineScratch []int
 
 	// 统计信息
 	changedLines int // 最近一次渲染变化的行数
@@ -112,7 +113,8 @@ func (r *Renderer) Render() string {
 	hintRanges := rectsToLineRanges(r.dirtyHints, r.back.Width, r.back.Height)
 
 	// 默认使用行级 diff，确保正确性
-	diff := LineDiff(r.front, r.back)
+	diff := LineDiffInto(r.front, r.back, r.changedLineScratch)
+	r.changedLineScratch = diff.ChangedLines
 
 	var fullLines []int
 	hasChanges := diff.HasChanges || len(hintRanges) > 0

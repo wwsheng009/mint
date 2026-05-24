@@ -161,6 +161,7 @@ go test ./internal/render -bench Benchmark -benchmem -run '^$'
 - `DeclarativeNode.fiberFirstPaint` 在构建 PaintablePlanes 的同一次遍历中收集 dirty rects 和 scene image layers，避免 `PaintScene` 和 dirty rect 收集额外遍历 PaintableBox 树。
 - `runtime/paint.Renderer` 复用 full-line 标记 scratch，合并 rendered line 计数，减少每帧 bool slice 分配。
 - `runtime/paint.Renderer` 复用 run text buffer，并直接写入输出缓冲，避免每个 style run 创建临时 buffer 和 string。
+- `runtime/paint.LineDiffInto` 支持调用方复用 changed-lines 切片，Renderer 通过 scratch 避免每帧 `ChangedLines` 分配。
 - 保持布局、HitMap、事件路由、Portal 逻辑不变。
 
 后续建议：
