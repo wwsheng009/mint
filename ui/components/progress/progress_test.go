@@ -73,6 +73,18 @@ func TestVNode_Builder(t *testing.T) {
 	}
 }
 
+func TestVNode_Builder_WarningAndState(t *testing.T) {
+	warning := NewBuilder().Warning().BuildTyped()
+	if warning.Status() != StatusWarning {
+		t.Fatalf("Warning status = %v, want %v", warning.Status(), StatusWarning)
+	}
+
+	state := NewBuilder().State("pending_restart").BuildTyped()
+	if state.Status() != StatusWarning {
+		t.Fatalf("State status = %v, want %v", state.Status(), StatusWarning)
+	}
+}
+
 func TestVNode_Builder_Block(t *testing.T) {
 	p := NewBuilder().
 		Value(60).
@@ -571,6 +583,7 @@ func TestInstance_Paint_StatusStyles(t *testing.T) {
 	}{
 		{name: "success", status: StatusSuccess, wantFG: string(theme.Success()), wantBar: "[=====-----]"},
 		{name: "exception", status: StatusException, wantFG: string(theme.Error()), wantBar: "[=====-----]"},
+		{name: "warning", status: StatusWarning, wantFG: string(theme.Warning()), wantBar: "[=====-----]"},
 		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[>====-----]"},
 		{name: "block active", props: rtui.Props{propType: TypeBlock}, status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[▓████░░░░░]"},
 	}

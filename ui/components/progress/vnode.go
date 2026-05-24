@@ -45,6 +45,7 @@ const (
 	StatusSuccess
 	StatusException
 	StatusActive
+	StatusWarning
 )
 
 // =============================================================================
@@ -204,6 +205,16 @@ func (p *VNode) Exception() *VNode {
 
 func (p *VNode) Active() *VNode {
 	p.status = StatusActive
+	return p
+}
+
+func (p *VNode) Warning() *VNode {
+	p.status = StatusWarning
+	return p
+}
+
+func (p *VNode) State(state string) *VNode {
+	p.status = StatusForState(state)
 	return p
 }
 

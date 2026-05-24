@@ -291,6 +291,8 @@ func (inst *Instance) statusColor() style.Color {
 		return theme.Error()
 	case StatusActive:
 		return theme.Focus()
+	case StatusWarning:
+		return theme.Warning()
 	default:
 		return theme.Primary()
 	}

@@ -56,7 +56,7 @@
 | Toast | `toast/` | ★★★☆☆ | 独立 manager + runtime，info/success/warning/error，自动消失 |
 | Tooltip | `tooltip/` | ★★★★☆ | 已支持 12 方位 placement、auto/显式回退、viewport clamp、delay、layer，且定位 helper 已开始被其他 overlay 复用 |
 | Tag | `tag/` | ★★★☆☆ | 标签，颜色变体，可关闭，可选图标前缀 |
-| Progress | `progress/` | ★★★☆☆ | line/block/circle/dashboard 进度条，status（normal/success/exception/active），showPercent，`active` 与 indeterminate 动画 |
+| Progress | `progress/` | ★★★☆☆ | line/block/circle/dashboard 进度条，status（normal/success/warning/exception/active），showPercent，`active` 与 indeterminate 动画，并提供运维状态/资源使用率快捷入口 |
 | Divider | `divider/` | ★★★☆☆ | 水平/垂直分隔线 |
 | StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含三槽 section、固定宽度、交互 section、help/tooltip、运维语义预设；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
 | Toolbar | `toolbar/` | ★★★☆☆ | 运维/数据页工具栏，支持 left/center/right 槽、title、button/badge/custom/statusbar 模式，以及受控 dropdown menu |

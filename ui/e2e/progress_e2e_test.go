@@ -36,7 +36,7 @@ var progressFixtureAccents = []style.Color{
 func newProgressStaticApp() ui.ComponentFunc {
 	return func() ui.VNode {
 		return ui.NewVStack().
-			SetGap(1).
+			SetGap(0).
 			SetChildrenList([]ui.VNode{
 				ui.NewTextBuilder("Progress E2E Fixture").Build(),
 				progresscomp.NewBuilder().
@@ -46,6 +46,14 @@ func newProgressStaticApp() ui.ComponentFunc {
 					Width(12).
 					Label("Uploading").
 					Success().
+					Build(),
+				progresscomp.NewBuilder().
+					SetID("progress-warning-line").
+					Value(85).
+					Max(100).
+					Width(12).
+					Label("Quota").
+					Warning().
 					Build(),
 				progresscomp.NewBuilder().
 					SetID("progress-block").
@@ -178,7 +186,7 @@ func newProgressInteractiveFixture() (ui.ComponentFunc, func(), func(), *store.S
 }
 
 func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
-	app, err := Run(newProgressStaticApp(), ui.WithSize(96, 24))
+	app, err := Run(newProgressStaticApp(), ui.WithSize(96, 28))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,6 +196,9 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("Uploading: 60%")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Quota: 85%")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("[█████░░░░░]")); err != nil {
@@ -226,7 +237,7 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 }
 
 func TestE2EProgressStatusStylesRender(t *testing.T) {
-	app, err := Run(newProgressStaticApp(), ui.WithSize(96, 24))
+	app, err := Run(newProgressStaticApp(), ui.WithSize(96, 28))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,6 +246,12 @@ func TestE2EProgressStatusStylesRender(t *testing.T) {
 	if err := app.AssertStyle(ByText("[======----]"), StyleExpect{
 		HasFG: true,
 		FG:    fwtheme.Success(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertStyle(ByText("Quota: 85%"), StyleExpect{
+		HasFG: true,
+		FG:    fwtheme.Warning(),
 	}); err != nil {
 		t.Fatal(err)
 	}

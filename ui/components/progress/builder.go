@@ -75,6 +75,16 @@ func (b *Builder) Active() *Builder {
 	return b
 }
 
+func (b *Builder) Warning() *Builder {
+	b.node.Warning()
+	return b
+}
+
+func (b *Builder) State(state string) *Builder {
+	b.node.State(state)
+	return b
+}
+
 func (b *Builder) Indeterminate() *Builder {
 	b.node.Indeterminate()
 	return b
