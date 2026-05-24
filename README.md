@@ -220,7 +220,7 @@ Current component groups:
 | Feedback | Alert, Progress, Spin, Skeleton, Result, Notification, Toast |
 | Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, Toolbar, StatusBar |
 | Overlay | Modal, Drawer, Tooltip, Popover, Popconfirm, ConfirmDialog, FormDialog |
-| Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick |
+| Charts | Sparkline, BulletChart, BarChart, LineChart, Heatmap, ScatterPlot, Candlestick; Sparkline and BarChart include ASCII-compatible modes |
 
 For exact builder methods, read the component README and `builder.go` under `ui/components/<component>/`.
 

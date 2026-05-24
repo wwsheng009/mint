@@ -81,6 +81,11 @@ func (b *Builder) ShowValue(show bool) *Builder {
 	return b
 }
 
+func (b *Builder) RenderMode(mode RenderMode) *Builder {
+	b.node.SetRenderMode(mode)
+	return b
+}
+
 func (b *Builder) Grouped() *Builder {
 	b.node.Grouped()
 	return b
@@ -98,6 +103,16 @@ func (b *Builder) Vertical() *Builder {
 
 func (b *Builder) Horizontal() *Builder {
 	b.node.Horizontal()
+	return b
+}
+
+func (b *Builder) Block() *Builder {
+	b.node.Block()
+	return b
+}
+
+func (b *Builder) ASCII() *Builder {
+	b.node.ASCII()
 	return b
 }
 

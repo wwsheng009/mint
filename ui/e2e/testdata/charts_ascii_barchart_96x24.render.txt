@@ -1,0 +1,15 @@
+Charts ASCII Bar Fixture
+ASCII Vertical
+# Success
+# Failure
+#
+#      #
+#  ##  #
+## ## ##
+--------
+OK Wa. F
+ASCII Horizontal
+Requests #######12
+
+Errors   ##### 7
+         ---------

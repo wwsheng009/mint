@@ -61,7 +61,7 @@
 | StatusBar | `statusbar/` | ★★★☆☆ | 组合式 builder，含三槽 section、固定宽度、交互 section、help/tooltip；overlay tooltip 支持 auto/top/bottom、fallback 与 clamp，并已复用共享候选位置 helper，overlay help 运行时已接入真实 viewport 注入 |
 | Toolbar | `toolbar/` | ★★★☆☆ | 运维/数据页工具栏，支持 left/center/right 槽、title、button/badge/custom/statusbar 模式，以及受控 dropdown menu |
 | Timer | `timer/` | ★★★☆☆ | elapsed/countdown/retry/auto-refresh 计时展示，支持 live ticking、静态渲染、固定宽度和 ASCII progress |
-| Charts | `charts/` | ★★★★☆ | 图表组件族，包含 sparkline、bar、line、bullet、heatmap、scatter、candlestick；sparkline 支持 ASCII 模式 |
+| Charts | `charts/` | ★★★★☆ | 图表组件族，包含 sparkline、bar、line、bullet、heatmap、scatter、candlestick；sparkline 与 barchart 支持 ASCII 模式 |
 | Panel | `panel/` | ★★★☆☆ | 容器面板，有 enhanced builder |
 | Popover | `popover/` | ★★★☆☆ | 气泡卡片，支持 title/body、click/hover/manual 触发、auto + top/bottom 6 方位 placement、viewport-aware fallback/clamp、local open intents，以及 Install 后的 ESC / outside-click 收口 |
 | Popconfirm | `popconfirm/` | ★★★☆☆ | 气泡确认框，支持 title/description、OK/Cancel 操作、click/hover/manual 触发、top/bottom 系列 placement、viewport-aware fallback/clamp、confirm/cancel intents、按钮 variant/footer layout，以及 Install 后的 ESC / outside-click 收口 |

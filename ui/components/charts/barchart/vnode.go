@@ -18,6 +18,7 @@ const (
 	propShowAxis    = "showAxis"
 	propShowLegend  = "showLegend"
 	propShowValue   = "showValue"
+	propRenderMode  = "renderMode"
 	propStyle       = "style"
 )
 
@@ -37,6 +38,14 @@ const (
 	OrientationHorizontal
 )
 
+// RenderMode controls the glyph family used to draw bars and axes.
+type RenderMode int
+
+const (
+	RenderModeBlock RenderMode = iota
+	RenderModeASCII
+)
+
 // VNode is the declarative description of a bar chart component.
 type VNode struct {
 	*rtui.ElementVNode
@@ -53,6 +62,7 @@ type VNode struct {
 	showAxis    bool
 	showLegend  bool
 	showValue   bool
+	renderMode  RenderMode
 	chartStyle  style.Style
 }
 
@@ -69,6 +79,7 @@ func New(values []float64) *VNode {
 		mode:         ModeGrouped,
 		orientation:  OrientationVertical,
 		showAxis:     true,
+		renderMode:   RenderModeBlock,
 	}
 }
 
@@ -96,6 +107,7 @@ func (v *VNode) Props() rtui.Props {
 		propShowAxis:    v.showAxis,
 		propShowLegend:  v.showLegend,
 		propShowValue:   v.showValue,
+		propRenderMode:  v.renderMode,
 		propStyle:       v.chartStyle,
 	}
 }
@@ -136,6 +148,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if showValue, ok := props[propShowValue].(bool); ok {
 		v.showValue = showValue
+	}
+	if renderMode, ok := props[propRenderMode].(RenderMode); ok {
+		v.renderMode = renderMode
 	}
 	if s, ok := props[propStyle].(style.Style); ok {
 		v.chartStyle = s
@@ -202,6 +217,11 @@ func (v *VNode) SetShowValue(show bool) *VNode {
 	return v
 }
 
+func (v *VNode) SetRenderMode(mode RenderMode) *VNode {
+	v.renderMode = mode
+	return v
+}
+
 func (v *VNode) Grouped() *VNode {
 	v.mode = ModeGrouped
 	return v
@@ -222,6 +242,16 @@ func (v *VNode) Horizontal() *VNode {
 	return v
 }
 
+func (v *VNode) Block() *VNode {
+	v.renderMode = RenderModeBlock
+	return v
+}
+
+func (v *VNode) ASCII() *VNode {
+	v.renderMode = RenderModeASCII
+	return v
+}
+
 func (v *VNode) SetChartStyle(s style.Style) *VNode {
 	v.chartStyle = s
 	return v
@@ -238,6 +268,7 @@ func (v *VNode) Height() int              { return v.height }
 func (v *VNode) ShowAxis() bool           { return v.showAxis }
 func (v *VNode) ShowLegend() bool         { return v.showLegend }
 func (v *VNode) ShowValue() bool          { return v.showValue }
+func (v *VNode) RenderMode() RenderMode   { return v.renderMode }
 
 func copyFloat64Slice(src []float64) []float64 {
 	if len(src) == 0 {

@@ -24,6 +24,7 @@ func TestVNodeBuilder(t *testing.T) {
 		Height(4).
 		ShowLegend(true).
 		ShowValue(true).
+		ASCII().
 		Key("bar-1").
 		Build()
 
@@ -54,6 +55,9 @@ func TestVNodeBuilder(t *testing.T) {
 	}
 	if !bar.ShowValue() {
 		t.Fatal("ShowValue() = false, want true")
+	}
+	if bar.RenderMode() != RenderModeASCII {
+		t.Fatalf("RenderMode() = %v, want RenderModeASCII", bar.RenderMode())
 	}
 }
 
@@ -327,6 +331,34 @@ func TestInstanceHorizontalPaint(t *testing.T) {
 	}
 }
 
+func TestInstanceASCIIRenderModePaint(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propTitle:      "ASCII Bars",
+		propLabels:     []string{"A", "B", "C"},
+		propSeries:     []Series{{Name: "Revenue", Values: []float64{3, 5, 2}}, {Name: "Cost", Values: []float64{2, 4, 1}}},
+		propMode:       ModeGrouped,
+		propWidth:      8,
+		propHeight:     4,
+		propShowAxis:   true,
+		propShowLegend: true,
+		propRenderMode: RenderModeASCII,
+	})
+
+	size := inst.Measure(layout.UnboundedConstraints())
+	buf := drawCmdsToBuffer(size.Width, size.Height, inst.Paint(0, 0))
+	rendered := bufferText(buf)
+
+	if !strings.Contains(rendered, "# Revenue") {
+		t.Fatalf("ASCII render =\n%s\nwant legend marker '# Revenue'", rendered)
+	}
+	if !strings.Contains(rendered, "--------") {
+		t.Fatalf("ASCII render =\n%s\nwant ASCII axis", rendered)
+	}
+	if strings.Contains(rendered, "█") || strings.Contains(rendered, "─") {
+		t.Fatalf("ASCII render contains non-ASCII chart glyphs:\n%s", rendered)
+	}
+}
+
 func TestInstanceHorizontalLabelFolding(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propTitle:       "Horizontal Fold",
@@ -375,6 +407,17 @@ func bufferRowText(buf *paint.Buffer, y int) string {
 			cluster = " "
 		}
 		builder.WriteString(cluster)
+	}
+	return builder.String()
+}
+
+func bufferText(buf *paint.Buffer) string {
+	var builder strings.Builder
+	for y := 0; y < buf.Height; y++ {
+		if y > 0 {
+			builder.WriteByte('\n')
+		}
+		builder.WriteString(bufferRowText(buf, y))
 	}
 	return builder.String()
 }

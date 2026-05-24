@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	fwtheme "github.com/wwsheng009/mint/framework/theme"
@@ -85,6 +86,41 @@ func newChartsHorizontalApp() ui.ComponentFunc {
 					Height(5).
 					ShowLegend(true).
 					ShowAxis(true).
+					Build(),
+			})
+	}
+}
+
+func newChartsASCIIBarApp() ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Charts ASCII Bar Fixture").Build(),
+				barchartcomp.NewBuilder(nil).
+					SetID("barchart-ascii-vertical").
+					Title("ASCII Vertical").
+					Labels([]string{"OK", "Warn", "Fail"}).
+					Series(
+						barchartcomp.Series{Name: "Success", Values: []float64{5, 3, 1}},
+						barchartcomp.Series{Name: "Failure", Values: []float64{1, 2, 4}},
+					).
+					Width(8).
+					Height(4).
+					ShowLegend(true).
+					ShowAxis(true).
+					ASCII().
+					Build(),
+				barchartcomp.NewBuilder([]float64{12, 7}).
+					SetID("barchart-ascii-horizontal").
+					Title("ASCII Horizontal").
+					Labels([]string{"Requests", "Errors"}).
+					Horizontal().
+					Width(18).
+					Height(3).
+					ShowAxis(true).
+					ShowValue(true).
+					ASCII().
 					Build(),
 			})
 	}
@@ -905,6 +941,36 @@ func TestE2EChartsHorizontalBarRender(t *testing.T) {
 		if err := app.AssertVisible(ByText(text)); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestE2EChartsASCIIBarRender(t *testing.T) {
+	app, err := Run(newChartsASCIIBarApp(), ui.WithSize(96, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, text := range []string{
+		"Charts ASCII Bar Fixture",
+		"ASCII Vertical",
+		"# Success",
+		"# Failure",
+		"ASCII Horizontal",
+		"Requests",
+		"Errors",
+	} {
+		if err := app.AssertVisible(ByText(text)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rendered := app.RenderString()
+	if !strings.Contains(rendered, "--------") {
+		t.Fatalf("ASCII bar render missing ASCII axis:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "█") || strings.Contains(rendered, "─") {
+		t.Fatalf("ASCII bar render contains non-ASCII chart glyphs:\n%s", rendered)
 	}
 }
 
@@ -1953,6 +2019,19 @@ func TestE2EChartsHorizontalSnapshot(t *testing.T) {
 	}()
 
 	assertRenderSnapshot(t, app, "charts_horizontal_96x24.render.txt")
+}
+
+func TestE2EChartsASCIIBarSnapshot(t *testing.T) {
+	app, err := Run(newChartsASCIIBarApp(), ui.WithSize(96, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+	defer func() {
+		_, _ = app.SaveDiagnosticsOnFailure(t, "mint-e2e-charts-ascii-bar-")
+	}()
+
+	assertRenderSnapshot(t, app, "charts_ascii_barchart_96x24.render.txt")
 }
 
 func TestE2EChartsBarLabelFoldSnapshot(t *testing.T) {

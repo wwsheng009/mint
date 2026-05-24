@@ -62,6 +62,13 @@ func BarChart(labels []string, values []float64) rtui.VNode {
 		Build()
 }
 
+func ASCIIBarChart(labels []string, values []float64) rtui.VNode {
+	return barchart.NewBuilder(values).
+		Labels(labels).
+		ASCII().
+		Build()
+}
+
 func LineChart(data []float64) rtui.VNode {
 	return linechart.NewBuilder(data).Build()
 }
@@ -88,6 +95,7 @@ type LineChartSeries = linechart.Series
 type BarChartSeries = barchart.Series
 type BarChartMode = barchart.Mode
 type BarChartOrientation = barchart.Orientation
+type BarChartRenderMode = barchart.RenderMode
 type ScatterPlotPoint = scatterplot.Point
 type ScatterPlotSeries = scatterplot.Series
 type ScatterPlotDomain = scatterplot.Domain
@@ -119,6 +127,8 @@ const (
 	BarChartModeStacked           = barchart.ModeStacked
 	BarChartOrientationVertical   = barchart.OrientationVertical
 	BarChartOrientationHorizontal = barchart.OrientationHorizontal
+	BarChartRenderModeBlock       = barchart.RenderModeBlock
+	BarChartRenderModeASCII       = barchart.RenderModeASCII
 
 	HeatmapColorModeTrueColor = fwtheme.ColorModeTrueColor
 	HeatmapColorMode256       = fwtheme.ColorMode256

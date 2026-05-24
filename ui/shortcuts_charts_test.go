@@ -40,6 +40,9 @@ func TestChartShortcuts(t *testing.T) {
 	if vnode := BarChart([]string{"A", "B"}, []float64{1, 2}); vnode.Tag() != "barchart" {
 		t.Fatalf("BarChart().Tag() = %q, want barchart", vnode.Tag())
 	}
+	if vnode := ASCIIBarChart([]string{"A", "B"}, []float64{1, 2}); vnode.Tag() != "barchart" {
+		t.Fatalf("ASCIIBarChart().Tag() = %q, want barchart", vnode.Tag())
+	}
 	if vnode := LineChart([]float64{1, 2, 3}); vnode.Tag() != "linechart" {
 		t.Fatalf("LineChart().Tag() = %q, want linechart", vnode.Tag())
 	}
@@ -113,6 +116,27 @@ func TestScatterPlotDomainAlias(t *testing.T) {
 	domain := ScatterPlotDomain{MinX: 0, MaxX: 10, MinY: 0, MaxY: 12, HasX: true, HasY: true}
 	if !domain.HasX || !domain.HasY {
 		t.Fatalf("ScatterPlotDomain flags = %+v, want HasX/HasY true", domain)
+	}
+}
+
+func TestBarChartAliases(t *testing.T) {
+	if BarChartModeGrouped != 0 {
+		t.Fatalf("BarChartModeGrouped = %d, want 0", BarChartModeGrouped)
+	}
+	if BarChartModeStacked != 1 {
+		t.Fatalf("BarChartModeStacked = %d, want 1", BarChartModeStacked)
+	}
+	if BarChartOrientationVertical != 0 {
+		t.Fatalf("BarChartOrientationVertical = %d, want 0", BarChartOrientationVertical)
+	}
+	if BarChartOrientationHorizontal != 1 {
+		t.Fatalf("BarChartOrientationHorizontal = %d, want 1", BarChartOrientationHorizontal)
+	}
+	if BarChartRenderModeBlock != 0 {
+		t.Fatalf("BarChartRenderModeBlock = %d, want 0", BarChartRenderModeBlock)
+	}
+	if BarChartRenderModeASCII != 1 {
+		t.Fatalf("BarChartRenderModeASCII = %d, want 1", BarChartRenderModeASCII)
 	}
 }
 

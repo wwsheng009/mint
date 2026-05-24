@@ -42,7 +42,7 @@
 
 - `sparkline` 已补齐固定高度、自适应高度、最值高亮和 inline label
 - `bulletchart` 已补齐 `qualitative ranges`、可配置 `target marker` 和值标签布局模式
-- `barchart` 已补齐分类过多时的标签折叠优化
+- `barchart` 已补齐分类过多时的标签折叠优化，并新增纯 ASCII glyph 模式用于高兼容监控面板
 - `linechart` 已补齐窄宽度下优先保留 turning point 的连续性采样
 
 当前约束说明：

@@ -38,6 +38,7 @@ type Instance struct {
 	showAxis    bool
 	showLegend  bool
 	showValue   bool
+	renderMode  RenderMode
 	chartStyle  style.Style
 	dirty       bool
 }
@@ -65,6 +66,7 @@ func NewInstance(props rtui.Props) *Instance {
 		showAxis:    proputil.GetBool(props, propShowAxis, true),
 		showLegend:  proputil.GetBool(props, propShowLegend, false),
 		showValue:   proputil.GetBool(props, propShowValue, false),
+		renderMode:  getRenderModeProp(props, RenderModeBlock),
 		chartStyle:  proputil.GetStyle(props, propStyle, style.Style{}),
 		dirty:       true,
 	}
@@ -84,6 +86,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldShowAxis := inst.showAxis
 	oldShowLegend := inst.showLegend
 	oldShowValue := inst.showValue
+	oldRenderMode := inst.renderMode
 	oldMode := inst.mode
 	oldOrientation := inst.orientation
 	oldStyle := inst.chartStyle
@@ -106,6 +109,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.showAxis = proputil.GetBool(props, propShowAxis, inst.showAxis)
 	inst.showLegend = proputil.GetBool(props, propShowLegend, inst.showLegend)
 	inst.showValue = proputil.GetBool(props, propShowValue, inst.showValue)
+	inst.renderMode = getRenderModeProp(props, inst.renderMode)
 	inst.chartStyle = proputil.GetStyle(props, propStyle, inst.chartStyle)
 
 	changed := oldTitle != inst.title ||
@@ -114,6 +118,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldShowAxis != inst.showAxis ||
 		oldShowLegend != inst.showLegend ||
 		oldShowValue != inst.showValue ||
+		oldRenderMode != inst.renderMode ||
 		oldMode != inst.mode ||
 		oldOrientation != inst.orientation ||
 		oldStyle != inst.chartStyle ||
@@ -140,6 +145,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propShowAxis:    inst.showAxis,
 		propShowLegend:  inst.showLegend,
 		propShowValue:   inst.showValue,
+		propRenderMode:  inst.renderMode,
 		propStyle:       inst.chartStyle,
 	}
 }
@@ -208,7 +214,7 @@ func (inst *Instance) buildFooterFrame() *chartlayout.Frame {
 		if inst.showAxis {
 			frame.Add(
 				chartlayout.SectionAxis,
-				strings.Repeat(" ", inst.horizontalBarStart())+axis.HorizontalLine(inst.horizontalBarAreaWidth()),
+				strings.Repeat(" ", inst.horizontalBarStart())+inst.axisLine(inst.horizontalBarAreaWidth()),
 				style.NewStyle().Foreground(palette.AxisColor()),
 			)
 		}
@@ -219,7 +225,7 @@ func (inst *Instance) buildFooterFrame() *chartlayout.Frame {
 	groupCenters := inst.groupCenters(inst.visibleCategoryCount(seriesList))
 
 	if inst.showAxis {
-		frame.Add(chartlayout.SectionAxis, axis.HorizontalLine(plotWidth), style.NewStyle().Foreground(palette.AxisColor()))
+		frame.Add(chartlayout.SectionAxis, inst.axisLine(plotWidth), style.NewStyle().Foreground(palette.AxisColor()))
 	}
 	if labels := inst.visibleLabels(inst.visibleCategoryCount(seriesList)); len(labels) > 0 {
 		frame.Add(chartlayout.SectionLabels, inst.verticalLabelRow(plotWidth, labels, groupCenters), style.NewStyle().Foreground(palette.LabelColor()))
@@ -269,7 +275,7 @@ func (inst *Instance) renderPlotBuffer() *paint.Buffer {
 				}
 				barStyle := inst.resolveSeriesStyle(seriesIndex, len(seriesList), series)
 				for y := height - upper; y < height-lower; y++ {
-					buffer.SetCell(groupStart, y, '█', barStyle)
+					buffer.SetCell(groupStart, y, inst.barRune(), barStyle)
 				}
 			}
 			continue
@@ -289,7 +295,7 @@ func (inst *Instance) renderPlotBuffer() *paint.Buffer {
 			}
 			barStyle := inst.resolveSeriesStyle(seriesIndex, len(seriesList), series)
 			for y := height - 1; y >= height-barHeight; y-- {
-				buffer.SetCell(xPos, y, '█', barStyle)
+				buffer.SetCell(xPos, y, inst.barRune(), barStyle)
 			}
 		}
 	}
@@ -584,7 +590,7 @@ func (inst *Instance) renderHorizontalBars(buffer *paint.Buffer, seriesList []Se
 				row := groupStart
 				barStyle := inst.resolveSeriesStyle(seriesIndex, len(seriesList), series)
 				for x := barStart + lower; x < barStart+upper && x < buffer.Width; x++ {
-					buffer.SetCell(x, row, '█', barStyle)
+					buffer.SetCell(x, row, inst.barRune(), barStyle)
 				}
 			}
 			if inst.showValue && cumulative > 0 {
@@ -613,7 +619,7 @@ func (inst *Instance) renderHorizontalBars(buffer *paint.Buffer, seriesList []Se
 			}
 			barStyle := inst.resolveSeriesStyle(seriesIndex, len(seriesList), series)
 			for x := barStart; x < barStart+barLength && x < buffer.Width; x++ {
-				buffer.SetCell(x, row, '█', barStyle)
+				buffer.SetCell(x, row, inst.barRune(), barStyle)
 			}
 			if inst.showValue {
 				inst.renderInlineValueLabel(buffer, row, barStart+barLength+1, series.Values[categoryIndex], barStyle)
@@ -630,7 +636,7 @@ func (inst *Instance) renderHorizontalLabel(buffer *paint.Buffer, row int, label
 	if labelWidth <= 0 {
 		return
 	}
-	labelText := fitLabel(labels[index], labelWidth)
+	labelText := inst.fitLabel(labels[index], labelWidth)
 	if strings.TrimSpace(labelText) == "" {
 		labelText = strings.Repeat(" ", labelWidth)
 	}
@@ -652,12 +658,12 @@ func (inst *Instance) verticalLabelRow(width int, labels []string, centers []int
 			continue
 		}
 		slotWidth := right - left + 1
-		labelText := fitLabel(labels[index], slotWidth)
+		labelText := inst.fitLabel(labels[index], slotWidth)
 		if slotWidth <= 2 {
 			labelText = compactLabel(labels[index], 1)
 		}
 		if strings.TrimSpace(labelText) == "" {
-			labelText = string(verticalLabelFallbackRune)
+			labelText = string(inst.labelFallbackRune())
 		}
 		labelWidth := paint.StringWidth(labelText)
 		if labelWidth <= 0 {
@@ -739,7 +745,7 @@ func (inst *Instance) legendText(index int, series Series) string {
 	if label == "" {
 		label = "Series " + strconv.Itoa(index+1)
 	}
-	return "█ " + label
+	return string(inst.barRune()) + " " + label
 }
 
 func (inst *Instance) maxVisibleValue(seriesList []Series) float64 {
@@ -832,6 +838,15 @@ func getOrientationProp(props rtui.Props, def Orientation) Orientation {
 	return def
 }
 
+func getRenderModeProp(props rtui.Props, def RenderMode) RenderMode {
+	if value, ok := props[propRenderMode]; ok {
+		if mode, ok := value.(RenderMode); ok {
+			return mode
+		}
+	}
+	return def
+}
+
 func sampleIndices(length, count int) []int {
 	if length <= 0 || count <= 0 {
 		return nil
@@ -901,7 +916,39 @@ func stringSlicesEqual(a, b []string) bool {
 	return true
 }
 
+func (inst *Instance) barRune() rune {
+	if inst.renderMode == RenderModeASCII {
+		return '#'
+	}
+	return '█'
+}
+
+func (inst *Instance) axisLine(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if inst.renderMode == RenderModeASCII {
+		return strings.Repeat("-", width)
+	}
+	return axis.HorizontalLine(width)
+}
+
+func (inst *Instance) labelFallbackRune() rune {
+	if inst.renderMode == RenderModeASCII {
+		return '.'
+	}
+	return verticalLabelFallbackRune
+}
+
+func (inst *Instance) fitLabel(label string, width int) string {
+	return fitLabelWithFallback(label, width, inst.labelFallbackRune())
+}
+
 func fitLabel(label string, width int) string {
+	return fitLabelWithFallback(label, width, verticalLabelFallbackRune)
+}
+
+func fitLabelWithFallback(label string, width int, fallback rune) string {
 	label = strings.TrimSpace(label)
 	if width <= 0 {
 		return ""
@@ -913,7 +960,7 @@ func fitLabel(label string, width int) string {
 		return compact
 	}
 	if width == 1 {
-		return string(axis.LabelRune(label, verticalLabelFallbackRune))
+		return string(axis.LabelRune(label, fallback))
 	}
 
 	var builder strings.Builder
@@ -927,7 +974,7 @@ func fitLabel(label string, width int) string {
 		currentWidth += runeWidth
 	}
 	if builder.Len() == 0 {
-		return string(axis.LabelRune(label, verticalLabelFallbackRune))
+		return string(axis.LabelRune(label, fallback))
 	}
 	return builder.String() + "."
 }
