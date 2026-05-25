@@ -15,6 +15,7 @@
 - 密集模式：`Dense(true)` 会使用小尺寸按钮。
 - 子目录组件结构：`ui/components/toolbar/`。
 - Fiber-first：`VNode + Instance + RuntimeChildrenProvider`。
+- 运维语义预设：`KeyValue(...)`、`MutedKeyValue(...)`、`Scope(...)`、`Selection(...)`、`StateBadge(...)`、`BusyBadge(...)`、`ErrorBadge(...)` 可直接构造 endpoint、scope、selection、运行态和错误态等常见工具栏片段。
 
 ## 示例
 
@@ -23,12 +24,32 @@ toolbar.NewBuilder().
     Key("lb.toolbar").
     Title("Load Balancer").
     TitleWidth(16).
-    Left(toolbar.Text("scope", "group: default").WithWidth(20)).
-    Center(toolbar.Badge("state", "degraded").WithColors("black", "yellow")).
+    Left(toolbar.Scope("group: default").WithWidth(24)).
+    Center(toolbar.StateBadge("state", "degraded")).
     Right(toolbar.Button("refresh", "Refresh", RefreshIntent{}).Primary()).
     Right(toolbar.Button("reset", "Reset Runtime", ResetIntent{}).Danger().WithDisabledReason("Requires selected target and reason")).
     Build()
 ```
+
+## 运维预设
+
+```go
+toolbar.Endpoint("http://localhost:8080").WithWidth(36)
+toolbar.Scope("group: default").WithWidth(24)
+toolbar.Selection("provider/openai").WithWidth(28)
+toolbar.StateBadge("state", "healthy")
+toolbar.StateBadge("state", "pending_restart")
+toolbar.BusyBadge("sync", "refreshing")
+toolbar.ErrorBadge("error", "failed")
+```
+
+默认状态映射复用 `statusbar.DefaultTone(...)`：
+
+- `healthy` / `active` / `available` / `effective` / `enabled` / `ready` / `running` / `in_sync` -> normal
+- `degraded` / `rate_limited` / `pending_restart` / `pending` / `warning` / `lagging` / `reloading` -> warn
+- `unhealthy` / `disabled` / `unauthorized` / `unavailable` / `failed` / `error` / `blocked` / `out_of_sync` -> error
+- `processing` / `loading` / `syncing` / `refreshing` -> info
+- 未识别状态 -> neutral
 
 ## 下拉菜单
 
