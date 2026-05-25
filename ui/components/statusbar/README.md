@@ -24,7 +24,7 @@
 - Overlay arrow themes: `TooltipArrowStyleSharp` / `TooltipArrowStyleRounded`
 - 主题默认值：`Theme(...)` 可为未显式着色的节提供统一样式
 - 外层留白：`Padding(...)` 可用于和正文区域分隔
-- 运维语义预设：`KeyValue(...)`、`MutedKeyValue(...)`、`StateBadge(...)`、`BusyBadge(...)`、`ErrorBadge(...)` 可直接构造 endpoint、selection、同步状态、运行中和错误状态等常见状态栏片段
+- 运维语义预设：`KeyValue(...)`、`MutedKeyValue(...)`、`StateBadge(...)`、`BusyBadge(...)`、`ErrorBadge(...)`、`Profile(...)`、`Scope(...)`、`Target(...)`、`Filter(...)`、`Count(...)`、`Latency(...)`、`Uptime(...)`、`Hotkey(...)`、`Separator(...)` 可直接构造 endpoint、profile、selection、筛选条件、数量、延迟、运行时长、快捷键提示等常见状态栏片段
 
 ## Section API
 
@@ -57,6 +57,15 @@ statusbar.MutedKeyValue("selection", "-").WithWidth(24)
 statusbar.StateBadge("healthy")
 statusbar.BusyBadge("loading")
 statusbar.ErrorBadge("failed")
+statusbar.Profile("dev")
+statusbar.Scope("provider")
+statusbar.Target("openai/key-1")
+statusbar.Filter("failed")
+statusbar.Count("keys", 12)
+statusbar.Latency(250*time.Millisecond)
+statusbar.Uptime(3*time.Hour)
+statusbar.Hotkey("r", "reload")
+statusbar.Separator()
 ```
 
 ### Section 链式方法
@@ -85,6 +94,9 @@ statusbar.StateBadge("failed")          // white / red
 statusbar.StateBadge("syncing")         // black / cyan
 statusbar.KeyValue("last sync", "12:34:56").WithWidth(22)
 statusbar.MutedKeyValue("selection", "-").WithWidth(18)
+statusbar.Count("providers", 8)
+statusbar.Latency(125*time.Millisecond)
+statusbar.Hotkey("?", "help")
 ```
 
 默认状态映射：
@@ -200,6 +212,15 @@ ui.StatusBarKeyValue("endpoint", "http://localhost:8080")
 ui.StatusBarMutedKeyValue("selection", "-")
 ui.StatusBarBusyBadge("loading")
 ui.StatusBarErrorBadge("failed")
+ui.StatusBarProfile("dev")
+ui.StatusBarScope("provider")
+ui.StatusBarTarget("openai/key-1")
+ui.StatusBarFilter("failed")
+ui.StatusBarCount("keys", 12)
+ui.StatusBarLatency(250*time.Millisecond)
+ui.StatusBarUptime(3*time.Hour)
+ui.StatusBarHotkey("r", "reload")
+ui.StatusBarSeparator()
 ```
 
 运维应用也可以使用更固定的状态栏片段，避免各页面重复拼接 label：
@@ -211,17 +232,27 @@ bar := ui.StatusBarWithTheme(
     ui.StatusBarThemeDefault(),
     ui.StatusBarSections(
         ui.StatusBarEndpoint("http://localhost:8080"),
+        ui.StatusBarProfile("dev"),
         ui.StatusBarUser("admin"),
+        ui.StatusBarRole("ops"),
         ui.StatusBarPage("jobs"),
     ),
     ui.StatusBarSections(ui.StatusBarStateBadge("healthy")),
     ui.StatusBarSections(
+        ui.StatusBarScope("provider"),
+        ui.StatusBarTarget("openai/key-1"),
         ui.StatusBarSelection("job-1"),
+        ui.StatusBarFilter("failed"),
+        ui.StatusBarCount("keys", 12),
+        ui.StatusBarLatency(250*time.Millisecond),
         ui.StatusBarLastSync(now.Add(-2*time.Minute), now),
         ui.StatusBarAutoRefresh(30*time.Second),
+        ui.StatusBarHotkey("r", "reload"),
     ),
 )
 ```
+
+当状态片段较多时，优先按职责拆成主状态栏、对象状态栏和快捷提示栏等多行，而不是把所有信息塞进同一槽；`StatusBar` 的三槽布局会保留稳定区域，超出可视宽度的内容应显式 `WithWidth(...).WithEllipsis()` 或分行承载。
 
 ## 适用场景
 
