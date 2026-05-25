@@ -37,6 +37,35 @@ func TestMenuShortcuts(t *testing.T) {
 	}
 }
 
+func TestMenuOperationalShortcutPresets(t *testing.T) {
+	items := MenuItems()
+	items = MenuAppendGroup(items, "Operations",
+		MenuRefreshAction(menuShortcutTestIntent{}),
+		MenuReloadRuntimeAction(menuShortcutTestIntent{}),
+		MenuResetRuntimeAction(menuShortcutTestIntent{}),
+		MenuClearCircuitBreakersAction(menuShortcutTestIntent{}),
+		MenuDangerAction("disable-key", "Disable Key", "Disable selected provider key", menuShortcutTestIntent{}),
+		MenuDisabledAction("reset-key", "Reset Key", "Select a key first", menuShortcutTestIntent{}),
+	)
+
+	if len(items) != 7 {
+		t.Fatalf("items len = %d, want 7", len(items))
+	}
+	if !items[0].IsLabel() {
+		t.Fatalf("first item should be group label: %+v", items[0])
+	}
+	if !items[2].Danger {
+		t.Fatalf("reload action should be dangerous: %+v", items[2])
+	}
+	if !items[6].Disabled || items[6].Metadata["disabledReason"] != "Select a key first" {
+		t.Fatalf("disabled action = %+v", items[6])
+	}
+
+	if group := MenuGroup("", MenuActionWithDescription("inspect", "Inspect", "Open details", menuShortcutTestIntent{})); len(group) != 1 || group[0].Description == "" {
+		t.Fatalf("empty-label group = %+v", group)
+	}
+}
+
 func TestBindMenuGlobalShortcuts(t *testing.T) {
 	app := framework.NewApp()
 	builder := NewMenuPopupBuilder(MenuItems(

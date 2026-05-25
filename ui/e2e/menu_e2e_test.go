@@ -184,6 +184,29 @@ func newClampedContextMenuFixture() ui.ComponentFunc {
 	}
 }
 
+func newOperationalMenuPresetFixture() ui.ComponentFunc {
+	return func() ui.VNode {
+		items := menucomp.Items()
+		items = menucomp.AppendGroup(items, "Operations",
+			menucomp.RefreshAction(nil),
+			menucomp.ReloadRuntimeAction(nil),
+			menucomp.ResetRuntimeAction(nil),
+			menucomp.ClearCircuitBreakersAction(nil),
+			menucomp.DisabledAction("reset-key", "Reset Key", "Select a key first", nil),
+		)
+		return ui.NewVStack().
+			SetGap(1).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Menu E2E Operational Preset Fixture").Build(),
+				menucomp.NewPopup(items).
+					SetID("fixture-operational-menu").
+					ShowDescriptions(true).
+					MinWidth(42).
+					Build(),
+			})
+	}
+}
+
 func newRightEdgeAnchoredMenuFixture() ui.ComponentFunc {
 	return func() ui.VNode {
 		return ui.NewVStack().
@@ -1039,6 +1062,30 @@ func TestE2EContextMenuClampKeepsPopupWithinViewport(t *testing.T) {
 	}
 	if bounds.Y != 18-bounds.Height {
 		t.Fatalf("context menu y = %d, want %d after bottom-edge clamp", bounds.Y, 18-bounds.Height)
+	}
+}
+
+func TestE2EMenuOperationalPresetsRender(t *testing.T) {
+	app, err := Run(newOperationalMenuPresetFixture(), ui.WithSize(96, 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, text := range []string{
+		"Operations",
+		"Refresh",
+		"Refresh current data",
+		"Reload Runtime",
+		"Reload runtime configuration",
+		"Reset Runtime",
+		"Clear Circuit Breakers",
+		"Reset Key",
+		"Select a key first",
+	} {
+		if err := app.AssertVisible(ByText(text)); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

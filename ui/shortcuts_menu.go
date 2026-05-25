@@ -54,6 +54,27 @@ func MenuThemeContrast() menucomp.Theme { return menucomp.ContrastTheme() }
 func MenuAction(key, label string, pressIntent intent.Intent) menucomp.MenuItem {
 	return menucomp.Action(key, label, pressIntent)
 }
+func MenuActionWithDescription(key, label, description string, pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.ActionWithDescription(key, label, description, pressIntent)
+}
+func MenuDangerAction(key, label, description string, pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.DangerAction(key, label, description, pressIntent)
+}
+func MenuDisabledAction(key, label, reason string, pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.DisabledAction(key, label, reason, pressIntent)
+}
+func MenuRefreshAction(pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.RefreshAction(pressIntent)
+}
+func MenuReloadRuntimeAction(pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.ReloadRuntimeAction(pressIntent)
+}
+func MenuResetRuntimeAction(pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.ResetRuntimeAction(pressIntent)
+}
+func MenuClearCircuitBreakersAction(pressIntent intent.Intent) menucomp.MenuItem {
+	return menucomp.ClearCircuitBreakersAction(pressIntent)
+}
 func MenuCheckbox(key, label string, checked bool, pressIntent intent.Intent) menucomp.MenuItem {
 	return menucomp.Checkbox(key, label, checked, pressIntent)
 }
@@ -66,6 +87,12 @@ func MenuSubmenu(key, label string, children ...menucomp.MenuItem) menucomp.Menu
 func MenuSeparator() menucomp.MenuItem                         { return menucomp.Separator() }
 func MenuLabel(key, label string) menucomp.MenuItem            { return menucomp.LabelItem(key, label) }
 func MenuItems(items ...menucomp.MenuItem) []menucomp.MenuItem { return menucomp.Items(items...) }
+func MenuGroup(label string, items ...menucomp.MenuItem) []menucomp.MenuItem {
+	return menucomp.Group(label, items...)
+}
+func MenuAppendGroup(dst []menucomp.MenuItem, label string, items ...menucomp.MenuItem) []menucomp.MenuItem {
+	return menucomp.AppendGroup(dst, label, items...)
+}
 func MenuCollectShortcuts(items []menucomp.MenuItem) []menucomp.ShortcutBinding {
 	return menucomp.CollectShortcuts(items)
 }

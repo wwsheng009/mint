@@ -289,6 +289,23 @@ func (m MenuItem) WithDisabled(disabled bool) MenuItem {
 	return m
 }
 
+// WithDisabledReason disables the item and records a user-facing reason.
+//
+// The reason is stored as metadata under "disabledReason". If the item has no
+// description yet, the reason is also used as the description so menus rendered
+// with ShowDescriptions(true) can explain why the item is unavailable.
+func (m MenuItem) WithDisabledReason(reason string) MenuItem {
+	m.Disabled = true
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return m
+	}
+	if strings.TrimSpace(m.Description) == "" {
+		m.Description = reason
+	}
+	return m.WithMetadata("disabledReason", reason)
+}
+
 func (m MenuItem) WithDanger(danger bool) MenuItem {
 	m.Danger = danger
 	return m

@@ -102,6 +102,40 @@ func TestMatchShortcutNormalizesCombo(t *testing.T) {
 	}
 }
 
+func TestOperationalMenuPresets(t *testing.T) {
+	refresh := RefreshAction(testIntent{"refresh"})
+	if refresh.Key != "refresh" || refresh.Label != "Refresh" || refresh.Description == "" {
+		t.Fatalf("refresh preset = %+v", refresh)
+	}
+	if refresh.Shortcut.Combo != "r" {
+		t.Fatalf("refresh shortcut = %q, want r", refresh.Shortcut.Combo)
+	}
+
+	reload := ReloadRuntimeAction(testIntent{"reload"})
+	if !reload.Danger || reload.Key != "reload-runtime" || reload.Description == "" {
+		t.Fatalf("reload preset = %+v", reload)
+	}
+
+	disabled := DisabledAction("reset-key", "Reset Key", "Select a key first", testIntent{"reset"})
+	if !disabled.Disabled {
+		t.Fatal("disabled action should be disabled")
+	}
+	if disabled.Description != "Select a key first" {
+		t.Fatalf("disabled description = %q", disabled.Description)
+	}
+	if disabled.Metadata["disabledReason"] != "Select a key first" {
+		t.Fatalf("disabled reason metadata = %#v", disabled.Metadata["disabledReason"])
+	}
+
+	group := Group("Runtime Actions", refresh, reload)
+	if len(group) != 3 {
+		t.Fatalf("group len = %d, want 3", len(group))
+	}
+	if !group[0].IsLabel() || group[0].Key != "group-runtime-actions" {
+		t.Fatalf("group label = %+v", group[0])
+	}
+}
+
 func TestBuilderBuildPopupCreatesOverlayVNode(t *testing.T) {
 	vnode := NewPopup([]MenuItem{Action("open", "Open", testIntent{"open"})}).
 		SetID("popup-1").
