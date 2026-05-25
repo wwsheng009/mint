@@ -94,6 +94,58 @@ func TestCustomOption(t *testing.T) {
 	}
 }
 
+func TestLoadingState(t *testing.T) {
+	node := New(
+		[]table.TableColumn{{Title: "Name"}},
+		[][]string{{"provider-a"}},
+		Loading(true),
+		LoadingText("Loading providers..."),
+	)
+
+	props := node.Props()
+	if rows, ok := props["rows"].([][]string); !ok || len(rows) != 0 {
+		t.Fatalf("rows = %#v, want empty rows while loading", props["rows"])
+	}
+	if got := props["emptyText"]; got != "Loading providers..." {
+		t.Fatalf("emptyText = %v, want loading text", got)
+	}
+	if got := props["statusText"]; got != "Loading" {
+		t.Fatalf("statusText = %v, want Loading", got)
+	}
+}
+
+func TestErrorState(t *testing.T) {
+	node := New(
+		[]table.TableColumn{{Title: "Name"}},
+		[][]string{{"provider-a"}},
+		ErrorText("gateway API unavailable"),
+	)
+
+	props := node.Props()
+	if rows, ok := props["rows"].([][]string); !ok || len(rows) != 0 {
+		t.Fatalf("rows = %#v, want empty rows for error state", props["rows"])
+	}
+	if got := props["emptyText"]; got != "gateway API unavailable" {
+		t.Fatalf("emptyText = %v, want error text", got)
+	}
+	if got := props["statusText"]; got != "Error · gateway API unavailable" {
+		t.Fatalf("statusText = %v, want error status", got)
+	}
+}
+
+func TestServerPaginationStatus(t *testing.T) {
+	node := New(
+		[]table.TableColumn{{Title: "Name"}},
+		[][]string{{"provider-a"}, {"provider-b"}},
+		ServerPagination(2, 25, 76),
+	)
+
+	props := node.Props()
+	if got := props["statusText"]; got != "Page 2/4 · Total 76 · Size 25" {
+		t.Fatalf("statusText = %v, want server pagination summary", got)
+	}
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

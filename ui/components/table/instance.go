@@ -47,25 +47,26 @@ type Instance struct {
 	key         string
 	componentID string
 
-	columns         []TableColumn
-	rows            [][]string
-	emptyText       string
-	headerStyle     style.Style
-	tableStyle      style.Style
-	selectedStyle   style.Style
-	borderStyle     style.Style
-	statusStyle     style.Style
-	filterStyle     style.Style
-	scrollbarStyle  style.Style
-	gap             int
-	showBorder      bool
-	showFooter      bool
-	showScrollbar   bool
-	pageSize        int
-	searchQuery     string
-	filters         map[int]string
-	expandedContent map[int]string
-	treeParents     map[int]int
+	columns            []TableColumn
+	rows               [][]string
+	emptyText          string
+	headerStyle        style.Style
+	tableStyle         style.Style
+	selectedStyle      style.Style
+	borderStyle        style.Style
+	statusStyle        style.Style
+	statusTextOverride string
+	filterStyle        style.Style
+	scrollbarStyle     style.Style
+	gap                int
+	showBorder         bool
+	showFooter         bool
+	showScrollbar      bool
+	pageSize           int
+	searchQuery        string
+	filters            map[int]string
+	expandedContent    map[int]string
+	treeParents        map[int]int
 
 	currentPage              int
 	currentPageControlled    bool
@@ -127,6 +128,7 @@ func NewInstance(props rtui.Props) *Instance {
 		selectedStyle:            proputil.GetStyle(props, "selectedStyle", style.Style{}.Reverse(true)),
 		borderStyle:              proputil.GetStyle(props, "borderStyle", style.Style{}.Foreground(style.BrightBlack)),
 		statusStyle:              proputil.GetStyle(props, "statusStyle", style.Style{}.Foreground(style.BrightBlack)),
+		statusTextOverride:       strings.TrimSpace(proputil.GetString(props, propStatusText, "")),
 		filterStyle:              proputil.GetStyle(props, "filterStyle", style.Style{}.Foreground(style.BrightBlack)),
 		scrollbarStyle:           proputil.GetStyle(props, "scrollbarStyle", style.Style{}.Foreground(style.BrightBlack)),
 		gap:                      maxInt(0, proputil.GetInt(props, "gap", 0)),
@@ -188,6 +190,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSelectedStyle := inst.selectedStyle
 	oldBorderStyle := inst.borderStyle
 	oldStatusStyle := inst.statusStyle
+	oldStatusTextOverride := inst.statusTextOverride
 	oldFilterStyle := inst.filterStyle
 	oldScrollbarStyle := inst.scrollbarStyle
 	oldGap := inst.gap
@@ -231,6 +234,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.selectedStyle = proputil.GetStyle(props, "selectedStyle", inst.selectedStyle)
 	inst.borderStyle = proputil.GetStyle(props, "borderStyle", inst.borderStyle)
 	inst.statusStyle = proputil.GetStyle(props, "statusStyle", inst.statusStyle)
+	inst.statusTextOverride = strings.TrimSpace(proputil.GetString(props, propStatusText, inst.statusTextOverride))
 	inst.filterStyle = proputil.GetStyle(props, "filterStyle", inst.filterStyle)
 	inst.scrollbarStyle = proputil.GetStyle(props, "scrollbarStyle", inst.scrollbarStyle)
 	inst.gap = maxInt(0, proputil.GetInt(props, "gap", inst.gap))
@@ -307,6 +311,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldSelectedStyle != inst.selectedStyle ||
 		oldBorderStyle != inst.borderStyle ||
 		oldStatusStyle != inst.statusStyle ||
+		oldStatusTextOverride != inst.statusTextOverride ||
 		oldFilterStyle != inst.filterStyle ||
 		oldScrollbarStyle != inst.scrollbarStyle ||
 		oldGap != inst.gap ||
@@ -357,6 +362,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propSelectedStyle:           inst.selectedStyle,
 		propBorderStyle:             inst.borderStyle,
 		propStatusStyle:             inst.statusStyle,
+		propStatusText:              inst.statusTextOverride,
 		propFilterStyle:             inst.filterStyle,
 		propScrollbarStyle:          inst.scrollbarStyle,
 		propGap:                     inst.gap,
@@ -1607,6 +1613,9 @@ func (inst *Instance) shouldShowFooter(view tableView) bool {
 	if !inst.showFooter {
 		return false
 	}
+	if strings.TrimSpace(inst.statusTextOverride) != "" {
+		return true
+	}
 	sortColumn, _ := inst.effectiveSortState()
 	return inst.pageSize > 0 ||
 		inst.searchQuery != "" ||
@@ -1617,6 +1626,9 @@ func (inst *Instance) shouldShowFooter(view tableView) bool {
 }
 
 func (inst *Instance) statusText(view tableView) string {
+	if statusText := strings.TrimSpace(inst.statusTextOverride); statusText != "" {
+		return statusText
+	}
 	parts := []string{fmt.Sprintf("Rows %d/%d", view.filteredCount, view.totalCount)}
 	if view.pageCount > 1 {
 		parts = append(parts, fmt.Sprintf("Page %d/%d", view.currentPage+1, view.pageCount))

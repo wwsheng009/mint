@@ -603,6 +603,23 @@ func TestBuilder_FluentEnhancements(t *testing.T) {
 	}
 }
 
+func TestBuilder_StatusTextOverridesFooter(t *testing.T) {
+	inst := NewBuilder().
+		Columns([]TableColumn{{Title: "ID", Width: 4}, {Title: "Name", Width: 8}}).
+		Rows([][]string{{"1", "Alice"}}).
+		StatusText("Page 2/4 · Total 25 · Size 10").
+		ShowFooter(true).
+		BuildInstance()
+
+	cmds := inst.Paint(0, 0)
+	if got := textAtY(cmds, 3); got != "Page 2/4 · Total 25 · Size 10" {
+		t.Fatalf("status line = %q, want custom status text", got)
+	}
+	if props := inst.GetProps(); props[propStatusText] != "Page 2/4 · Total 25 · Size 10" {
+		t.Fatalf("statusText prop = %v, want custom status text", props[propStatusText])
+	}
+}
+
 func TestBuilder_ExpandableRows(t *testing.T) {
 	vnode := NewBuilder().
 		Columns([]TableColumn{{Title: "ID"}, {Title: "Name"}}).

@@ -41,6 +41,26 @@ func DataTableEmptyText(text string) DataTableOption {
 	return datatable.EmptyText(text)
 }
 
+func DataTableLoading(loading bool) DataTableOption {
+	return datatable.Loading(loading)
+}
+
+func DataTableLoadingText(text string) DataTableOption {
+	return datatable.LoadingText(text)
+}
+
+func DataTableErrorText(text string) DataTableOption {
+	return datatable.ErrorText(text)
+}
+
+func DataTableStatusText(text string) DataTableOption {
+	return datatable.StatusText(text)
+}
+
+func DataTableServerPagination(page, pageSize, total int) DataTableOption {
+	return datatable.ServerPagination(page, pageSize, total)
+}
+
 func DataTableShowFooter(show bool) DataTableOption {
 	return datatable.ShowFooter(show)
 }

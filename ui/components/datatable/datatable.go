@@ -1,6 +1,9 @@
 package datatable
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -20,6 +23,14 @@ type Config struct {
 	SelectedField    string
 	SearchQuery      string
 	EmptyText        string
+	Loading          bool
+	LoadingText      string
+	ErrorText        string
+	StatusText       string
+	ServerPage       int
+	ServerPageSize   int
+	ServerTotal      int
+	HasServerPage    bool
 	ShowFooter       *bool
 	ShowScrollbar    *bool
 	HeaderStyle      style.Style
@@ -39,6 +50,7 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 		}
 	}
 
+	rows = normalizeRowsForState(rows, cfg)
 	builder := table.NewBuilder().Columns(columns).Rows(rows)
 	if cfg.Key != "" {
 		builder.Key(cfg.Key)
@@ -58,8 +70,11 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.SearchQuery != "" {
 		builder.SearchQuery(cfg.SearchQuery)
 	}
-	if cfg.EmptyText != "" {
-		builder.EmptyText(cfg.EmptyText)
+	if emptyText := emptyTextForState(cfg); emptyText != "" {
+		builder.EmptyText(emptyText)
+	}
+	if statusText := statusTextForConfig(cfg); statusText != "" {
+		builder.StatusText(statusText)
 	}
 	if cfg.ShowFooter != nil {
 		builder.ShowFooter(*cfg.ShowFooter)
@@ -122,6 +137,39 @@ func EmptyText(text string) Option {
 	}
 }
 
+func Loading(loading bool) Option {
+	return func(cfg *Config) {
+		cfg.Loading = loading
+	}
+}
+
+func LoadingText(text string) Option {
+	return func(cfg *Config) {
+		cfg.LoadingText = text
+	}
+}
+
+func ErrorText(text string) Option {
+	return func(cfg *Config) {
+		cfg.ErrorText = text
+	}
+}
+
+func StatusText(text string) Option {
+	return func(cfg *Config) {
+		cfg.StatusText = text
+	}
+}
+
+func ServerPagination(page, pageSize, total int) Option {
+	return func(cfg *Config) {
+		cfg.ServerPage = page
+		cfg.ServerPageSize = pageSize
+		cfg.ServerTotal = total
+		cfg.HasServerPage = true
+	}
+}
+
 func ShowFooter(show bool) Option {
 	return func(cfg *Config) {
 		cfg.ShowFooter = &show
@@ -146,6 +194,62 @@ func SelectedStyle(selectedStyle style.Style) Option {
 		cfg.SelectedStyle = selectedStyle
 		cfg.HasSelectedStyle = true
 	}
+}
+
+func normalizeRowsForState(rows [][]string, cfg Config) [][]string {
+	if cfg.Loading || strings.TrimSpace(cfg.ErrorText) != "" {
+		return nil
+	}
+	return rows
+}
+
+func emptyTextForState(cfg Config) string {
+	if cfg.Loading {
+		if text := strings.TrimSpace(cfg.LoadingText); text != "" {
+			return text
+		}
+		return "Loading..."
+	}
+	if errorText := strings.TrimSpace(cfg.ErrorText); errorText != "" {
+		return errorText
+	}
+	return cfg.EmptyText
+}
+
+func statusTextForConfig(cfg Config) string {
+	if statusText := strings.TrimSpace(cfg.StatusText); statusText != "" {
+		return statusText
+	}
+	if cfg.Loading {
+		return "Loading"
+	}
+	if errorText := strings.TrimSpace(cfg.ErrorText); errorText != "" {
+		return "Error · " + errorText
+	}
+	if cfg.HasServerPage {
+		return formatServerPagination(cfg.ServerPage, cfg.ServerPageSize, cfg.ServerTotal)
+	}
+	return ""
+}
+
+func formatServerPagination(page, pageSize, total int) string {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 1
+	}
+	if total < 0 {
+		total = 0
+	}
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	return fmt.Sprintf("Page %d/%d · Total %d · Size %d", page, totalPages, total, pageSize)
 }
 
 func TableStyle(tableStyle style.Style) Option {

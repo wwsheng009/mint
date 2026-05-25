@@ -12,6 +12,7 @@
 - fixed columns
 - tree data
 - `Field` / selection / page binding
+- 自定义 footer/status 文案
 
 ## 状态语义
 
@@ -59,6 +60,7 @@ tableView := ui.DataTable(
     ui.DataTableSelectedField("selectedProviderIndex"),
     ui.DataTableSearch(state.Search),
     ui.DataTableEmptyText("No providers"),
+    ui.DataTableServerPagination(state.Page, state.PageSize, state.Total),
     ui.DataTableOperationalStyle(),
 )
 ```

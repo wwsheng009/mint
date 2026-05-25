@@ -53,6 +53,7 @@ const (
 	propSortControlled           = "sortControlled"
 	propSortDescending           = "sortDescending"
 	propStatusStyle              = "statusStyle"
+	propStatusText               = "statusText"
 	propTableStyle               = "tableStyle"
 	propTreeParents              = "treeParents"
 )
@@ -96,6 +97,7 @@ type VNode struct {
 	selectedStyle  style.Style
 	borderStyle    style.Style
 	statusStyle    style.Style
+	statusText     string
 	filterStyle    style.Style
 	scrollbarStyle style.Style
 
@@ -214,6 +216,7 @@ func (v *VNode) Props() rtui.Props {
 		propSelectedStyle:           v.selectedStyle,
 		propBorderStyle:             v.borderStyle,
 		propStatusStyle:             v.statusStyle,
+		propStatusText:              v.statusText,
 		propFilterStyle:             v.filterStyle,
 		propScrollbarStyle:          v.scrollbarStyle,
 		propGap:                     v.gap,
@@ -284,6 +287,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p[propStatusStyle].(style.Style); ok {
 		v.statusStyle = val
+	}
+	if val, ok := p[propStatusText].(string); ok {
+		v.statusText = val
 	}
 	if val, ok := p[propFilterStyle].(style.Style); ok {
 		v.filterStyle = val
@@ -404,6 +410,7 @@ func (v *VNode) SetShowScrollbar(show bool) *VNode     { v.showScrollbar = show;
 func (v *VNode) SetBorderStyle(s style.Style) *VNode   { v.borderStyle = s; return v }
 func (v *VNode) SetSelectedStyle(s style.Style) *VNode { v.selectedStyle = s; return v }
 func (v *VNode) SetStatusStyle(s style.Style) *VNode   { v.statusStyle = s; return v }
+func (v *VNode) SetStatusText(text string) *VNode      { v.statusText = strings.TrimSpace(text); return v }
 func (v *VNode) SetFilterStyle(s style.Style) *VNode   { v.filterStyle = s; return v }
 func (v *VNode) SetScrollbarStyle(s style.Style) *VNode {
 	v.scrollbarStyle = s

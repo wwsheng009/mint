@@ -107,6 +107,12 @@ func (b *Builder) StatusStyle(s style.Style) *Builder {
 	return b
 }
 
+// StatusText overrides the footer/status line text.
+func (b *Builder) StatusText(text string) *Builder {
+	b.vnode.SetStatusText(text)
+	return b
+}
+
 // FilterStyle sets the active filter row style.
 func (b *Builder) FilterStyle(s style.Style) *Builder {
 	b.vnode.SetFilterStyle(s)
