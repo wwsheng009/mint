@@ -11,6 +11,8 @@ const (
 	defaultAuditReasonField       = "reason"
 	defaultAuditReasonLabel       = "Reason"
 	defaultAuditReasonPlaceholder = "Describe why this operation is necessary."
+	defaultConfirmPhraseField     = "confirmPhrase"
+	defaultConfirmPhraseLabel     = "Confirmation"
 )
 
 // NewDangerOperation builds an opened confirmation dialog for high-risk
@@ -62,4 +64,25 @@ func (b *Builder) AuditReasonWithLabel(field, label, value string) *Builder {
 		ReasonValue(value).
 		ReasonRequired(true).
 		ReasonPlaceholder(defaultAuditReasonPlaceholder)
+}
+
+// RequirePhrase adds a second confirmation layer by requiring the operator to
+// type an exact short phrase before the confirm button can be enabled.
+func (b *Builder) RequirePhrase(expected, field, value string) *Builder {
+	expected = strings.TrimSpace(expected)
+	field = strings.TrimSpace(field)
+	if field == "" {
+		field = defaultConfirmPhraseField
+	}
+	return b.
+		ConfirmPhrase(expected, field, value).
+		ConfirmPhraseLabel(defaultConfirmPhraseLabel).
+		ConfirmPhrasePlaceholder(confirmPhrasePlaceholder(expected))
+}
+
+func confirmPhrasePlaceholder(expected string) string {
+	if expected == "" {
+		return "Type the required confirmation text."
+	}
+	return "Type " + expected + " to confirm."
 }

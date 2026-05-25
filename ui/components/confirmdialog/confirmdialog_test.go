@@ -28,6 +28,7 @@ func TestBuilderAndProps(t *testing.T) {
 		ReasonField("actionReason").
 		ReasonValue("maintenance").
 		ReasonRequired(true).
+		ConfirmPhrase("DISABLE", "confirmText", "DISABLE").
 		ConfirmText("Disable").
 		ConfirmVariant(button.VariantDanger).
 		OnConfirm(testIntent{"confirm"}).
@@ -53,6 +54,15 @@ func TestBuilderAndProps(t *testing.T) {
 	}
 	if got := props[propConfirmVariant]; got != button.VariantDanger {
 		t.Fatalf("confirm variant = %v, want danger", got)
+	}
+	if got := props[propConfirmPhrase]; got != "DISABLE" {
+		t.Fatalf("confirm phrase = %v, want DISABLE", got)
+	}
+	if got := props[propConfirmPhraseField]; got != "confirmText" {
+		t.Fatalf("confirm phrase field = %v, want confirmText", got)
+	}
+	if got := props[propConfirmPhraseValue]; got != "DISABLE" {
+		t.Fatalf("confirm phrase value = %v, want DISABLE", got)
 	}
 	if _, ok := props[propConfirmIntent].(intent.Intent); !ok {
 		t.Fatalf("confirm intent = %T, want intent.Intent", props[propConfirmIntent])
@@ -101,6 +111,52 @@ func TestRuntimeChildrenBuildsModalWithReasonAndFooter(t *testing.T) {
 	cancel := findVNodeByKey(root, "confirm-disable-cancel")
 	if cancel == nil {
 		t.Fatal("cancel button not found")
+	}
+}
+
+func TestRuntimeChildrenConfirmPhraseDisablesUntilExactMatch(t *testing.T) {
+	inst := NewBuilder().
+		Key("confirm-delete").
+		Title("Delete Rule").
+		Message("Delete the selected alert rule.").
+		Open(true).
+		Height(20).
+		ConfirmPhrase("DELETE", "confirmPhrase", "delete").
+		ConfirmText("Delete").
+		OnConfirm(testIntent{"confirm"}).
+		BuildInstance()
+
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
+	}
+	if findVNodeByKey(children[0], "confirm-delete-confirm-phrase-input") == nil {
+		t.Fatal("confirm phrase input not found")
+	}
+	if got := children[0].Props()["height"]; got != minConfirmPhraseHeight {
+		t.Fatalf("dialog height = %v, want min confirm phrase height", got)
+	}
+	confirm := findVNodeByKey(children[0], "confirm-delete-confirm")
+	if confirm == nil {
+		t.Fatal("confirm button not found")
+	}
+	if got := confirm.Props()["disabled"]; got != true {
+		t.Fatalf("confirm disabled = %v, want true while phrase mismatches", got)
+	}
+
+	changed := inst.SetProps(NewBuilder().
+		Key("confirm-delete").
+		Open(true).
+		ConfirmPhrase("DELETE", "confirmPhrase", "DELETE").
+		BuildVNode().
+		Props())
+	if !changed {
+		t.Fatal("SetProps should report changed confirm phrase value")
+	}
+	children = inst.RuntimeChildren()
+	confirm = findVNodeByKey(children[0], "confirm-delete-confirm")
+	if got := confirm.Props()["disabled"]; got != false {
+		t.Fatalf("confirm disabled = %v, want false after exact phrase match", got)
 	}
 }
 

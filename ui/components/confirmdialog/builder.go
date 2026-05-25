@@ -92,6 +92,21 @@ func (b *Builder) ReasonRequired(required bool) *Builder {
 	return b
 }
 
+func (b *Builder) ConfirmPhrase(expected, field, value string) *Builder {
+	b.node.SetConfirmPhrase(expected, field, value)
+	return b
+}
+
+func (b *Builder) ConfirmPhraseLabel(label string) *Builder {
+	b.node.SetConfirmPhraseLabel(label)
+	return b
+}
+
+func (b *Builder) ConfirmPhrasePlaceholder(placeholder string) *Builder {
+	b.node.SetConfirmPhrasePlaceholder(placeholder)
+	return b
+}
+
 func (b *Builder) ConfirmText(text string) *Builder {
 	b.node.SetConfirmText(text)
 	return b

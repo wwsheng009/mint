@@ -13,6 +13,7 @@ func TestConfirmDialogShortcuts(t *testing.T) {
 		Message("Proceed?").
 		Open(true).
 		Target(ConfirmDialogTargetItem("target", "Target", "demo")).
+		RequirePhrase("CONFIRM", "confirmPhrase", "CONFIRM").
 		OnConfirm(testConfirmDialogIntent{}).
 		OnCancel(testConfirmDialogIntent{}).
 		Build()
@@ -21,6 +22,9 @@ func TestConfirmDialogShortcuts(t *testing.T) {
 	}
 	if dialog.Tag() != "confirmdialog" {
 		t.Fatalf("dialog tag = %q, want confirmdialog", dialog.Tag())
+	}
+	if got := dialog.Props()["confirmPhrase"]; got != "CONFIRM" {
+		t.Fatalf("confirm phrase = %v, want CONFIRM", got)
 	}
 }
 

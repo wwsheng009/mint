@@ -36,20 +36,21 @@ func newConfirmDialogStaticApp(reason string) ui.ComponentFunc {
 					confirmdialogcomp.SensitiveTarget("key", "Key", "provider-key-demo"),
 				).
 					Width(76).
-					Height(20).
+					Height(26).
+					RequirePhrase("DISABLE", "confirmPhrase", "DISABLE").
 					Build(),
 			})
 	}
 }
 
 func TestE2EConfirmDialogRendersAndMasksSensitiveTarget(t *testing.T) {
-	app, err := Run(newConfirmDialogStaticApp("maintenance"), ui.WithSize(100, 28))
+	app, err := Run(newConfirmDialogStaticApp("maintenance"), ui.WithSize(100, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer app.Close()
 
-	for _, text := range []string{"Disable Provider Key", "Disable the selected provider key", "Provider", "openai", "Reason *", "maintenance", "Disable", "Cancel"} {
+	for _, text := range []string{"Disable Provider Key", "Disable the selected provider key", "Provider", "openai", "Reason *", "maintenance", "Confirmation *", "DISABLE", "Disable", "Cancel"} {
 		if err := app.AssertVisible(ByText(text)); err != nil {
 			t.Fatalf("expected %q to be visible: %v", text, err)
 		}
@@ -81,7 +82,7 @@ func TestE2EConfirmDialogConfirmDispatch(t *testing.T) {
 		}
 	}()
 
-	app, err := Run(newConfirmDialogStaticApp("maintenance"), ui.WithSize(100, 28), ui.WithInit(initFn))
+	app, err := Run(newConfirmDialogStaticApp("maintenance"), ui.WithSize(100, 32), ui.WithInit(initFn))
 	if err != nil {
 		t.Fatal(err)
 	}

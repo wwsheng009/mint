@@ -72,3 +72,23 @@ func TestAuditReasonDefaults(t *testing.T) {
 		t.Fatalf("reason placeholder = %v, want default", got)
 	}
 }
+
+func TestRequirePhraseDefaults(t *testing.T) {
+	dialog := NewBuilder().RequirePhrase("DELETE", "", "DEL").BuildVNode()
+	props := dialog.Props()
+	if got := props[propConfirmPhrase]; got != "DELETE" {
+		t.Fatalf("confirm phrase = %v, want DELETE", got)
+	}
+	if got := props[propConfirmPhraseField]; got != defaultConfirmPhraseField {
+		t.Fatalf("confirm phrase field = %v, want %s", got, defaultConfirmPhraseField)
+	}
+	if got := props[propConfirmPhraseValue]; got != "DEL" {
+		t.Fatalf("confirm phrase value = %v, want DEL", got)
+	}
+	if got := props[propConfirmPhraseLabel]; got != defaultConfirmPhraseLabel {
+		t.Fatalf("confirm phrase label = %v, want %s", got, defaultConfirmPhraseLabel)
+	}
+	if got := props[propConfirmPhrasePlaceholder]; got != "Type DELETE to confirm." {
+		t.Fatalf("confirm phrase placeholder = %v, want phrase placeholder", got)
+	}
+}

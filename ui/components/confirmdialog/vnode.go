@@ -12,28 +12,35 @@ import (
 )
 
 const (
-	propCancelIntent      = "cancelIntent"
-	propCancelText        = "cancelText"
-	propConfirmIntent     = "confirmIntent"
-	propConfirmText       = "confirmText"
-	propConfirmVariant    = "confirmVariant"
-	propDisableConfirm    = "disableConfirm"
-	propDisabledReason    = "disabledReason"
-	propHeight            = "height"
-	propKey               = "key"
-	propMessage           = "message"
-	propOpen              = "open"
-	propReasonField       = "reasonField"
-	propReasonLabel       = "reasonLabel"
-	propReasonPlaceholder = "reasonPlaceholder"
-	propReasonRequired    = "reasonRequired"
-	propReasonValue       = "reasonValue"
-	propStyle             = "style"
-	propTargetItems       = "targetItems"
-	propTitle             = "title"
-	propWarning           = "warning"
-	propWidth             = "width"
+	propCancelIntent             = "cancelIntent"
+	propCancelText               = "cancelText"
+	propConfirmIntent            = "confirmIntent"
+	propConfirmPhrase            = "confirmPhrase"
+	propConfirmPhraseField       = "confirmPhraseField"
+	propConfirmPhraseLabel       = "confirmPhraseLabel"
+	propConfirmPhrasePlaceholder = "confirmPhrasePlaceholder"
+	propConfirmPhraseValue       = "confirmPhraseValue"
+	propConfirmText              = "confirmText"
+	propConfirmVariant           = "confirmVariant"
+	propDisableConfirm           = "disableConfirm"
+	propDisabledReason           = "disabledReason"
+	propHeight                   = "height"
+	propKey                      = "key"
+	propMessage                  = "message"
+	propOpen                     = "open"
+	propReasonField              = "reasonField"
+	propReasonLabel              = "reasonLabel"
+	propReasonPlaceholder        = "reasonPlaceholder"
+	propReasonRequired           = "reasonRequired"
+	propReasonValue              = "reasonValue"
+	propStyle                    = "style"
+	propTargetItems              = "targetItems"
+	propTitle                    = "title"
+	propWarning                  = "warning"
+	propWidth                    = "width"
 )
+
+const minConfirmPhraseHeight = 26
 
 // TargetItem describes one target summary field.
 type TargetItem struct {
@@ -47,27 +54,32 @@ type TargetItem struct {
 type VNode struct {
 	*rtui.ElementVNode
 
-	key               string
-	title             string
-	message           string
-	warning           string
-	open              bool
-	width             int
-	height            int
-	targetItems       []TargetItem
-	reasonLabel       string
-	reasonValue       string
-	reasonField       string
-	reasonPlaceholder string
-	reasonRequired    bool
-	confirmText       string
-	cancelText        string
-	confirmVariant    button.Variant
-	disableConfirm    bool
-	disabledReason    string
-	confirmIntent     intent.Intent
-	cancelIntent      intent.Intent
-	rootStyle         style.Style
+	key                      string
+	title                    string
+	message                  string
+	warning                  string
+	open                     bool
+	width                    int
+	height                   int
+	targetItems              []TargetItem
+	reasonLabel              string
+	reasonValue              string
+	reasonField              string
+	reasonPlaceholder        string
+	reasonRequired           bool
+	confirmPhrase            string
+	confirmPhraseValue       string
+	confirmPhraseField       string
+	confirmPhraseLabel       string
+	confirmPhrasePlaceholder string
+	confirmText              string
+	cancelText               string
+	confirmVariant           button.Variant
+	disableConfirm           bool
+	disabledReason           string
+	confirmIntent            intent.Intent
+	cancelIntent             intent.Intent
+	rootStyle                style.Style
 }
 
 var (
@@ -128,27 +140,32 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		propCancelIntent:      v.cancelIntent,
-		propCancelText:        v.cancelText,
-		propConfirmIntent:     v.confirmIntent,
-		propConfirmText:       v.confirmText,
-		propConfirmVariant:    v.confirmVariant,
-		propDisableConfirm:    v.disableConfirm,
-		propDisabledReason:    v.disabledReason,
-		propHeight:            v.height,
-		propKey:               v.key,
-		propMessage:           v.message,
-		propOpen:              v.open,
-		propReasonField:       v.reasonField,
-		propReasonLabel:       v.reasonLabel,
-		propReasonPlaceholder: v.reasonPlaceholder,
-		propReasonRequired:    v.reasonRequired,
-		propReasonValue:       v.reasonValue,
-		propStyle:             v.rootStyle,
-		propTargetItems:       cloneTargetItems(v.targetItems),
-		propTitle:             v.title,
-		propWarning:           v.warning,
-		propWidth:             v.width,
+		propCancelIntent:             v.cancelIntent,
+		propCancelText:               v.cancelText,
+		propConfirmIntent:            v.confirmIntent,
+		propConfirmPhrase:            v.confirmPhrase,
+		propConfirmPhraseField:       v.confirmPhraseField,
+		propConfirmPhraseLabel:       v.confirmPhraseLabel,
+		propConfirmPhrasePlaceholder: v.confirmPhrasePlaceholder,
+		propConfirmPhraseValue:       v.confirmPhraseValue,
+		propConfirmText:              v.confirmText,
+		propConfirmVariant:           v.confirmVariant,
+		propDisableConfirm:           v.disableConfirm,
+		propDisabledReason:           v.disabledReason,
+		propHeight:                   v.height,
+		propKey:                      v.key,
+		propMessage:                  v.message,
+		propOpen:                     v.open,
+		propReasonField:              v.reasonField,
+		propReasonLabel:              v.reasonLabel,
+		propReasonPlaceholder:        v.reasonPlaceholder,
+		propReasonRequired:           v.reasonRequired,
+		propReasonValue:              v.reasonValue,
+		propStyle:                    v.rootStyle,
+		propTargetItems:              cloneTargetItems(v.targetItems),
+		propTitle:                    v.title,
+		propWarning:                  v.warning,
+		propWidth:                    v.width,
 	}
 }
 
@@ -166,6 +183,11 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	v.reasonField = getStringProp(props, propReasonField, v.reasonField)
 	v.reasonPlaceholder = getStringProp(props, propReasonPlaceholder, v.reasonPlaceholder)
 	v.reasonRequired = getBoolProp(props, propReasonRequired, v.reasonRequired)
+	v.confirmPhrase = getStringProp(props, propConfirmPhrase, v.confirmPhrase)
+	v.confirmPhraseValue = getStringProp(props, propConfirmPhraseValue, v.confirmPhraseValue)
+	v.confirmPhraseField = getStringProp(props, propConfirmPhraseField, v.confirmPhraseField)
+	v.confirmPhraseLabel = getStringProp(props, propConfirmPhraseLabel, v.confirmPhraseLabel)
+	v.confirmPhrasePlaceholder = getStringProp(props, propConfirmPhrasePlaceholder, v.confirmPhrasePlaceholder)
 	v.confirmText = getStringProp(props, propConfirmText, v.confirmText)
 	v.cancelText = getStringProp(props, propCancelText, v.cancelText)
 	v.confirmVariant = getButtonVariantProp(props, propConfirmVariant, v.confirmVariant)
@@ -249,6 +271,23 @@ func (v *VNode) SetReasonRequired(required bool) *VNode {
 	return v
 }
 
+func (v *VNode) SetConfirmPhrase(expected, field, value string) *VNode {
+	v.confirmPhrase = expected
+	v.confirmPhraseField = field
+	v.confirmPhraseValue = value
+	return v
+}
+
+func (v *VNode) SetConfirmPhraseLabel(label string) *VNode {
+	v.confirmPhraseLabel = label
+	return v
+}
+
+func (v *VNode) SetConfirmPhrasePlaceholder(placeholder string) *VNode {
+	v.confirmPhrasePlaceholder = placeholder
+	return v
+}
+
 func (v *VNode) SetConfirmText(text string) *VNode {
 	v.confirmText = text
 	return v
@@ -296,6 +335,9 @@ func (v *VNode) normalize() {
 	}
 	if v.height < 0 {
 		v.height = 0
+	}
+	if strings.TrimSpace(v.confirmPhrase) != "" && v.height > 0 && v.height < minConfirmPhraseHeight {
+		v.height = minConfirmPhraseHeight
 	}
 }
 

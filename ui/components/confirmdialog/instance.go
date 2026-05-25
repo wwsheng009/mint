@@ -16,28 +16,33 @@ import (
 
 // Instance is the runtime entity for ConfirmDialog.
 type Instance struct {
-	key               string
-	title             string
-	message           string
-	warning           string
-	open              bool
-	width             int
-	height            int
-	targetItems       []TargetItem
-	reasonLabel       string
-	reasonValue       string
-	reasonField       string
-	reasonPlaceholder string
-	reasonRequired    bool
-	confirmText       string
-	cancelText        string
-	confirmVariant    button.Variant
-	disableConfirm    bool
-	disabledReason    string
-	confirmIntent     intent.Intent
-	cancelIntent      intent.Intent
-	rootStyle         style.Style
-	dirty             bool
+	key                      string
+	title                    string
+	message                  string
+	warning                  string
+	open                     bool
+	width                    int
+	height                   int
+	targetItems              []TargetItem
+	reasonLabel              string
+	reasonValue              string
+	reasonField              string
+	reasonPlaceholder        string
+	reasonRequired           bool
+	confirmPhrase            string
+	confirmPhraseValue       string
+	confirmPhraseField       string
+	confirmPhraseLabel       string
+	confirmPhrasePlaceholder string
+	confirmText              string
+	cancelText               string
+	confirmVariant           button.Variant
+	disableConfirm           bool
+	disabledReason           string
+	confirmIntent            intent.Intent
+	cancelIntent             intent.Intent
+	rootStyle                style.Style
+	dirty                    bool
 }
 
 var (
@@ -48,28 +53,33 @@ var (
 // NewInstance creates a ConfirmDialog instance from props.
 func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
-		key:               getStringProp(props, propKey, ""),
-		title:             getStringProp(props, propTitle, ""),
-		message:           getStringProp(props, propMessage, ""),
-		warning:           getStringProp(props, propWarning, ""),
-		open:              getBoolProp(props, propOpen, false),
-		width:             getIntProp(props, propWidth, 68),
-		height:            getIntProp(props, propHeight, 18),
-		targetItems:       normalizeTargetItems(getTargetItemsProp(props, propTargetItems, nil)),
-		reasonLabel:       getStringProp(props, propReasonLabel, "Reason"),
-		reasonValue:       getStringProp(props, propReasonValue, ""),
-		reasonField:       getStringProp(props, propReasonField, ""),
-		reasonPlaceholder: getStringProp(props, propReasonPlaceholder, "Audit reason"),
-		reasonRequired:    getBoolProp(props, propReasonRequired, false),
-		confirmText:       getStringProp(props, propConfirmText, "Confirm"),
-		cancelText:        getStringProp(props, propCancelText, "Cancel"),
-		confirmVariant:    getButtonVariantProp(props, propConfirmVariant, button.VariantDanger),
-		disableConfirm:    getBoolProp(props, propDisableConfirm, false),
-		disabledReason:    getStringProp(props, propDisabledReason, ""),
-		confirmIntent:     getIntentProp(props, propConfirmIntent, nil),
-		cancelIntent:      getIntentProp(props, propCancelIntent, nil),
-		rootStyle:         getStyleProp(props, propStyle, style.Style{}),
-		dirty:             true,
+		key:                      getStringProp(props, propKey, ""),
+		title:                    getStringProp(props, propTitle, ""),
+		message:                  getStringProp(props, propMessage, ""),
+		warning:                  getStringProp(props, propWarning, ""),
+		open:                     getBoolProp(props, propOpen, false),
+		width:                    getIntProp(props, propWidth, 68),
+		height:                   getIntProp(props, propHeight, 18),
+		targetItems:              normalizeTargetItems(getTargetItemsProp(props, propTargetItems, nil)),
+		reasonLabel:              getStringProp(props, propReasonLabel, "Reason"),
+		reasonValue:              getStringProp(props, propReasonValue, ""),
+		reasonField:              getStringProp(props, propReasonField, ""),
+		reasonPlaceholder:        getStringProp(props, propReasonPlaceholder, "Audit reason"),
+		reasonRequired:           getBoolProp(props, propReasonRequired, false),
+		confirmPhrase:            getStringProp(props, propConfirmPhrase, ""),
+		confirmPhraseValue:       getStringProp(props, propConfirmPhraseValue, ""),
+		confirmPhraseField:       getStringProp(props, propConfirmPhraseField, ""),
+		confirmPhraseLabel:       getStringProp(props, propConfirmPhraseLabel, ""),
+		confirmPhrasePlaceholder: getStringProp(props, propConfirmPhrasePlaceholder, ""),
+		confirmText:              getStringProp(props, propConfirmText, "Confirm"),
+		cancelText:               getStringProp(props, propCancelText, "Cancel"),
+		confirmVariant:           getButtonVariantProp(props, propConfirmVariant, button.VariantDanger),
+		disableConfirm:           getBoolProp(props, propDisableConfirm, false),
+		disabledReason:           getStringProp(props, propDisabledReason, ""),
+		confirmIntent:            getIntentProp(props, propConfirmIntent, nil),
+		cancelIntent:             getIntentProp(props, propCancelIntent, nil),
+		rootStyle:                getStyleProp(props, propStyle, style.Style{}),
+		dirty:                    true,
 	}
 	inst.normalize()
 	return inst
@@ -107,6 +117,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.reasonField = getStringProp(props, propReasonField, inst.reasonField)
 	inst.reasonPlaceholder = getStringProp(props, propReasonPlaceholder, inst.reasonPlaceholder)
 	inst.reasonRequired = getBoolProp(props, propReasonRequired, inst.reasonRequired)
+	inst.confirmPhrase = getStringProp(props, propConfirmPhrase, inst.confirmPhrase)
+	inst.confirmPhraseValue = getStringProp(props, propConfirmPhraseValue, inst.confirmPhraseValue)
+	inst.confirmPhraseField = getStringProp(props, propConfirmPhraseField, inst.confirmPhraseField)
+	inst.confirmPhraseLabel = getStringProp(props, propConfirmPhraseLabel, inst.confirmPhraseLabel)
+	inst.confirmPhrasePlaceholder = getStringProp(props, propConfirmPhrasePlaceholder, inst.confirmPhrasePlaceholder)
 	inst.confirmText = getStringProp(props, propConfirmText, inst.confirmText)
 	inst.cancelText = getStringProp(props, propCancelText, inst.cancelText)
 	inst.confirmVariant = getButtonVariantProp(props, propConfirmVariant, inst.confirmVariant)
@@ -126,27 +141,32 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propCancelIntent:      inst.cancelIntent,
-		propCancelText:        inst.cancelText,
-		propConfirmIntent:     inst.confirmIntent,
-		propConfirmText:       inst.confirmText,
-		propConfirmVariant:    inst.confirmVariant,
-		propDisableConfirm:    inst.disableConfirm,
-		propDisabledReason:    inst.disabledReason,
-		propHeight:            inst.height,
-		propKey:               inst.key,
-		propMessage:           inst.message,
-		propOpen:              inst.open,
-		propReasonField:       inst.reasonField,
-		propReasonLabel:       inst.reasonLabel,
-		propReasonPlaceholder: inst.reasonPlaceholder,
-		propReasonRequired:    inst.reasonRequired,
-		propReasonValue:       inst.reasonValue,
-		propStyle:             inst.rootStyle,
-		propTargetItems:       cloneTargetItems(inst.targetItems),
-		propTitle:             inst.title,
-		propWarning:           inst.warning,
-		propWidth:             inst.width,
+		propCancelIntent:             inst.cancelIntent,
+		propCancelText:               inst.cancelText,
+		propConfirmIntent:            inst.confirmIntent,
+		propConfirmPhrase:            inst.confirmPhrase,
+		propConfirmPhraseField:       inst.confirmPhraseField,
+		propConfirmPhraseLabel:       inst.confirmPhraseLabel,
+		propConfirmPhrasePlaceholder: inst.confirmPhrasePlaceholder,
+		propConfirmPhraseValue:       inst.confirmPhraseValue,
+		propConfirmText:              inst.confirmText,
+		propConfirmVariant:           inst.confirmVariant,
+		propDisableConfirm:           inst.disableConfirm,
+		propDisabledReason:           inst.disabledReason,
+		propHeight:                   inst.height,
+		propKey:                      inst.key,
+		propMessage:                  inst.message,
+		propOpen:                     inst.open,
+		propReasonField:              inst.reasonField,
+		propReasonLabel:              inst.reasonLabel,
+		propReasonPlaceholder:        inst.reasonPlaceholder,
+		propReasonRequired:           inst.reasonRequired,
+		propReasonValue:              inst.reasonValue,
+		propStyle:                    inst.rootStyle,
+		propTargetItems:              cloneTargetItems(inst.targetItems),
+		propTitle:                    inst.title,
+		propWarning:                  inst.warning,
+		propWidth:                    inst.width,
 	}
 }
 
@@ -197,6 +217,9 @@ func (inst *Instance) buildBody() rtui.VNode {
 	}
 	if inst.reasonField != "" || inst.reasonRequired || inst.reasonValue != "" {
 		children = append(children, inst.buildReasonInput())
+	}
+	if strings.TrimSpace(inst.confirmPhrase) != "" {
+		children = append(children, inst.buildConfirmPhraseInput())
 	}
 	if strings.TrimSpace(inst.disabledReason) != "" {
 		children = append(children, text.NewBuilder(inst.disabledReason).
@@ -255,6 +278,36 @@ func (inst *Instance) buildReasonInput() rtui.VNode {
 	).Gap(0).AlignCross(rtui.AlignStart).Build()
 }
 
+func (inst *Instance) buildConfirmPhraseInput() rtui.VNode {
+	expected := strings.TrimSpace(inst.confirmPhrase)
+	label := inst.confirmPhraseLabel
+	if strings.TrimSpace(label) == "" {
+		label = "Confirmation"
+	}
+	if expected != "" {
+		label += " *"
+	}
+	placeholder := inst.confirmPhrasePlaceholder
+	if strings.TrimSpace(placeholder) == "" {
+		placeholder = confirmPhrasePlaceholder(expected)
+	}
+	inputBuilder := input.NewBuilder().
+		Key(inst.childKey("confirm-phrase-input")).
+		Value(inst.confirmPhraseValue).
+		Placeholder(placeholder).
+		Width(inst.reasonInputWidth())
+	if strings.TrimSpace(inst.confirmPhraseField) != "" {
+		inputBuilder.ForField(intent.BindField(inst.confirmPhraseField))
+	}
+	return rtui.VStackBuilder(
+		text.NewBuilder(label).
+			Key(inst.childKey("confirm-phrase-label")).
+			Style(style.NewStyle().Foreground(theme.Muted()).Bold(true)).
+			Build(),
+		inputBuilder.Build(),
+	).Gap(0).AlignCross(rtui.AlignStart).Build()
+}
+
 func (inst *Instance) buildFooter() rtui.VNode {
 	cancel := button.NewBuilder(inst.cancelTextOrDefault()).
 		Key(inst.childKey("cancel")).
@@ -263,7 +316,9 @@ func (inst *Instance) buildFooter() rtui.VNode {
 		cancel.OnPress(inst.cancelIntent)
 	}
 
-	confirmDisabled := inst.disableConfirm || (inst.reasonRequired && strings.TrimSpace(inst.reasonValue) == "")
+	confirmDisabled := inst.disableConfirm ||
+		(inst.reasonRequired && strings.TrimSpace(inst.reasonValue) == "") ||
+		!inst.confirmPhraseSatisfied()
 	confirm := button.NewBuilder(inst.confirmTextOrDefault()).
 		Key(inst.childKey("confirm")).
 		Variant(inst.confirmVariant).
@@ -275,6 +330,14 @@ func (inst *Instance) buildFooter() rtui.VNode {
 	footer := rtui.HStackBuilder(cancel.Build(), confirm.Build()).Gap(2).Align(rtui.AlignEnd).AlignCross(rtui.AlignCenter)
 	footer.SetKey(inst.childKey("footer"))
 	return footer.Build()
+}
+
+func (inst *Instance) confirmPhraseSatisfied() bool {
+	expected := strings.TrimSpace(inst.confirmPhrase)
+	if expected == "" {
+		return true
+	}
+	return strings.TrimSpace(inst.confirmPhraseValue) == expected
 }
 
 func (inst *Instance) titleOrDefault() string {
@@ -308,6 +371,9 @@ func (inst *Instance) widthOrDefault() int {
 func (inst *Instance) heightOrDefault() int {
 	if inst.height > 0 {
 		return inst.height
+	}
+	if strings.TrimSpace(inst.confirmPhrase) != "" {
+		return minConfirmPhraseHeight
 	}
 	return 18
 }
@@ -350,55 +416,68 @@ func (inst *Instance) normalize() {
 	if inst.height < 0 {
 		inst.height = 0
 	}
+	if strings.TrimSpace(inst.confirmPhrase) != "" && inst.height > 0 && inst.height < minConfirmPhraseHeight {
+		inst.height = minConfirmPhraseHeight
+	}
 }
 
 type instanceSnapshot struct {
-	key               string
-	title             string
-	message           string
-	warning           string
-	open              bool
-	width             int
-	height            int
-	targetItems       []TargetItem
-	reasonLabel       string
-	reasonValue       string
-	reasonField       string
-	reasonPlaceholder string
-	reasonRequired    bool
-	confirmText       string
-	cancelText        string
-	confirmVariant    button.Variant
-	disableConfirm    bool
-	disabledReason    string
-	confirmIntent     intent.Intent
-	cancelIntent      intent.Intent
-	rootStyle         style.Style
+	key                      string
+	title                    string
+	message                  string
+	warning                  string
+	open                     bool
+	width                    int
+	height                   int
+	targetItems              []TargetItem
+	reasonLabel              string
+	reasonValue              string
+	reasonField              string
+	reasonPlaceholder        string
+	reasonRequired           bool
+	confirmPhrase            string
+	confirmPhraseValue       string
+	confirmPhraseField       string
+	confirmPhraseLabel       string
+	confirmPhrasePlaceholder string
+	confirmText              string
+	cancelText               string
+	confirmVariant           button.Variant
+	disableConfirm           bool
+	disabledReason           string
+	confirmIntent            intent.Intent
+	cancelIntent             intent.Intent
+	rootStyle                style.Style
 }
 
 func (inst *Instance) snapshot() instanceSnapshot {
 	return instanceSnapshot{
-		key:               inst.key,
-		title:             inst.title,
-		message:           inst.message,
-		warning:           inst.warning,
-		open:              inst.open,
-		width:             inst.width,
-		height:            inst.height,
-		targetItems:       cloneTargetItems(inst.targetItems),
-		reasonLabel:       inst.reasonLabel,
-		reasonValue:       inst.reasonValue,
-		reasonField:       inst.reasonField,
-		reasonPlaceholder: inst.reasonPlaceholder,
-		reasonRequired:    inst.reasonRequired,
-		confirmText:       inst.confirmText,
-		cancelText:        inst.cancelText,
-		confirmVariant:    inst.confirmVariant,
-		disableConfirm:    inst.disableConfirm,
-		disabledReason:    inst.disabledReason,
-		confirmIntent:     inst.confirmIntent,
-		cancelIntent:      inst.cancelIntent,
-		rootStyle:         inst.rootStyle,
+		key:                      inst.key,
+		title:                    inst.title,
+		message:                  inst.message,
+		warning:                  inst.warning,
+		open:                     inst.open,
+		width:                    inst.width,
+		height:                   inst.height,
+		targetItems:              cloneTargetItems(inst.targetItems),
+		reasonLabel:              inst.reasonLabel,
+		reasonValue:              inst.reasonValue,
+		reasonField:              inst.reasonField,
+		reasonPlaceholder:        inst.reasonPlaceholder,
+		reasonRequired:           inst.reasonRequired,
+		confirmPhrase:            inst.confirmPhrase,
+		confirmPhraseValue:       inst.confirmPhraseValue,
+		confirmPhraseField:       inst.confirmPhraseField,
+		confirmPhraseLabel:       inst.confirmPhraseLabel,
+		confirmPhrasePlaceholder: inst.confirmPhrasePlaceholder,
+		confirmText:              inst.confirmText,
+		cancelText:               inst.cancelText,
+		confirmVariant:           inst.confirmVariant,
+		disableConfirm:           inst.disableConfirm,
+		disabledReason:           inst.disabledReason,
+		confirmIntent:            inst.confirmIntent,
+		cancelIntent:             inst.cancelIntent,
+		rootStyle:                inst.rootStyle,
 	}
 }
 
