@@ -34,6 +34,7 @@
 - context menu 仍以 `PortalOffset(...)` 作为目标原点，但当根面板超出 viewport 时会自动 clamp 回可见区。
 - submenu 级联面板现在会在右侧放不下时自动翻转到左侧，并对纵向位置做 viewport clamp；多级 submenu 在翻转后会尽量沿同一侧继续展开，极窄 viewport 下也会按最终 clamp 到的一侧继续推导后续方向。这套规则已开始下沉到 `internal/overlayposition` 的共享 cascade helper，组件对外暴露的 hit bounds 也会覆盖整棵 cascade。
 - `menu.Install(app, nil)` 可接入 outside-click / ESC 中间件；如果还要注册全局快捷键，则传入 `emit` 和开启 `RegisterShortcuts(true)` 的 builder。
+- 运维动作菜单可使用 `ActionWithDescription(...)`、`DangerAction(...)`、`DisabledAction(...)`、`RefreshAction(...)`、`ReloadRuntimeAction(...)`、`ResetRuntimeAction(...)`、`ClearCircuitBreakersAction(...)`、`Group(...)`、`AppendGroup(...)` 这组薄 preset，统一菜单描述、危险态、禁用原因和常见 runtime/load-balancer 动作文案。
 - 当前剩余 gap 主要是把这套级联 candidate / direction 规则进一步推广到更多 overlay 场景，以及继续补更复杂角落组合回归；`menu` 与共享 helper 这边已经补了单层、多层、极窄 viewport、双轴 clamp、bottom-right upward clamp、窄底角同时 left-edge clamp + upward clamp，以及“left-edge clamp 后下一层镜像回右侧”和“right-edge clamp 后下一层镜像回左侧”的方向传递矩阵；这两条镜像链路现在都已经有真实 e2e，而且左右两侧都已补齐“靠近底边时 clamp + upward clamp 后再镜像回另一侧”的组合回归，另外还新增了更极端的 zig-zag 链路：先右向展开、再右侧夹边、再左向镜像、最后再次右向镜像并伴随 upward clamp。
 
 ## 安装方式
@@ -58,6 +59,28 @@ menu.Install(app, emit, builder)
 - `ActivePath(...)` 用于显式控制级联 submenu 的活动路径。
 - `ComponentID(...)` / `SetID(...)` 会影响路由与安装阶段生成的 menu ID，建议对业务菜单保持稳定。
 - `auto` placement 会结合当前 anchor 方向推导默认落点，而不是简单固定到底部。
+
+## 运维动作 preset
+
+这些 preset 只构造菜单项并派发调用方传入的 intent，不访问业务 API，适合 toolbar dropdown、右键菜单和更多操作菜单：
+
+```go
+items := menu.Items()
+items = menu.AppendGroup(items, "Operations",
+    menu.RefreshAction(RefreshIntent{}),
+    menu.ReloadRuntimeAction(PrepareReloadIntent{}),
+    menu.ResetRuntimeAction(PrepareResetIntent{}),
+    menu.ClearCircuitBreakersAction(PrepareClearIntent{}),
+    menu.DisabledAction("reset-key", "Reset Key", "Select a key first", PrepareResetKeyIntent{}),
+)
+
+popup := menu.NewPopup(items).
+    ShowDescriptions(true).
+    MinWidth(42).
+    Build()
+```
+
+`DisabledAction(...)` 与 `MenuItem.WithDisabledReason(...)` 会把 reason 写入 `Metadata["disabledReason"]`，同时在没有 description 时把 reason 用作 description；因此 `ShowDescriptions(true)` 的菜单可以直接解释禁用原因。
 
 ## 测试入口
 
