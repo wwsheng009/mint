@@ -169,9 +169,19 @@ func TestStatusBarOperationalShortcutPresets(t *testing.T) {
 	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
 	for _, section := range StatusBarSections(
 		StatusBarEndpoint("http://localhost:8080"),
+		StatusBarProfile("local"),
 		StatusBarUser("admin"),
+		StatusBarRole("ops"),
 		StatusBarPage("jobs"),
+		StatusBarScope("provider"),
+		StatusBarTarget("openai/key-1"),
 		StatusBarSelection("job-1"),
+		StatusBarFilter("failed"),
+		StatusBarCount("keys", 12),
+		StatusBarLatency(250*time.Millisecond),
+		StatusBarUptime(3*time.Hour),
+		StatusBarHotkey("r", "reload"),
+		StatusBarSeparator(),
 		StatusBarLastSync(now.Add(-2*time.Minute), now),
 		StatusBarAutoRefresh(30*time.Second),
 	) {

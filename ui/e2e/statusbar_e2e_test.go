@@ -156,7 +156,9 @@ func newStatusbarOperationalPresetFixture() ui.ComponentFunc {
 					ui.StatusBarThemeDefault(),
 					ui.StatusBarSections(
 						ui.StatusBarEndpoint("local"),
+						ui.StatusBarProfile("dev"),
 						ui.StatusBarUser("admin"),
+						ui.StatusBarRole("ops"),
 						ui.StatusBarPage("jobs"),
 					),
 					ui.StatusBarSections(ui.StatusBarStateBadge("healthy")),
@@ -165,7 +167,22 @@ func newStatusbarOperationalPresetFixture() ui.ComponentFunc {
 				ui.StatusBarWithTheme(
 					ui.StatusBarThemeDefault(),
 					ui.StatusBarSections(
+						ui.StatusBarScope("provider"),
+						ui.StatusBarTarget("openai/key-1"),
 						ui.StatusBarSelection("job-1"),
+						ui.StatusBarFilter("failed"),
+					),
+					nil,
+					nil,
+				),
+				ui.StatusBarWithTheme(
+					ui.StatusBarThemeDefault(),
+					ui.StatusBarSections(
+						ui.StatusBarCount("keys", 12),
+						ui.StatusBarLatency(250*time.Millisecond),
+						ui.StatusBarUptime(3*time.Hour),
+						ui.StatusBarHotkey("r", "reload"),
+						ui.StatusBarSeparator(),
 						ui.StatusBarLastSync(now.Add(-2*time.Minute), now),
 						ui.StatusBarAutoRefresh(30*time.Second),
 					),
@@ -257,10 +274,19 @@ func TestE2EStatusbarOperationalPresetsRender(t *testing.T) {
 	for _, text := range []string{
 		"Statusbar Operational Preset Fixture",
 		"endpoint: local",
+		"profile: dev",
 		"user: admin",
+		"role: ops",
 		"page: jobs",
 		"healthy",
+		"scope: provider",
+		"target: openai/key-1",
 		"selection: job-1",
+		"filter: failed",
+		"keys: 12",
+		"latency: 250ms",
+		"uptime: 3h",
+		"r reload",
 		"last sync: 2m ago",
 		"refresh: 30s",
 	} {

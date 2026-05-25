@@ -68,9 +68,19 @@ func Endpoint(value string) Section {
 	return KeyValue("endpoint", value)
 }
 
+// Profile creates a standard status section for the active endpoint/profile name.
+func Profile(value string) Section {
+	return KeyValue("profile", value)
+}
+
 // User creates a standard status section for the active user/session label.
 func User(value string) Section {
 	return KeyValue("user", value)
+}
+
+// Role creates a standard status section for the active permission or role label.
+func Role(value string) Section {
+	return KeyValue("role", value)
 }
 
 // Page creates a standard status section for the active page or panel.
@@ -78,9 +88,60 @@ func Page(value string) Section {
 	return KeyValue("page", value)
 }
 
+// Scope creates a low-emphasis status section for the active operational scope.
+func Scope(value string) Section {
+	return MutedKeyValue("scope", value)
+}
+
+// Target creates a low-emphasis status section for the operation target.
+func Target(value string) Section {
+	return MutedKeyValue("target", value)
+}
+
 // Selection creates a low-emphasis status section for the current selection.
 func Selection(value string) Section {
 	return MutedKeyValue("selection", value)
+}
+
+// Filter creates a low-emphasis status section for active filters or search criteria.
+func Filter(value string) Section {
+	return MutedKeyValue("filter", value)
+}
+
+// Count creates a compact numeric "label: count" status section.
+func Count(label string, count int) Section {
+	if count < 0 {
+		count = 0
+	}
+	return KeyValue(label, fmt.Sprintf("%d", count))
+}
+
+// Latency creates a low-emphasis status section for request or refresh latency.
+func Latency(value time.Duration) Section {
+	return MutedKeyValue("latency", formatDuration(value))
+}
+
+// Uptime creates a low-emphasis status section for process/runtime uptime.
+func Uptime(value time.Duration) Section {
+	return MutedKeyValue("uptime", formatDuration(value))
+}
+
+// Hotkey creates a low-emphasis status section that shows a keyboard shortcut hint.
+func Hotkey(key, label string) Section {
+	key = strings.TrimSpace(normalizeStatusText(key))
+	label = strings.TrimSpace(normalizeStatusText(label))
+	if key == "" {
+		key = "-"
+	}
+	if label == "" {
+		return Text(key).WithForeground("bright-black")
+	}
+	return Text(key + " " + label).WithForeground("bright-black")
+}
+
+// Separator creates a low-emphasis visual divider between compact status sections.
+func Separator() Section {
+	return Text("|").WithForeground("bright-black")
 }
 
 // LastSync creates a low-emphasis status section for the last successful sync time.
@@ -163,4 +224,26 @@ func formatRemaining(remaining time.Duration) string {
 		return fmt.Sprintf("%dm", int(remaining.Minutes()))
 	}
 	return fmt.Sprintf("%dh", int(remaining.Hours()))
+}
+
+func formatDuration(value time.Duration) string {
+	if value < 0 {
+		value = 0
+	}
+	if value < time.Millisecond {
+		return fmt.Sprintf("%dus", value.Microseconds())
+	}
+	if value < time.Second {
+		return fmt.Sprintf("%dms", value.Milliseconds())
+	}
+	if value < time.Minute {
+		return fmt.Sprintf("%.1fs", value.Seconds())
+	}
+	if value < time.Hour {
+		return fmt.Sprintf("%dm", int(value.Minutes()))
+	}
+	if value < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(value.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(value.Hours()/24))
 }
