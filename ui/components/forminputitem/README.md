@@ -12,9 +12,21 @@ node := ui.FormInputItem(
     ui.FormInputPlaceholder("http://127.0.0.1:8080"),
     ui.FormInputWidth(72),
     ui.FormInputForForm("loginForm"),
+    ui.FormInputRequired(),
+    ui.FormInputHelp("Use the Admin API base URL."),
     ui.FormInputValidators(ui.Required()),
 )
 ```
+
+## 常用选项
+
+- `ui.FormInputPlaceholder(text)`
+- `ui.FormInputWidth(width)`
+- `ui.FormInputForForm(formID)`
+- `ui.FormInputLayout(layout)`
+- `ui.FormInputValidators(validators...)`
+- `ui.FormInputHelp(text)`
+- `ui.FormInputRequired()`
 
 ## 可用变体
 

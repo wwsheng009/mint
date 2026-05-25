@@ -9,6 +9,8 @@
 - 初始 `values`
 - `submit` / `reset` intent
 - 字段级 `touched` / `dirty` / `submitted`
+- `FormItem.Help(...)` 字段帮助文本
+- `FormItem.Required(true)` 必填字段标记
 - `HasSubmitted()` / `GetSubmitCount()`
 - `Field` / `Form` 绑定与实例树内 `GetFormContext(...)`
 
@@ -24,7 +26,7 @@ loginForm := ui.NewForm("loginForm").
             ui.NewInputBuilder().
                 Placeholder("Username").
                 Build(),
-        ).Label("Username").Build(),
+        ).Label("Username").Required(true).Help("Use your admin account name.").Build(),
         ui.NewFormItem(
             "password",
             ui.NewInputBuilder().
@@ -76,6 +78,8 @@ loginForm := ui.NewForm("loginForm").
 - `FormInputForForm(formID)`
 - `FormInputLayout(layout)`
 - `FormInputValidators(validators...)`
+- `FormInputHelp(text)`
+- `FormInputRequired()`
 
 如需扩展内置选项，可以实现 `FormInputItemOption` 并修改公开的 `FormInputItemConfig`：
 
