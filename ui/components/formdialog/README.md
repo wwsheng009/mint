@@ -9,6 +9,7 @@ short configuration form without leaving the current table or page context.
 - Framed form wrapper built from `Form + Button`.
 - Controlled open state through `Open(...)` / `Opened()` / `Closed()`.
 - Form identity through `FormID(...)`, with normal field binding support.
+- `Target(...)` / `SensitiveTarget(...)` show a compact operation target summary before fields.
 - `vertical` / `horizontal` / `inline` form layout.
 - Initial `Values(...)` and `Value(...)`.
 - Submit, cancel, and close intents.
@@ -32,6 +33,8 @@ ui.NewFormDialogBuilder().
     Open(true).
     Width(76).
     Height(22).
+    Target(ui.FormDialogTarget("instance", "Instance", "gateway-a")).
+    Target(ui.FormDialogSensitiveTarget("token", "Admin token", "agw_example_token")).
     Children(
         ui.FormInputItem(
             "reason",
@@ -75,6 +78,8 @@ formdialog.NewDangerReasonAction(
   an audit reason.
 - Keep dangerous operations gated by a clear target, reason, disabled reason,
   and final submit intent.
+- Put selected group/provider/key/job/alert metadata in `Target(...)`; use
+  `SensitiveTarget(...)` for anything that may contain a token or secret.
 
 ## Tests
 

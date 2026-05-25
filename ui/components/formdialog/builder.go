@@ -92,6 +92,16 @@ func (b *Builder) ValidateAll(validate bool) *Builder {
 	return b
 }
 
+func (b *Builder) TargetItems(items []TargetItem) *Builder {
+	b.node.SetTargetItems(items)
+	return b
+}
+
+func (b *Builder) Target(item TargetItem) *Builder {
+	b.node.AddTargetItem(item)
+	return b
+}
+
 func (b *Builder) Child(child rtui.VNode) *Builder {
 	b.node.AddChild(child)
 	return b

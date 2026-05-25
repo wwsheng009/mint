@@ -51,6 +51,13 @@ func getValuesProp(props rtui.Props, key string, def map[string]interface{}) map
 	return cloneValues(def)
 }
 
+func getTargetItemsProp(props rtui.Props, key string, def []TargetItem) []TargetItem {
+	if items, ok := props[key].([]TargetItem); ok {
+		return normalizeTargetItems(items)
+	}
+	return normalizeTargetItems(def)
+}
+
 func getStringProp(props rtui.Props, key, def string) string {
 	if value, ok := props[key]; ok {
 		if text, ok := value.(string); ok {

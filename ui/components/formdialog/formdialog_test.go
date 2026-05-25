@@ -28,6 +28,8 @@ func TestBuilderAndProps(t *testing.T) {
 		Layout(form.LayoutHorizontal).
 		Value("reason", "maintenance").
 		ValidateAll(true).
+		Target(Target("group", "Group", "default")).
+		Target(SensitiveTarget("key", "Key", "provider-key-demo")).
 		Child(input.NewBuilder().Key("reason-input").Value("maintenance").Build()).
 		SubmitText("Reload").
 		CancelText("Close").
@@ -63,6 +65,13 @@ func TestBuilderAndProps(t *testing.T) {
 	if got := props[propSubmitDisabled]; got != true {
 		t.Fatalf("submit disabled = %v, want true", got)
 	}
+	targets := props[propTargetItems].([]TargetItem)
+	if len(targets) != 2 {
+		t.Fatalf("target items len = %d, want 2", len(targets))
+	}
+	if got := targets[1].Sensitive; got != true {
+		t.Fatalf("sensitive target = %v, want true", got)
+	}
 	if _, ok := props[propSubmitIntent].(intent.Intent); !ok {
 		t.Fatalf("submit intent = %T, want intent.Intent", props[propSubmitIntent])
 	}
@@ -85,6 +94,8 @@ func TestRuntimeChildrenBuildsModalFormAndFooter(t *testing.T) {
 		Description("Reload runtime configuration.").
 		Opened().
 		FormID("runtime-reload-form").
+		Target(Target("group", "Group", "default")).
+		Target(SensitiveTarget("key", "Key", "provider-key-demo")).
 		Child(input.NewBuilder().Key("reason-input").Value("maintenance").Build()).
 		SubmitText("Reload").
 		SubmitDisabled(true).
@@ -104,6 +115,10 @@ func TestRuntimeChildrenBuildsModalFormAndFooter(t *testing.T) {
 	if findVNodeByKey(root, "runtime-reload-form") == nil {
 		t.Fatal("form not found")
 	}
+	targets := findVNodeByKey(root, "runtime-reload-dialog-targets")
+	if targets == nil {
+		t.Fatal("target summary not found")
+	}
 	if findVNodeByKey(root, "reason-input") == nil {
 		t.Fatal("form child not found")
 	}
@@ -117,6 +132,25 @@ func TestRuntimeChildrenBuildsModalFormAndFooter(t *testing.T) {
 	cancel := findVNodeByKey(root, "runtime-reload-dialog-cancel")
 	if cancel == nil {
 		t.Fatal("cancel button not found")
+	}
+}
+
+func TestTargetItemsNormalizeDuplicateAndMultilineKeys(t *testing.T) {
+	dialog := NewBuilder().
+		Key("target-dialog").
+		Target(Target("", "Group\nName", "default\tgroup")).
+		Target(Target("", "Group", "canary")).
+		BuildVNode()
+
+	targets := dialog.Props()[propTargetItems].([]TargetItem)
+	if len(targets) != 2 {
+		t.Fatalf("target items len = %d, want 2", len(targets))
+	}
+	if targets[0].Key != "target-0" || targets[1].Key != "target-1" {
+		t.Fatalf("target keys = %#v, want generated stable keys", []string{targets[0].Key, targets[1].Key})
+	}
+	if targets[0].Label != "Group Name" || targets[0].Value != "default group" {
+		t.Fatalf("normalized target = %#v", targets[0])
 	}
 }
 

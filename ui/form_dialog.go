@@ -8,6 +8,7 @@ import (
 
 type FormDialogBuilder = formdialog.Builder
 type FormDialogVNode = formdialog.VNode
+type FormDialogTargetItem = formdialog.TargetItem
 
 // NewFormDialogBuilder creates a FormDialog builder.
 func NewFormDialogBuilder() *formdialog.Builder {
@@ -35,4 +36,14 @@ func NewFormDialogDangerReasonActionBuilder(key, title, description, formID, rea
 // FormDialogDangerReasonAction creates an opened danger form dialog with a required audit reason field.
 func FormDialogDangerReasonAction(key, title, description, formID, reasonField, reasonValue, submitText string, submitIntent, cancelIntent intent.Intent) rtui.VNode {
 	return NewFormDialogDangerReasonActionBuilder(key, title, description, formID, reasonField, reasonValue, submitText, submitIntent, cancelIntent).Build()
+}
+
+// FormDialogTarget creates a target summary item for FormDialog.
+func FormDialogTarget(key, label, value string) formdialog.TargetItem {
+	return formdialog.Target(key, label, value)
+}
+
+// FormDialogSensitiveTarget creates a masked target summary item for FormDialog.
+func FormDialogSensitiveTarget(key, label, value string) formdialog.TargetItem {
+	return formdialog.SensitiveTarget(key, label, value)
 }

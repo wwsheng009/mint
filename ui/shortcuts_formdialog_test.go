@@ -25,6 +25,8 @@ func TestFormDialogShortcuts(t *testing.T) {
 		Description("Reload runtime configuration.").
 		FormID("runtime-reload-form").
 		Opened().
+		Target(FormDialogTarget("instance", "Instance", "gateway-a")).
+		Target(FormDialogSensitiveTarget("key", "Key", "provider-key-demo")).
 		Children(FormInputItem("reason", "Reason", "maintenance", FormInputForForm("runtime-reload-form"))).
 		SubmitText("Reload").
 		OnSubmit(formDialogShortcutIntent{"formdialog.submit"}).
@@ -40,6 +42,13 @@ func TestFormDialogShortcuts(t *testing.T) {
 	}
 	if _, ok := props["submitIntent"].(intent.Intent); !ok {
 		t.Fatalf("submitIntent = %T, want intent.Intent", props["submitIntent"])
+	}
+	targets, ok := props["targetItems"].([]FormDialogTargetItem)
+	if !ok {
+		t.Fatalf("targetItems = %T, want []FormDialogTargetItem", props["targetItems"])
+	}
+	if len(targets) != 2 || !targets[1].Sensitive {
+		t.Fatalf("targetItems = %#v, want sensitive target", targets)
 	}
 
 	short := FormDialog(

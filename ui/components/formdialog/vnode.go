@@ -2,6 +2,9 @@
 package formdialog
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
@@ -29,11 +32,20 @@ const (
 	propSubmitIntent    = "submitIntent"
 	propSubmitText      = "submitText"
 	propSubmitVariant   = "submitVariant"
+	propTargetItems     = "targetItems"
 	propTitle           = "title"
 	propValidateAll     = "validateAll"
 	propValues          = "values"
 	propWidth           = "width"
 )
+
+// TargetItem describes one target summary field shown before the form body.
+type TargetItem struct {
+	Key       string
+	Label     string
+	Value     string
+	Sensitive bool
+}
 
 // VNode is the declarative description of a modal form dialog.
 type VNode struct {
@@ -49,6 +61,7 @@ type VNode struct {
 	layout          form.FormLayout
 	values          map[string]interface{}
 	validateAll     bool
+	targetItems     []TargetItem
 	children        []rtui.VNode
 	submitText      string
 	cancelText      string
@@ -150,6 +163,7 @@ func (v *VNode) Props() rtui.Props {
 		propSubmitIntent:    v.submitIntent,
 		propSubmitText:      v.submitText,
 		propSubmitVariant:   v.submitVariant,
+		propTargetItems:     cloneTargetItems(v.targetItems),
 		propTitle:           v.title,
 		propValidateAll:     v.validateAll,
 		propValues:          cloneValues(v.values),
@@ -168,6 +182,7 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	v.layout = getLayoutProp(props, propLayout, v.layout)
 	v.values = getValuesProp(props, propValues, v.values)
 	v.validateAll = getBoolProp(props, propValidateAll, v.validateAll)
+	v.targetItems = normalizeTargetItems(getTargetItemsProp(props, propTargetItems, v.targetItems))
 	v.children = getChildrenProp(props, propChildren, v.children)
 	v.submitText = getStringProp(props, propSubmitText, v.submitText)
 	v.cancelText = getStringProp(props, propCancelText, v.cancelText)
@@ -241,6 +256,16 @@ func (v *VNode) SetValue(field string, value interface{}) *VNode {
 
 func (v *VNode) SetValidateAll(validate bool) *VNode {
 	v.validateAll = validate
+	return v
+}
+
+func (v *VNode) SetTargetItems(items []TargetItem) *VNode {
+	v.targetItems = normalizeTargetItems(items)
+	return v
+}
+
+func (v *VNode) AddTargetItem(item TargetItem) *VNode {
+	v.targetItems = normalizeTargetItems(append(v.targetItems, item))
 	return v
 }
 
@@ -329,4 +354,74 @@ func (v *VNode) normalize() {
 	if v.values == nil {
 		v.values = map[string]interface{}{}
 	}
+	v.targetItems = normalizeTargetItems(v.targetItems)
+}
+
+// Target creates a target summary item.
+func Target(key, label, value string) TargetItem {
+	return TargetItem{Key: key, Label: label, Value: value}
+}
+
+// SensitiveTarget creates a masked target summary item.
+func SensitiveTarget(key, label, value string) TargetItem {
+	return TargetItem{Key: key, Label: label, Value: value, Sensitive: true}
+}
+
+func (i TargetItem) WithKey(key string) TargetItem {
+	i.Key = key
+	return i
+}
+
+func (i TargetItem) WithLabel(label string) TargetItem {
+	i.Label = label
+	return i
+}
+
+func (i TargetItem) WithValue(value string) TargetItem {
+	i.Value = value
+	return i
+}
+
+func (i TargetItem) WithSensitive(sensitive bool) TargetItem {
+	i.Sensitive = sensitive
+	return i
+}
+
+func normalizeTargetItems(items []TargetItem) []TargetItem {
+	if len(items) == 0 {
+		return nil
+	}
+	normalized := cloneTargetItems(items)
+	seen := make(map[string]int, len(normalized))
+	for index := range normalized {
+		key := strings.TrimSpace(normalized[index].Key)
+		if key == "" {
+			key = fmt.Sprintf("target-%d", index)
+		}
+		base := key
+		if count, exists := seen[base]; exists {
+			count++
+			seen[base] = count
+			key = fmt.Sprintf("%s-%d", base, count)
+		} else {
+			seen[base] = 0
+		}
+		normalized[index].Key = key
+		normalized[index].Label = normalizeDialogText(normalized[index].Label)
+		normalized[index].Value = normalizeDialogText(normalized[index].Value)
+	}
+	return normalized
+}
+
+func cloneTargetItems(items []TargetItem) []TargetItem {
+	if len(items) == 0 {
+		return nil
+	}
+	cloned := make([]TargetItem, len(items))
+	copy(cloned, items)
+	return cloned
+}
+
+func normalizeDialogText(content string) string {
+	return strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ").Replace(content)
 }

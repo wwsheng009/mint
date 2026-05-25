@@ -9,6 +9,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
+	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/form"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/text"
@@ -26,6 +27,7 @@ type Instance struct {
 	layout          form.FormLayout
 	values          map[string]interface{}
 	validateAll     bool
+	targetItems     []TargetItem
 	children        []rtui.VNode
 	submitText      string
 	cancelText      string
@@ -60,6 +62,7 @@ func NewInstance(props rtui.Props) *Instance {
 		layout:          getLayoutProp(props, propLayout, form.LayoutVertical),
 		values:          getValuesProp(props, propValues, nil),
 		validateAll:     getBoolProp(props, propValidateAll, true),
+		targetItems:     getTargetItemsProp(props, propTargetItems, nil),
 		children:        getChildrenProp(props, propChildren, nil),
 		submitText:      getStringProp(props, propSubmitText, "Submit"),
 		cancelText:      getStringProp(props, propCancelText, "Cancel"),
@@ -108,6 +111,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.layout = getLayoutProp(props, propLayout, inst.layout)
 	inst.values = getValuesProp(props, propValues, inst.values)
 	inst.validateAll = getBoolProp(props, propValidateAll, inst.validateAll)
+	inst.targetItems = getTargetItemsProp(props, propTargetItems, inst.targetItems)
 	inst.children = getChildrenProp(props, propChildren, inst.children)
 	inst.submitText = getStringProp(props, propSubmitText, inst.submitText)
 	inst.cancelText = getStringProp(props, propCancelText, inst.cancelText)
@@ -151,6 +155,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propSubmitIntent:    inst.submitIntent,
 		propSubmitText:      inst.submitText,
 		propSubmitVariant:   inst.submitVariant,
+		propTargetItems:     cloneTargetItems(inst.targetItems),
 		propTitle:           inst.title,
 		propValidateAll:     inst.validateAll,
 		propValues:          cloneValues(inst.values),
@@ -186,6 +191,9 @@ func (inst *Instance) buildContent() rtui.VNode {
 			Style(style.NewStyle().Foreground(theme.Text())).
 			Build())
 	}
+	if len(inst.targetItems) > 0 {
+		children = append(children, inst.buildTargets())
+	}
 	children = append(children, inst.buildForm())
 	if strings.TrimSpace(inst.disabledReason) != "" {
 		children = append(children, text.NewBuilder(inst.disabledReason).
@@ -198,6 +206,29 @@ func (inst *Instance) buildContent() rtui.VNode {
 		Height(inst.contentHeight())
 	root.SetKey(inst.childKey("content"))
 	return root.Build()
+}
+
+func (inst *Instance) buildTargets() rtui.VNode {
+	items := make([]descriptions.Item, 0, len(inst.targetItems))
+	for _, target := range inst.targetItems {
+		item := descriptions.Value(target.Label, target.Value).
+			WithKey(target.Key).
+			WithEmptyText("-")
+		if target.Sensitive {
+			item = item.WithSensitive(true)
+		}
+		items = append(items, item)
+	}
+	builder := descriptions.NewBuilder().
+		Key(inst.childKey("targets")).
+		Items(items).
+		Column(1).
+		LabelWidth(14).
+		ContentWidth(inst.targetContentWidth()).
+		EmptyText("-").
+		MaskText("********").
+		Width(inst.widthOrDefault() - 4)
+	return builder.Build()
 }
 
 func (inst *Instance) buildForm() rtui.VNode {
@@ -298,6 +329,14 @@ func (inst *Instance) contentHeight() int {
 	return height
 }
 
+func (inst *Instance) targetContentWidth() int {
+	width := inst.widthOrDefault() - 24
+	if width < 12 {
+		return 12
+	}
+	return width
+}
+
 func (inst *Instance) childKey(suffix string) string {
 	if inst.key == "" {
 		return "formdialog-" + suffix
@@ -316,6 +355,7 @@ func (inst *Instance) normalize() {
 	if inst.values == nil {
 		inst.values = map[string]interface{}{}
 	}
+	inst.targetItems = normalizeTargetItems(inst.targetItems)
 }
 
 type instanceSnapshot struct {
@@ -329,6 +369,7 @@ type instanceSnapshot struct {
 	layout          form.FormLayout
 	values          map[string]interface{}
 	validateAll     bool
+	targetItems     []TargetItem
 	children        []rtui.VNode
 	submitText      string
 	cancelText      string
@@ -356,6 +397,7 @@ func (inst *Instance) snapshot() instanceSnapshot {
 		layout:          inst.layout,
 		values:          cloneValues(inst.values),
 		validateAll:     inst.validateAll,
+		targetItems:     cloneTargetItems(inst.targetItems),
 		children:        cloneChildren(inst.children),
 		submitText:      inst.submitText,
 		cancelText:      inst.cancelText,
