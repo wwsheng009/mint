@@ -9,6 +9,7 @@
 - 带分页、搜索、选择绑定的管理台表格
 - 服务端分页列表
 - loading / error / empty 状态
+- 基于业务 id 的稳定行选择和显式激活
 
 ## 示例
 
@@ -23,7 +24,10 @@ node := ui.DataTable(
         {"azure", "degraded"},
     },
     ui.DataTablePageSize(10),
-    ui.DataTableSelectedField("selectedProvider"),
+    ui.DataTableRowKeys([]string{"provider.openai", "provider.azure"}),
+    ui.DataTableSelectedKey("provider.azure"),
+    ui.DataTableSelectedKeyField("selectedProviderKey"),
+    ui.DataTableActivateKeyField("activatedProviderKey"),
     ui.DataTableServerPagination(2, 25, 76),
     ui.DataTableOperationalStyle(),
 )
@@ -36,10 +40,17 @@ node := ui.DataTable(
 - `DataTableServerPagination(page, pageSize, total)`：覆盖 table footer 为服务端分页摘要，例如 `Page 2/4 · Total 76 · Size 25`。
 - `DataTableStatusText("...")`：直接覆盖 footer 文案，适合游标分页或自定义聚合摘要。
 
+## 稳定选择
+
+- `DataTableRowKeys(keys)`：按 source row index 提供稳定业务 key，适合 provider/key/token/job id。
+- `DataTableSelectedKey(key)`：以 row key 控制当前高亮行，排序、过滤和刷新后不依赖易变行号。
+- `DataTableSelectedKeyField(field)`：行选择变化时向字段写入当前 row key。
+- `DataTableActivateKeyField(field)`：用户按 Enter 或确认当前行时向字段写入激活 row key。
+
 ## Fiber-first 约束
 
 - 只负责声明式 VNode 组合。
-- 业务状态通过 `SelectedField(...)` 等 intent 绑定传递。
+- 业务状态通过 `SelectedField(...)`、`SelectedKeyField(...)`、`ActivateKeyField(...)` 等 intent 绑定传递。
 - 不在组件包内发起 IO、保存业务状态或直接处理运行时副作用。
 
 ## 测试

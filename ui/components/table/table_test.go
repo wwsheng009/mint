@@ -620,6 +620,117 @@ func TestBuilder_StatusTextOverridesFooter(t *testing.T) {
 	}
 }
 
+func TestBuilder_SelectedRowKeyControlsSelection(t *testing.T) {
+	inst := NewBuilder().
+		Columns([]TableColumn{{Title: "Provider", Width: 12}, {Title: "Status", Width: 10}}).
+		Rows([][]string{
+			{"openai", "healthy"},
+			{"azure", "degraded"},
+			{"anthropic", "healthy"},
+		}).
+		RowKeys([]string{"provider.openai", "provider.azure", "provider.anthropic"}).
+		SearchQuery("azure").
+		SelectedRowKey("provider.azure").
+		BuildInstance()
+
+	if got := inst.GetSelectedIndex(); got != 0 {
+		t.Fatalf("selectedIndex = %d, want filtered row index 0", got)
+	}
+	if got := inst.GetSelectedSourceIndex(); got != 1 {
+		t.Fatalf("selectedSourceIndex = %d, want source row index 1", got)
+	}
+	if got := inst.GetSelectedRowKey(); got != "provider.azure" {
+		t.Fatalf("selectedRowKey = %q, want provider.azure", got)
+	}
+	if props := inst.GetProps(); props[propSelectedRowKey] != "provider.azure" {
+		t.Fatalf("selectedRowKey prop = %v, want provider.azure", props[propSelectedRowKey])
+	}
+}
+
+func TestInstance_SelectEmitsSelectedRowKey(t *testing.T) {
+	inst := NewBuilder().
+		ComponentID("providers.table").
+		Columns([]TableColumn{{Title: "Provider", Width: 12}}).
+		Rows([][]string{{"openai"}, {"azure"}}).
+		RowKeys([]string{"provider.openai", "provider.azure"}).
+		SelectedKeyForField(intent.BindField("selected_provider_key")).
+		BuildInstance()
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.SelectIndexForAI(1) {
+		t.Fatal("SelectIndexForAI returned false")
+	}
+
+	var stateChange StateChangeIntent
+	foundStateChange := false
+	foundFieldChange := false
+	for _, emittedIntent := range emitted {
+		switch typed := emittedIntent.(type) {
+		case StateChangeIntent:
+			stateChange = typed
+			foundStateChange = true
+		case intent.FieldChangeIntent:
+			if typed.Field == "selected_provider_key" && typed.Value == "provider.azure" {
+				foundFieldChange = true
+			}
+		}
+	}
+	if !foundStateChange {
+		t.Fatalf("emitted intents = %#v, want StateChangeIntent", emitted)
+	}
+	if stateChange.SelectedRowKey != "provider.azure" || stateChange.SelectedSourceIndex != 1 {
+		t.Fatalf("state change = %#v, want selected key provider.azure and source index 1", stateChange)
+	}
+	if !foundFieldChange {
+		t.Fatalf("emitted intents = %#v, want selected_provider_key field change", emitted)
+	}
+}
+
+func TestInstance_ActivateEmitsRowKey(t *testing.T) {
+	inst := NewBuilder().
+		ComponentID("providers.table").
+		Columns([]TableColumn{{Title: "Provider", Width: 12}, {Title: "Status", Width: 10}}).
+		Rows([][]string{{"openai", "healthy"}, {"azure", "degraded"}}).
+		RowKeys([]string{"provider.openai", "provider.azure"}).
+		SelectedIndex(1).
+		ActivateKeyForField(intent.BindField("activated_provider_key")).
+		BuildInstance()
+
+	var emitted []intent.Intent
+	inst.SetIntentEmitter(func(i intent.Intent) { emitted = append(emitted, i) })
+
+	if !inst.HandleAction(action.NewAction(action.ActionEnter)) {
+		t.Fatal("HandleAction(ActionEnter) returned false")
+	}
+
+	foundActivate := false
+	foundKeyField := false
+	for _, emittedIntent := range emitted {
+		switch typed := emittedIntent.(type) {
+		case ActivateIntent:
+			foundActivate = true
+			if typed.SelectedRowKey != "provider.azure" || typed.SelectedSourceIndex != 1 {
+				t.Fatalf("activate intent = %#v, want provider.azure source index 1", typed)
+			}
+			if len(typed.Row) != 2 || typed.Row[0] != "azure" {
+				t.Fatalf("activate row = %#v, want azure row", typed.Row)
+			}
+		case intent.FieldChangeIntent:
+			if typed.Field == "activated_provider_key" && typed.Value == "provider.azure" {
+				foundKeyField = true
+			}
+		}
+	}
+	if !foundActivate {
+		t.Fatalf("emitted intents = %#v, want ActivateIntent", emitted)
+	}
+	if !foundKeyField {
+		t.Fatalf("emitted intents = %#v, want activated_provider_key field change", emitted)
+	}
+}
+
 func TestBuilder_ExpandableRows(t *testing.T) {
 	vnode := NewBuilder().
 		Columns([]TableColumn{{Title: "ID"}, {Title: "Name"}}).

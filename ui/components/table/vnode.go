@@ -15,6 +15,9 @@ import (
 
 // Prop key constants — shared by VNode and Instance to avoid magic strings.
 const (
+	propActivateIntent           = "activateIntent"
+	propActivateIntentField      = "activateIntentField"
+	propActivateKeyIntentField   = "activateKeyIntentField"
 	propBorderStyle              = "borderStyle"
 	propChangeIntent             = "changeIntent"
 	propChangeIntentField        = "changeIntentField"
@@ -37,11 +40,15 @@ const (
 	propKey                      = "key"
 	propPageIntentField          = "pageIntentField"
 	propPageSize                 = "pageSize"
+	propRowKeys                  = "rowKeys"
 	propRows                     = "rows"
 	propScrollbarStyle           = "scrollbarStyle"
 	propSearchQuery              = "searchQuery"
 	propSelectedIndex            = "selectedIndex"
 	propSelectedIndexControlled  = "selectedIndexControlled"
+	propSelectedKeyIntentField   = "selectedKeyIntentField"
+	propSelectedRowKey           = "selectedRowKey"
+	propSelectedRowKeyControlled = "selectedRowKeyControlled"
 	propSelectedStyle            = "selectedStyle"
 	propSelectionIntent          = "selectionIntent"
 	propSelectionIntentField     = "selectionIntentField"
@@ -90,6 +97,7 @@ type VNode struct {
 
 	// === Table Props ===
 	columns        []TableColumn
+	rowKeys        []string
 	rows           [][]string
 	emptyText      string
 	headerStyle    style.Style
@@ -121,6 +129,8 @@ type VNode struct {
 	sortControlled           bool
 	selectedIndex            int
 	selectedIndexControlled  bool
+	selectedRowKey           string
+	selectedRowKeyControlled bool
 	selectionIntent          intent.Intent
 	selectionIntentField     intent.FieldIntent
 	selectionMode            SelectionMode
@@ -129,9 +139,13 @@ type VNode struct {
 
 	changeIntent      intent.Intent
 	changeIntentField intent.FieldIntent
+	selectedKeyField  intent.FieldIntent
 	pageIntentField   intent.FieldIntent
 	expandIntent      intent.Intent
 	expandIntentField intent.FieldIntent
+	activateIntent    intent.Intent
+	activateField     intent.FieldIntent
+	activateKeyField  intent.FieldIntent
 }
 
 // Ensure VNode implements required interfaces
@@ -149,6 +163,7 @@ func New() *VNode {
 	return &VNode{
 		ElementVNode:      rtui.NewElement("table"),
 		columns:           []TableColumn{},
+		rowKeys:           []string{},
 		rows:              [][]string{},
 		emptyText:         "(empty)",
 		headerStyle:       style.Style{}.Bold(true),
@@ -206,42 +221,49 @@ func (v *VNode) TextContent() string { return "" }
 
 func (v *VNode) Props() rtui.Props {
 	props := rtui.Props{
-		propKey:                     v.key,
-		propComponentID:             v.componentID,
-		propColumns:                 v.columns,
-		propRows:                    v.rows,
-		propEmptyText:               v.emptyText,
-		propHeaderStyle:             v.headerStyle,
-		propTableStyle:              v.tableStyle,
-		propSelectedStyle:           v.selectedStyle,
-		propBorderStyle:             v.borderStyle,
-		propStatusStyle:             v.statusStyle,
-		propStatusText:              v.statusText,
-		propFilterStyle:             v.filterStyle,
-		propScrollbarStyle:          v.scrollbarStyle,
-		propGap:                     v.gap,
-		propShowBorder:              v.showBorder,
-		propShowFooter:              v.showFooter,
-		propShowScrollbar:           v.showScrollbar,
-		propPageSize:                v.pageSize,
-		propSearchQuery:             v.searchQuery,
-		propFilters:                 v.filters,
-		propExpandedContent:         cloneFilters(v.expandedContent),
-		propTreeParents:             cloneIntMap(v.treeParents),
-		propCurrentPage:             v.currentPage,
-		propCurrentPageControlled:   v.currentPageControlled,
-		propSortColumn:              v.sortColumn,
-		propSortDescending:          v.sortDescending,
-		propSortControlled:          v.sortControlled,
-		propSelectedIndex:           v.selectedIndex,
-		propSelectedIndexControlled: v.selectedIndexControlled,
-		propSelectionIntent:         v.selectionIntent,
-		propSelectionMode:           v.selectionMode,
-		propChangeIntent:            v.changeIntent,
-		propChangeIntentField:       v.changeIntentField,
-		propPageIntentField:         v.pageIntentField,
-		propExpandIntent:            v.expandIntent,
-		propExpandIntentField:       v.expandIntentField,
+		propKey:                      v.key,
+		propComponentID:              v.componentID,
+		propColumns:                  v.columns,
+		propRowKeys:                  append([]string(nil), v.rowKeys...),
+		propRows:                     v.rows,
+		propEmptyText:                v.emptyText,
+		propHeaderStyle:              v.headerStyle,
+		propTableStyle:               v.tableStyle,
+		propSelectedStyle:            v.selectedStyle,
+		propBorderStyle:              v.borderStyle,
+		propStatusStyle:              v.statusStyle,
+		propStatusText:               v.statusText,
+		propFilterStyle:              v.filterStyle,
+		propScrollbarStyle:           v.scrollbarStyle,
+		propGap:                      v.gap,
+		propShowBorder:               v.showBorder,
+		propShowFooter:               v.showFooter,
+		propShowScrollbar:            v.showScrollbar,
+		propPageSize:                 v.pageSize,
+		propSearchQuery:              v.searchQuery,
+		propFilters:                  v.filters,
+		propExpandedContent:          cloneFilters(v.expandedContent),
+		propTreeParents:              cloneIntMap(v.treeParents),
+		propCurrentPage:              v.currentPage,
+		propCurrentPageControlled:    v.currentPageControlled,
+		propSortColumn:               v.sortColumn,
+		propSortDescending:           v.sortDescending,
+		propSortControlled:           v.sortControlled,
+		propSelectedIndex:            v.selectedIndex,
+		propSelectedIndexControlled:  v.selectedIndexControlled,
+		propSelectedRowKey:           v.selectedRowKey,
+		propSelectedRowKeyControlled: v.selectedRowKeyControlled,
+		propSelectionIntent:          v.selectionIntent,
+		propSelectionMode:            v.selectionMode,
+		propChangeIntent:             v.changeIntent,
+		propChangeIntentField:        v.changeIntentField,
+		propSelectedKeyIntentField:   v.selectedKeyField,
+		propPageIntentField:          v.pageIntentField,
+		propExpandIntent:             v.expandIntent,
+		propExpandIntentField:        v.expandIntentField,
+		propActivateIntent:           v.activateIntent,
+		propActivateIntentField:      v.activateField,
+		propActivateKeyIntentField:   v.activateKeyField,
 	}
 	if v.selectionIntentField != nil {
 		props[propSelectionIntentField] = v.selectionIntentField
@@ -266,6 +288,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p[propColumns].([]TableColumn); ok {
 		v.columns = val
+	}
+	if val, ok := p[propRowKeys].([]string); ok {
+		v.rowKeys = append([]string(nil), val...)
 	}
 	if val, ok := p[propRows].([][]string); ok {
 		v.rows = val
@@ -352,6 +377,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p[propSelectedIndexControlled].(bool); ok {
 		v.selectedIndexControlled = val
 	}
+	if val, ok := p[propSelectedRowKey].(string); ok {
+		v.selectedRowKey = val
+	}
+	if val, ok := p[propSelectedRowKeyControlled].(bool); ok {
+		v.selectedRowKeyControlled = val
+	}
 	if val, ok := p[propSelectionIntent].(intent.Intent); ok {
 		v.selectionIntent = val
 	}
@@ -374,6 +405,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if val, ok := p[propChangeIntentField].(intent.FieldIntent); ok {
 		v.changeIntentField = val
 	}
+	if val, ok := p[propSelectedKeyIntentField].(intent.FieldIntent); ok {
+		v.selectedKeyField = val
+	}
 	if val, ok := p[propPageIntentField].(intent.FieldIntent); ok {
 		v.pageIntentField = val
 	}
@@ -382,6 +416,15 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p[propExpandIntentField].(intent.FieldIntent); ok {
 		v.expandIntentField = val
+	}
+	if val, ok := p[propActivateIntent].(intent.Intent); ok {
+		v.activateIntent = val
+	}
+	if val, ok := p[propActivateIntentField].(intent.FieldIntent); ok {
+		v.activateField = val
+	}
+	if val, ok := p[propActivateKeyIntentField].(intent.FieldIntent); ok {
+		v.activateKeyField = val
 	}
 	return v
 }
@@ -398,8 +441,12 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 // Fluent Setters
 // =============================================================================
 
-func (v *VNode) SetColumns(cols []TableColumn) *VNode  { v.columns = cols; return v }
-func (v *VNode) SetComponentID(id string) *VNode       { v.componentID = id; return v }
+func (v *VNode) SetColumns(cols []TableColumn) *VNode { v.columns = cols; return v }
+func (v *VNode) SetComponentID(id string) *VNode      { v.componentID = id; return v }
+func (v *VNode) SetRowKeys(keys []string) *VNode {
+	v.rowKeys = append([]string(nil), keys...)
+	return v
+}
 func (v *VNode) SetRows(rows [][]string) *VNode        { v.rows = rows; return v }
 func (v *VNode) SetEmptyText(text string) *VNode       { v.emptyText = text; return v }
 func (v *VNode) SetHeaderStyle(s style.Style) *VNode   { v.headerStyle = s; return v }
@@ -480,6 +527,11 @@ func (v *VNode) SetSelectedIndex(index int) *VNode {
 	v.selectedIndexControlled = true
 	return v
 }
+func (v *VNode) SetSelectedRowKey(key string) *VNode {
+	v.selectedRowKey = key
+	v.selectedRowKeyControlled = true
+	return v
+}
 func (v *VNode) SetSelectionIntent(i intent.Intent) *VNode {
 	v.selectionIntent = i
 	return v
@@ -505,6 +557,10 @@ func (v *VNode) SetFieldIntent(i intent.FieldIntent) *VNode {
 	v.changeIntentField = i
 	return v
 }
+func (v *VNode) SetSelectedKeyFieldIntent(i intent.FieldIntent) *VNode {
+	v.selectedKeyField = i
+	return v
+}
 func (v *VNode) SetPageFieldIntent(i intent.FieldIntent) *VNode {
 	v.pageIntentField = i
 	return v
@@ -515,6 +571,18 @@ func (v *VNode) SetExpandIntent(i intent.Intent) *VNode {
 }
 func (v *VNode) SetExpandFieldIntent(i intent.FieldIntent) *VNode {
 	v.expandIntentField = i
+	return v
+}
+func (v *VNode) SetActivateIntent(i intent.Intent) *VNode {
+	v.activateIntent = i
+	return v
+}
+func (v *VNode) SetActivateFieldIntent(i intent.FieldIntent) *VNode {
+	v.activateField = i
+	return v
+}
+func (v *VNode) SetActivateKeyFieldIntent(i intent.FieldIntent) *VNode {
+	v.activateKeyField = i
 	return v
 }
 

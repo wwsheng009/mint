@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/datatable"
@@ -21,6 +22,10 @@ func DataTableComponentID(componentID string) DataTableOption {
 	return datatable.ComponentID(componentID)
 }
 
+func DataTableRowKeys(keys []string) DataTableOption {
+	return datatable.RowKeys(keys)
+}
+
 func DataTablePageSize(pageSize int) DataTableOption {
 	return datatable.PageSize(pageSize)
 }
@@ -29,8 +34,16 @@ func DataTableSelectedIndex(index int) DataTableOption {
 	return datatable.SelectedIndex(index)
 }
 
+func DataTableSelectedKey(key string) DataTableOption {
+	return datatable.SelectedKey(key)
+}
+
 func DataTableSelectedField(field string) DataTableOption {
 	return datatable.SelectedField(field)
+}
+
+func DataTableSelectedKeyField(field string) DataTableOption {
+	return datatable.SelectedKeyField(field)
 }
 
 func DataTableSearch(query string) DataTableOption {
@@ -79,6 +92,18 @@ func DataTableSelectedStyle(selectedStyle style.Style) DataTableOption {
 
 func DataTableStyle(tableStyle style.Style) DataTableOption {
 	return datatable.TableStyle(tableStyle)
+}
+
+func DataTableOnActivate(activateIntent intent.Intent) DataTableOption {
+	return datatable.OnActivate(activateIntent)
+}
+
+func DataTableActivateField(field string) DataTableOption {
+	return datatable.ActivateField(field)
+}
+
+func DataTableActivateKeyField(field string) DataTableOption {
+	return datatable.ActivateKeyField(field)
 }
 
 func DataTableOperationalStyle() DataTableOption {

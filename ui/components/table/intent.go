@@ -8,6 +8,7 @@ type StateChangeIntent struct {
 	ComponentID           string
 	SelectedIndex         int
 	SelectedSourceIndex   int
+	SelectedRowKey        string
 	ExpandedSourceIndices []int
 	CurrentPage           int
 	PageCount             int
@@ -41,6 +42,7 @@ func StateChange(
 	componentID string,
 	selectedIndex int,
 	selectedSourceIndex int,
+	selectedRowKey string,
 	expandedSourceIndices []int,
 	currentPage int,
 	pageCount int,
@@ -57,6 +59,7 @@ func StateChange(
 		ComponentID:           componentID,
 		SelectedIndex:         selectedIndex,
 		SelectedSourceIndex:   selectedSourceIndex,
+		SelectedRowKey:        selectedRowKey,
 		ExpandedSourceIndices: append([]int(nil), expandedSourceIndices...),
 		CurrentPage:           currentPage,
 		PageCount:             pageCount,
@@ -68,5 +71,48 @@ func StateChange(
 		VisibleRows:           visibleRows,
 		FilteredRows:          filteredRows,
 		TotalRows:             totalRows,
+	}
+}
+
+// ActivateIntent is emitted when the current table row is explicitly activated.
+// It is separate from StateChangeIntent so callers can distinguish navigation
+// from an affirmative enter/click action on the focused row.
+type ActivateIntent struct {
+	ComponentID         string
+	SelectedIndex       int
+	SelectedSourceIndex int
+	SelectedRowKey      string
+	Row                 []string
+}
+
+func (ActivateIntent) IntentType() string {
+	return "Table:Activate"
+}
+
+func (ActivateIntent) Priority() intent.ActionPriority {
+	return intent.PriorityUserBlocking
+}
+
+func (ActivateIntent) IsTransition() bool {
+	return false
+}
+
+func (ActivateIntent) IsGlobal() bool {
+	return true
+}
+
+func Activate(
+	componentID string,
+	selectedIndex int,
+	selectedSourceIndex int,
+	selectedRowKey string,
+	row []string,
+) ActivateIntent {
+	return ActivateIntent{
+		ComponentID:         componentID,
+		SelectedIndex:       selectedIndex,
+		SelectedSourceIndex: selectedSourceIndex,
+		SelectedRowKey:      selectedRowKey,
+		Row:                 append([]string(nil), row...),
 	}
 }

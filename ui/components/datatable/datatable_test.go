@@ -146,6 +146,34 @@ func TestServerPaginationStatus(t *testing.T) {
 	}
 }
 
+func TestStableRowKeyOptions(t *testing.T) {
+	node := New(
+		[]table.TableColumn{{Title: "Provider"}},
+		[][]string{{"openai"}, {"azure"}},
+		RowKeys([]string{"provider.openai", "provider.azure"}),
+		SelectedKey("provider.azure"),
+		SelectedKeyField("selected_provider_key"),
+		ActivateKeyField("activated_provider_key"),
+	)
+
+	props := node.Props()
+	if rowKeys, ok := props["rowKeys"].([]string); !ok || len(rowKeys) != 2 || rowKeys[1] != "provider.azure" {
+		t.Fatalf("rowKeys = %#v, want provider row keys", props["rowKeys"])
+	}
+	if got := props["selectedRowKey"]; got != "provider.azure" {
+		t.Fatalf("selectedRowKey = %v, want provider.azure", got)
+	}
+	if got := props["selectedRowKeyControlled"]; got != true {
+		t.Fatalf("selectedRowKeyControlled = %v, want true", got)
+	}
+	if _, ok := props["selectedKeyIntentField"].(intent.FieldIntent); !ok {
+		t.Fatalf("selectedKeyIntentField = %T, want intent.FieldIntent", props["selectedKeyIntentField"])
+	}
+	if _, ok := props["activateKeyIntentField"].(intent.FieldIntent); !ok {
+		t.Fatalf("activateKeyIntentField = %T, want intent.FieldIntent", props["activateKeyIntentField"])
+	}
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

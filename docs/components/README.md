@@ -142,7 +142,7 @@ Not every component has every file listed above; small display components can be
 |---|---|---|
 | List | `../../ui/components/list/README.md` | List selection and virtual bridge. |
 | VirtualList | `../../ui/components/virtuallist/README.md` | Virtual list for large data. |
-| Table | `../../ui/components/table/README.md` | Table rows, filtering, sorting, pagination, selection, expansion and custom status footer text. |
+| Table | `../../ui/components/table/README.md` | Table rows, filtering, sorting, pagination, stable row keys, activation intents, selection, expansion and custom status footer text. |
 
 ### Overlay And Popup
 

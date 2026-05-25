@@ -17,10 +17,14 @@ type Option func(*Config)
 type Config struct {
 	Key              string
 	ComponentID      string
+	RowKeys          []string
 	PageSize         int
 	SelectedIndex    int
 	HasSelectedIndex bool
+	SelectedKey      string
+	HasSelectedKey   bool
 	SelectedField    string
+	SelectedKeyField string
 	SearchQuery      string
 	EmptyText        string
 	Loading          bool
@@ -39,6 +43,9 @@ type Config struct {
 	HasSelectedStyle bool
 	TableStyle       style.Style
 	HasTableStyle    bool
+	ActivateIntent   intent.Intent
+	ActivateField    string
+	ActivateKeyField string
 }
 
 // New builds a table with common data-application options.
@@ -58,14 +65,23 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.ComponentID != "" {
 		builder.ComponentID(cfg.ComponentID)
 	}
+	if len(cfg.RowKeys) > 0 {
+		builder.RowKeys(cfg.RowKeys)
+	}
 	if cfg.PageSize > 0 {
 		builder.PageSize(cfg.PageSize)
 	}
 	if cfg.HasSelectedIndex {
 		builder.SelectedIndex(cfg.SelectedIndex)
 	}
+	if cfg.HasSelectedKey {
+		builder.SelectedRowKey(cfg.SelectedKey)
+	}
 	if cfg.SelectedField != "" {
 		builder.ForField(intent.BindField(cfg.SelectedField))
+	}
+	if cfg.SelectedKeyField != "" {
+		builder.SelectedKeyForField(intent.BindField(cfg.SelectedKeyField))
 	}
 	if cfg.SearchQuery != "" {
 		builder.SearchQuery(cfg.SearchQuery)
@@ -91,6 +107,15 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.HasTableStyle {
 		builder.TableStyle(cfg.TableStyle)
 	}
+	if cfg.ActivateIntent != nil {
+		builder.OnActivate(cfg.ActivateIntent)
+	}
+	if cfg.ActivateField != "" {
+		builder.ActivateForField(intent.BindField(cfg.ActivateField))
+	}
+	if cfg.ActivateKeyField != "" {
+		builder.ActivateKeyForField(intent.BindField(cfg.ActivateKeyField))
+	}
 	return builder.Build()
 }
 
@@ -103,6 +128,12 @@ func Key(key string) Option {
 func ComponentID(componentID string) Option {
 	return func(cfg *Config) {
 		cfg.ComponentID = componentID
+	}
+}
+
+func RowKeys(keys []string) Option {
+	return func(cfg *Config) {
+		cfg.RowKeys = append([]string(nil), keys...)
 	}
 }
 
@@ -119,9 +150,22 @@ func SelectedIndex(index int) Option {
 	}
 }
 
+func SelectedKey(key string) Option {
+	return func(cfg *Config) {
+		cfg.SelectedKey = key
+		cfg.HasSelectedKey = true
+	}
+}
+
 func SelectedField(field string) Option {
 	return func(cfg *Config) {
 		cfg.SelectedField = field
+	}
+}
+
+func SelectedKeyField(field string) Option {
+	return func(cfg *Config) {
+		cfg.SelectedKeyField = field
 	}
 }
 
@@ -256,6 +300,24 @@ func TableStyle(tableStyle style.Style) Option {
 	return func(cfg *Config) {
 		cfg.TableStyle = tableStyle
 		cfg.HasTableStyle = true
+	}
+}
+
+func OnActivate(activateIntent intent.Intent) Option {
+	return func(cfg *Config) {
+		cfg.ActivateIntent = activateIntent
+	}
+}
+
+func ActivateField(field string) Option {
+	return func(cfg *Config) {
+		cfg.ActivateField = field
+	}
+}
+
+func ActivateKeyField(field string) Option {
+	return func(cfg *Config) {
+		cfg.ActivateKeyField = field
 	}
 }
 

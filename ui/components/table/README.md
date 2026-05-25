@@ -12,14 +12,15 @@
 - fixed columns
 - tree data
 - `Field` / selection / page binding
+- stable row keys / selected row key binding / row activation intent
 - 自定义 footer/status 文案
 
 ## 状态语义
 
 - 默认交互状态由组件内部维护。
-- 需要外部受控时，可显式传入 `CurrentPage(...)`、`SortBy(...)`、`SelectedIndex(...)`、`CheckedIndices(...)`、`ExpandedIndices(...)`。
+- 需要外部受控时，可显式传入 `CurrentPage(...)`、`SortBy(...)`、`SelectedIndex(...)`、`SelectedRowKey(...)`、`CheckedIndices(...)`、`ExpandedIndices(...)`。
 - 需要监听完整交互快照时，给表格设置 `ComponentID(...)` 并订阅 `table.StateChangeIntent`。
-- 字段联动可按职责拆开：`ForField(...)` 绑定当前选中行，`SelectionForField(...)` 绑定勾选集合，`PageForField(...)` 绑定页码，`OnExpand(...)` 处理展开态变化。
+- 字段联动可按职责拆开：`ForField(...)` 绑定当前选中 source index，`SelectedKeyForField(...)` 绑定当前选中 row key，`SelectionForField(...)` 绑定勾选集合，`PageForField(...)` 绑定页码，`ActivateKeyForField(...)` 绑定显式激活的 row key，`OnExpand(...)` 处理展开态变化。
 
 ## 示例
 
@@ -56,8 +57,10 @@ tableView := ui.DataTable(
         {"azure", "degraded"},
     },
     ui.DataTablePageSize(10),
-    ui.DataTableSelectedIndex(state.SelectedProviderIndex),
-    ui.DataTableSelectedField("selectedProviderIndex"),
+    ui.DataTableRowKeys(state.ProviderKeys),
+    ui.DataTableSelectedKey(state.SelectedProviderKey),
+    ui.DataTableSelectedKeyField("selectedProviderKey"),
+    ui.DataTableActivateKeyField("activatedProviderKey"),
     ui.DataTableSearch(state.Search),
     ui.DataTableEmptyText("No providers"),
     ui.DataTableServerPagination(state.Page, state.PageSize, state.Total),
@@ -70,5 +73,5 @@ tableView := ui.DataTable(
 ## 测试入口
 
 - 单测：`go test ./ui/components/table ./ui/components/datatable`
-- 重点覆盖：`table_test.go` 中的排序 / 分页 / 过滤、expandable rows、fixed columns、tree data、字段同步与 `StateChangeIntent`
+- 重点覆盖：`table_test.go` 中的排序 / 分页 / 过滤、expandable rows、fixed columns、tree data、字段同步、stable row key 与 `StateChangeIntent`
 - E2E：`go test ./ui/e2e -run TestE2ETable`

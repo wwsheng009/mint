@@ -47,6 +47,12 @@ func (b *Builder) Columns(cols []TableColumn) *Builder {
 	return b
 }
 
+// RowKeys sets stable business keys by source row index.
+func (b *Builder) RowKeys(keys []string) *Builder {
+	b.vnode.SetRowKeys(keys)
+	return b
+}
+
 // Rows sets the rows.
 func (b *Builder) Rows(rows [][]string) *Builder {
 	b.vnode.SetRows(rows)
@@ -209,6 +215,12 @@ func (b *Builder) SelectedIndex(index int) *Builder {
 	return b
 }
 
+// SelectedRowKey sets the selected row by stable business key in controlled mode.
+func (b *Builder) SelectedRowKey(key string) *Builder {
+	b.vnode.SetSelectedRowKey(key)
+	return b
+}
+
 // OnSelectionChange sets the intent emitted when checkbox selection changes.
 func (b *Builder) OnSelectionChange(selectionIntent intent.Intent) *Builder {
 	b.vnode.SetSelectionIntent(selectionIntent)
@@ -249,6 +261,12 @@ func (b *Builder) ForField(binding intent.FieldBinding) *Builder {
 	return b
 }
 
+// SelectedKeyForField binds the selected row key to FieldChangeIntent.
+func (b *Builder) SelectedKeyForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetSelectedKeyFieldIntent(binding)
+	return b
+}
+
 // SelectionForField binds checked source row indices to a field.
 func (b *Builder) SelectionForField(binding intent.FieldBinding) *Builder {
 	b.vnode.SetSelectionFieldIntent(binding)
@@ -264,6 +282,24 @@ func (b *Builder) PageForField(binding intent.FieldBinding) *Builder {
 // OnExpand sets an intent emitted when expanded row state changes.
 func (b *Builder) OnExpand(expandIntent intent.Intent) *Builder {
 	b.vnode.SetExpandIntent(expandIntent)
+	return b
+}
+
+// OnActivate sets a fallback intent emitted when the current row is activated.
+func (b *Builder) OnActivate(activateIntent intent.Intent) *Builder {
+	b.vnode.SetActivateIntent(activateIntent)
+	return b
+}
+
+// ActivateForField binds activated source row index to FieldChangeIntent.
+func (b *Builder) ActivateForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetActivateFieldIntent(binding)
+	return b
+}
+
+// ActivateKeyForField binds activated row key to FieldChangeIntent.
+func (b *Builder) ActivateKeyForField(binding intent.FieldBinding) *Builder {
+	b.vnode.SetActivateKeyFieldIntent(binding)
 	return b
 }
 
