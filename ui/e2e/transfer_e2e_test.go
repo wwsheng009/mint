@@ -200,6 +200,83 @@ func newTransferSearchFixture() (ui.ComponentFunc, func(), func(), *store.Store[
 	return appFn, initFn, cleanupFn, fixtureStore, meta
 }
 
+func newTransferPagedFixture() (ui.ComponentFunc, func(), func(), *store.Store[transferFixtureState], transferFixtureMeta) {
+	meta := transferFixtureMeta{
+		ComponentID:           "fixture.transfer.paged",
+		SourceListID:          "fixture.transfer.paged-source",
+		TargetListID:          "fixture.transfer.paged-target",
+		SourceSearchID:        "fixture.transfer.paged-source-search",
+		TargetField:           "fixture.transfer.paged.targetKeys",
+		FieldChangeIntentType: runtimeintent.FieldChangeIntent{}.IntentType(),
+	}
+	fixtureStore := store.NewStore(transferFixtureState{})
+
+	unregister := func() {}
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregister = runtimeintent.RegisterTypedRuntime(rt, func(_ *runtimeintent.ActionContext, i runtimeintent.FieldChangeIntent) runtimeintent.IntentResult {
+			if i.Field != meta.TargetField {
+				return runtimeintent.IntentResult{}
+			}
+			fixtureStore.Update(func(s transferFixtureState) transferFixtureState {
+				s.TargetKeys = parseTransferKeys(i.Value)
+				s.FieldChanges++
+				s.LastField = i.Field
+				s.LastValue = i.Value
+				return s
+			})
+			return runtimeintent.HandledResult()
+		})
+	}
+
+	cleanupFn := func() {
+		if unregister != nil {
+			unregister()
+		}
+	}
+
+	appFn := func() ui.VNode {
+		targetKeys := ui.UseStoreSelector(fixtureStore, func(s transferFixtureState) []string { return s.TargetKeys })
+		fieldChanges := ui.UseStoreSelector(fixtureStore, func(s transferFixtureState) int { return s.FieldChanges })
+		lastValue := ui.UseStoreSelector(fixtureStore, func(s transferFixtureState) string { return s.LastValue })
+
+		return ui.NewVStack().
+			SetGap(1).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Transfer Paged E2E Fixture").Build(),
+				transfercomp.NewBuilder().
+					SetID("paged-transfer").
+					ComponentID(meta.ComponentID).
+					Titles("Backlog", "Done").
+					Operations("Send", "Return").
+					BulkOperations(true).
+					BulkOperationLabels("All Send", "All Return").
+					PageSize(2).
+					ListWidth(24).
+					ListHeight(3).
+					Width(62).
+					Items([]transfercomp.Item{
+						transfercomp.NewItem("alpha", "Alpha"),
+						transfercomp.NewItem("beta", "Beta"),
+						transfercomp.NewItem("gamma", "Gamma"),
+						transfercomp.NewItem("delta", "Delta"),
+						transfercomp.NewItem("epsilon", "Epsilon"),
+					}).
+					TargetKeys(targetKeys).
+					ForField(runtimeintent.BindField(meta.TargetField)).
+					Build(),
+				ui.NewTextBuilder(fmt.Sprintf("TargetKeys: %s", formatTransferKeys(targetKeys))).Build(),
+				ui.NewTextBuilder(fmt.Sprintf("FieldChanges: %d", fieldChanges)).Build(),
+				ui.NewTextBuilder(fmt.Sprintf("LastValue: %s", formatTransferValue(lastValue))).Build(),
+			})
+	}
+
+	return appFn, initFn, cleanupFn, fixtureStore, meta
+}
+
 func TestE2ETransferSearchFiltersAndMovesVisibleItem(t *testing.T) {
 	appFn, initFn, cleanupFn, fixtureStore, meta := newTransferSearchFixture()
 	defer cleanupFn()
@@ -325,6 +402,75 @@ func TestE2ETransferBulkMovesVisibleFilteredItems(t *testing.T) {
 	state := fixtureStore.Get()
 	if formatTransferKeys(state.TargetKeys) != "alpha,delta" || state.FieldChanges != 1 || state.LastValue != "alpha,delta" {
 		t.Fatalf("unexpected transfer bulk fixture state: %+v", state)
+	}
+}
+
+func TestE2ETransferPagedBulkMovesCurrentPage(t *testing.T) {
+	appFn, initFn, cleanupFn, fixtureStore, meta := newTransferPagedFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn, ui.WithSize(100, 26), ui.WithInit(initFn))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertVisible(ByText("Backlog (1-2/5)")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Alpha")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Beta")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	app.ClearRawInputs()
+	if err := app.Driver().Click(ByID("fixture.transfer.paged-source-page-next")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		if err := app.AssertVisible(ByText("Backlog (3-4/5)")); err != nil {
+			return err
+		}
+		if err := app.AssertVisible(ByText("Gamma")); err != nil {
+			return err
+		}
+		if err := app.AssertVisible(ByText("Delta")); err != nil {
+			return err
+		}
+		if err := app.AssertVisible(ByText("Alpha")); err == nil {
+			return fmt.Errorf("Alpha should not remain visible after paging")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	app.ClearRawInputs()
+	if err := app.Driver().Click(ByText("All Send")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		if err := app.AssertVisible(ByText("TargetKeys: gamma,delta")); err != nil {
+			return err
+		}
+		if err := app.AssertVisible(ByText("FieldChanges: 1")); err != nil {
+			return err
+		}
+		return app.AssertVisible(ByText("LastValue: gamma,delta"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.FieldChangeIntentType); err != nil {
+		t.Fatal(err)
+	}
+
+	state := fixtureStore.Get()
+	if formatTransferKeys(state.TargetKeys) != "gamma,delta" || state.FieldChanges != 1 || state.LastValue != "gamma,delta" {
+		t.Fatalf("unexpected transfer paged fixture state: %+v", state)
 	}
 }
 

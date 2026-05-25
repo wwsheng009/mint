@@ -14,6 +14,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/input"
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"github.com/wwsheng009/mint/ui/components/list"
+	"github.com/wwsheng009/mint/ui/components/text"
 )
 
 // Instance is the runtime entity for Transfer components.
@@ -38,6 +39,9 @@ type Instance struct {
 	selectedTargetKeys   []string
 	listWidth            int
 	listHeight           int
+	pageSize             int
+	sourcePage           int
+	targetPage           int
 	width                int
 	rootStyle            style.Style
 	changeIntent         runtimeintent.Intent
@@ -77,6 +81,7 @@ func NewInstance(props rtui.Props) *Instance {
 		targetKeysControlled: proputil.GetBool(props, propTargetKeysControlled, false),
 		listWidth:            proputil.GetInt(props, propListWidth, defaultListWidth),
 		listHeight:           proputil.GetInt(props, propListHeight, defaultListHeight),
+		pageSize:             proputil.GetInt(props, propPageSize, 0),
 		width:                proputil.GetInt(props, propWidth, 0),
 		rootStyle:            proputil.GetStyle(props, propStyle, style.Style{}),
 		changeIntent:         proputil.GetIntent(props, propChangeIntent, nil),
@@ -167,6 +172,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldControlled := inst.targetKeysControlled
 	oldListWidth := inst.listWidth
 	oldListHeight := inst.listHeight
+	oldPageSize := inst.pageSize
+	oldSourcePage := inst.sourcePage
+	oldTargetPage := inst.targetPage
 	oldWidth := inst.width
 	oldStyle := inst.rootStyle
 	oldChangeIntent := inst.changeIntent
@@ -198,6 +206,11 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.targetKeysControlled = nextControlled
 	inst.listWidth = proputil.GetInt(props, propListWidth, inst.listWidth)
 	inst.listHeight = proputil.GetInt(props, propListHeight, inst.listHeight)
+	inst.pageSize = proputil.GetInt(props, propPageSize, inst.pageSize)
+	if oldPageSize != inst.pageSize {
+		inst.sourcePage = 0
+		inst.targetPage = 0
+	}
 	inst.width = proputil.GetInt(props, propWidth, inst.width)
 	inst.rootStyle = proputil.GetStyle(props, propStyle, inst.rootStyle)
 	inst.changeIntent = proputil.GetIntent(props, propChangeIntent, inst.changeIntent)
@@ -219,6 +232,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldControlled != inst.targetKeysControlled ||
 		oldListWidth != inst.listWidth ||
 		oldListHeight != inst.listHeight ||
+		oldPageSize != inst.pageSize ||
+		oldSourcePage != inst.sourcePage ||
+		oldTargetPage != inst.targetPage ||
 		oldWidth != inst.width ||
 		oldStyle != inst.rootStyle ||
 		!reflect.DeepEqual(oldChangeIntent, inst.changeIntent) ||
@@ -243,6 +259,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propListHeight:           inst.listHeight,
 		propListWidth:            inst.listWidth,
 		propOperations:           inst.operations,
+		propPageSize:             inst.pageSize,
 		propSearchable:           inst.searchable,
 		propSearchControlled:     inst.searchControlled,
 		propSearchPlaceholders:   inst.searchPlaceholders,
@@ -266,9 +283,9 @@ func (inst *Instance) SetIntentEmitter(fn func(runtimeintent.Intent)) { inst.int
 
 func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	root := rtui.HStackBuilder(
-		inst.buildListNode(inst.titles[0], inst.sourceItems(), inst.sourceVisibleItems(), inst.selectedSourceKeys, inst.sourceListID(), inst.sourceListKey(), inst.sourceSearchField(), inst.sourceSearch, inst.searchPlaceholders[0]),
+		inst.buildListNode(SearchSideSource, inst.titles[0], inst.sourceItems(), inst.sourceFilteredItems(), inst.sourceVisibleItems(), inst.selectedSourceKeys, inst.sourceListID(), inst.sourceListKey(), inst.sourceSearchField(), inst.sourceSearch, inst.searchPlaceholders[0]),
 		inst.buildOperationsNode(),
-		inst.buildListNode(inst.titles[1], inst.targetItems(), inst.targetVisibleItems(), inst.selectedTargetKeys, inst.targetListID(), inst.targetListKey(), inst.targetSearchField(), inst.targetSearch, inst.searchPlaceholders[1]),
+		inst.buildListNode(SearchSideTarget, inst.titles[1], inst.targetItems(), inst.targetFilteredItems(), inst.targetVisibleItems(), inst.selectedTargetKeys, inst.targetListID(), inst.targetListKey(), inst.targetSearchField(), inst.targetSearch, inst.searchPlaceholders[1]),
 	).Gap(1).AlignCross(rtui.AlignStart)
 	if inst.width > 0 {
 		root.Width(inst.width)
@@ -288,6 +305,9 @@ func (inst *Instance) HandleIntent(i runtimeintent.Intent) bool {
 	}
 	if search, ok := i.(SearchChangeIntent); ok {
 		return inst.handleSearchIntent(search)
+	}
+	if page, ok := i.(PageIntent); ok {
+		return inst.handlePageIntent(page)
 	}
 	if change, ok := i.(runtimeintent.FieldChangeIntent); ok {
 		return inst.handleSearchChange(change)
@@ -349,6 +369,13 @@ func (inst *Instance) handleSearchIntent(search SearchChangeIntent) bool {
 	return inst.applySearch(search.Side, search.Value)
 }
 
+func (inst *Instance) handlePageIntent(page PageIntent) bool {
+	if !runtimeintent.ShouldHandleIntentWithID(inst.componentID, page) {
+		return false
+	}
+	return inst.movePage(page.Side, page.Delta)
+}
+
 func (inst *Instance) applySearch(side SearchSide, rawValue string) bool {
 	value := strings.TrimSpace(rawValue)
 	switch side {
@@ -357,6 +384,7 @@ func (inst *Instance) applySearch(side SearchSide, rawValue string) bool {
 			return false
 		}
 		inst.sourceSearch = value
+		inst.sourcePage = 0
 		inst.selectedSourceKeys = normalizeKeysForItems(inst.sourceVisibleItems(), inst.selectedSourceKeys)
 		inst.sourceListVersion++
 	case SearchSideTarget:
@@ -364,6 +392,35 @@ func (inst *Instance) applySearch(side SearchSide, rawValue string) bool {
 			return false
 		}
 		inst.targetSearch = value
+		inst.targetPage = 0
+		inst.selectedTargetKeys = normalizeKeysForItems(inst.targetVisibleItems(), inst.selectedTargetKeys)
+		inst.targetListVersion++
+	default:
+		return false
+	}
+	inst.dirty = true
+	return true
+}
+
+func (inst *Instance) movePage(side SearchSide, delta int) bool {
+	if inst.pageSize <= 0 || delta == 0 {
+		return false
+	}
+	switch side {
+	case SearchSideSource:
+		next := clampPage(inst.sourcePage+delta, len(inst.sourceFilteredItems()), inst.pageSize)
+		if next == inst.sourcePage {
+			return false
+		}
+		inst.sourcePage = next
+		inst.selectedSourceKeys = normalizeKeysForItems(inst.sourceVisibleItems(), inst.selectedSourceKeys)
+		inst.sourceListVersion++
+	case SearchSideTarget:
+		next := clampPage(inst.targetPage+delta, len(inst.targetFilteredItems()), inst.pageSize)
+		if next == inst.targetPage {
+			return false
+		}
+		inst.targetPage = next
 		inst.selectedTargetKeys = normalizeKeysForItems(inst.targetVisibleItems(), inst.selectedTargetKeys)
 		inst.targetListVersion++
 	default:
@@ -401,7 +458,7 @@ func (inst *Instance) move(direction MoveDirection, all bool) bool {
 	return true
 }
 
-func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item, selectedKeys []string, componentID, key, searchField, searchValue, searchPlaceholder string) rtui.VNode {
+func (inst *Instance) buildListNode(side SearchSide, title string, allItems, filteredItems, visibleItems []Item, selectedKeys []string, componentID, key, searchField, searchValue, searchPlaceholder string) rtui.VNode {
 	rowStyleFn := func(index int, row string) style.Style {
 		if index < 0 || index >= len(visibleItems) {
 			return style.Style{}
@@ -415,7 +472,7 @@ func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item,
 	listNode := list.NewBuilder().
 		Key(key).
 		ComponentID(componentID).
-		Header(titleWithCount(title, len(visibleItems), len(allItems))).
+		Header(inst.titleForSide(side, title, len(visibleItems), len(filteredItems), len(allItems))).
 		Rows(renderRows(visibleItems)).
 		MultiSelect().
 		CheckedIndices(checkedIndices(visibleItems, selectedKeys)...).
@@ -424,6 +481,9 @@ func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item,
 		Build()
 
 	children := []rtui.VNode{listNode}
+	if pager := inst.buildPageControls(side, len(filteredItems)); pager != nil {
+		children = append(children, pager)
+	}
 	if inst.searchable {
 		searchNode := input.NewBuilder().
 			Key(searchField).
@@ -443,6 +503,40 @@ func (inst *Instance) buildListNode(title string, allItems, visibleItems []Item,
 	}
 	node := wrapper.Build()
 	node.SetKey(key + "-wrapper")
+	return node
+}
+
+func (inst *Instance) buildPageControls(side SearchSide, filteredCount int) rtui.VNode {
+	pageCount := pageCountFor(filteredCount, inst.pageSize)
+	if pageCount <= 1 {
+		return nil
+	}
+	page := inst.pageForSide(side)
+	prefix := "source"
+	if side == SearchSideTarget {
+		prefix = "target"
+	}
+	prevID := inst.baseKey(prefix + "-page-prev")
+	nextID := inst.baseKey(prefix + "-page-next")
+	status := text.NewBuilder("Page " + strconv.Itoa(page+1) + "/" + strconv.Itoa(pageCount)).
+		Key(inst.baseKey(prefix + "-page-status")).
+		Build()
+	prev := button.NewBuilder("Prev").
+		Key(prevID).
+		SetID(prevID).
+		Small().
+		OnPress(PageWithID(inst.componentID, side, -1)).
+		Disabled(page <= 0).
+		Build()
+	next := button.NewBuilder("Next").
+		Key(nextID).
+		SetID(nextID).
+		Small().
+		OnPress(PageWithID(inst.componentID, side, 1)).
+		Disabled(page >= pageCount-1).
+		Build()
+	node := rtui.HStackBuilder(prev, status, next).Gap(1).AlignCross(rtui.AlignCenter).Build()
+	node.SetKey(inst.baseKey(prefix + "-pager"))
 	return node
 }
 
@@ -519,10 +613,15 @@ func (inst *Instance) normalize() {
 	if inst.listHeight <= 0 {
 		inst.listHeight = defaultListHeight
 	}
+	if inst.pageSize < 0 {
+		inst.pageSize = 0
+	}
 	if inst.width < 0 {
 		inst.width = 0
 	}
 	inst.targetKeys = normalizeTargetKeys(inst.items, inst.targetKeys)
+	inst.sourcePage = clampPage(inst.sourcePage, len(inst.sourceFilteredItems()), inst.pageSize)
+	inst.targetPage = clampPage(inst.targetPage, len(inst.targetFilteredItems()), inst.pageSize)
 	inst.selectedSourceKeys = normalizeKeysForItems(inst.sourceItems(), inst.selectedSourceKeys)
 	inst.selectedTargetKeys = normalizeKeysForItems(inst.targetItems(), inst.selectedTargetKeys)
 }
@@ -577,10 +676,18 @@ func (inst *Instance) targetItems() []Item {
 }
 
 func (inst *Instance) sourceVisibleItems() []Item {
-	return filterItems(inst.sourceItems(), inst.sourceSearch)
+	return pageItems(inst.sourceFilteredItems(), inst.sourcePage, inst.pageSize)
 }
 
 func (inst *Instance) targetVisibleItems() []Item {
+	return pageItems(inst.targetFilteredItems(), inst.targetPage, inst.pageSize)
+}
+
+func (inst *Instance) sourceFilteredItems() []Item {
+	return filterItems(inst.sourceItems(), inst.sourceSearch)
+}
+
+func (inst *Instance) targetFilteredItems() []Item {
 	return filterItems(inst.targetItems(), inst.targetSearch)
 }
 
@@ -642,6 +749,28 @@ func (inst *Instance) baseKey(suffix string) string {
 	return base + "-" + suffix
 }
 
+func (inst *Instance) titleForSide(side SearchSide, title string, visibleCount, filteredCount, totalCount int) string {
+	pageCount := pageCountFor(filteredCount, inst.pageSize)
+	if pageCount <= 1 {
+		return titleWithCount(title, filteredCount, totalCount)
+	}
+	page := inst.pageForSide(side)
+	start := page*inst.pageSize + 1
+	end := minInt(start+visibleCount-1, filteredCount)
+	if visibleCount <= 0 {
+		start = 0
+		end = 0
+	}
+	return title + " (" + strconv.Itoa(start) + "-" + strconv.Itoa(end) + "/" + strconv.Itoa(filteredCount) + ")"
+}
+
+func (inst *Instance) pageForSide(side SearchSide) int {
+	if side == SearchSideTarget {
+		return inst.targetPage
+	}
+	return inst.sourcePage
+}
+
 func titleWithCount(title string, visibleCount, totalCount int) string {
 	if totalCount < 0 {
 		totalCount = 0
@@ -653,6 +782,41 @@ func titleWithCount(title string, visibleCount, totalCount int) string {
 		return title + " (" + strconv.Itoa(visibleCount) + ")"
 	}
 	return title + " (" + strconv.Itoa(visibleCount) + "/" + strconv.Itoa(totalCount) + ")"
+}
+
+func pageCountFor(total, pageSize int) int {
+	if pageSize <= 0 || total <= 0 {
+		return 1
+	}
+	return (total + pageSize - 1) / pageSize
+}
+
+func clampPage(page, total, pageSize int) int {
+	pageCount := pageCountFor(total, pageSize)
+	if page < 0 {
+		return 0
+	}
+	if page >= pageCount {
+		return pageCount - 1
+	}
+	return page
+}
+
+func pageItems(items []Item, page, pageSize int) []Item {
+	if pageSize <= 0 || len(items) <= pageSize {
+		return items
+	}
+	page = clampPage(page, len(items), pageSize)
+	start := page * pageSize
+	end := minInt(start+pageSize, len(items))
+	return items[start:end]
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
 }
 
 func renderRows(items []Item) []string {

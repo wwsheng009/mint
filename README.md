@@ -215,7 +215,7 @@ Current component groups:
 |---|---|
 | Basic display | Text, Divider, Badge, Tag, Empty, Descriptions, Statistic, Timeline, Clock, Timer with auto-refresh/retry/elapsed presets |
 | Layout | VStack/HStack, Space, SplitPane, Layout, Grid, Row/Col, Panel, ScrollView, Wrap, Absolute |
-| Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer with visible-item bulk operations, Form, FormDialog with audit-reason action presets, FilterBar, Validation |
+| Form and input | Input, Textarea, Checkbox, Radio, Switch, Slider, Rate, Select, DatePicker, TimePicker, Cascader, Transfer with search, paging and visible-item bulk operations, Form, FormDialog with audit-reason action presets, FilterBar, Validation |
 | Data | Table with stable row keys, activate intents and custom status footers, DataTable with loading/error/server-pagination/stable-key presets, List, VirtualList, TreeView |
 | Feedback | Alert, Progress with operational status and usage presets, Spin, Skeleton, Result, Notification, Toast |
 | Navigation | Tabs, Menu, Breadcrumb, Pagination, Steps, Anchor, Toolbar with dropdown menus and disabled reasons, StatusBar with operational status presets |

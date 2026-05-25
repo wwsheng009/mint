@@ -23,6 +23,7 @@ const (
 	propListHeight           = "listHeight"
 	propListWidth            = "listWidth"
 	propOperations           = "operations"
+	propPageSize             = "pageSize"
 	propSearchable           = "searchable"
 	propSearchControlled     = "searchControlled"
 	propSearchPlaceholders   = "searchPlaceholders"
@@ -70,6 +71,7 @@ type VNode struct {
 	targetSearch         string
 	listWidth            int
 	listHeight           int
+	pageSize             int
 	width                int
 	rootStyle            style.Style
 	changeIntent         intent.Intent
@@ -149,6 +151,7 @@ func (v *VNode) Props() rtui.Props {
 		propListHeight:           v.listHeight,
 		propListWidth:            v.listWidth,
 		propOperations:           v.operations,
+		propPageSize:             v.pageSize,
 		propSearchable:           v.searchable,
 		propSearchControlled:     v.searchControlled,
 		propSearchPlaceholders:   v.searchPlaceholders,
@@ -210,6 +213,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if listHeight, ok := props[propListHeight].(int); ok {
 		v.listHeight = listHeight
+	}
+	if pageSize, ok := props[propPageSize].(int); ok {
+		v.pageSize = pageSize
 	}
 	if width, ok := props[propWidth].(int); ok {
 		v.width = width
@@ -308,6 +314,11 @@ func (v *VNode) SetListWidth(width int) *VNode {
 
 func (v *VNode) SetListHeight(height int) *VNode {
 	v.listHeight = height
+	return v
+}
+
+func (v *VNode) SetPageSize(size int) *VNode {
+	v.pageSize = size
 	return v
 }
 

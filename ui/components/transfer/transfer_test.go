@@ -36,6 +36,7 @@ func TestBuilderFluentAPI(t *testing.T) {
 		InitialTargetKeys([]string{"b"}).
 		ListWidth(30).
 		ListHeight(10).
+		PageSize(5).
 		Width(72).
 		Items([]Item{
 			NewItem("a", "Alpha"),
@@ -70,8 +71,8 @@ func TestBuilderFluentAPI(t *testing.T) {
 	if node.targetKeysControlled {
 		t.Fatal("InitialTargetKeys should keep uncontrolled mode")
 	}
-	if node.listWidth != 30 || node.listHeight != 10 || node.width != 72 {
-		t.Fatalf("unexpected sizing: listWidth=%d listHeight=%d width=%d", node.listWidth, node.listHeight, node.width)
+	if node.listWidth != 30 || node.listHeight != 10 || node.pageSize != 5 || node.width != 72 {
+		t.Fatalf("unexpected sizing: listWidth=%d listHeight=%d pageSize=%d width=%d", node.listWidth, node.listHeight, node.pageSize, node.width)
 	}
 }
 
@@ -213,6 +214,65 @@ func TestRuntimeChildrenSearchableFiltersLists(t *testing.T) {
 	}
 }
 
+func TestRuntimeChildrenPagedLists(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "members",
+		propPageSize:    2,
+		propItems: []Item{
+			{Key: "a", Title: "Alpha"},
+			{Key: "b", Title: "Beta"},
+			{Key: "c", Title: "Gamma"},
+			{Key: "d", Title: "Delta"},
+			{Key: "e", Title: "Epsilon"},
+		},
+	})
+
+	children := inst.RuntimeChildren()
+	leftWrapper := children[0].Children()[0]
+	if len(leftWrapper.Children()) != 2 {
+		t.Fatalf("paged wrapper children len = %d, want list plus pager", len(leftWrapper.Children()))
+	}
+	leftList := leftWrapper.Children()[0]
+	if header, _ := leftList.Props()["header"].(string); header != "Source (1-2/5)" {
+		t.Fatalf("left header = %q, want Source (1-2/5)", header)
+	}
+	if rows, _ := leftList.Props()["rows"].([]string); !reflect.DeepEqual(rows, []string{"Alpha", "Beta"}) {
+		t.Fatalf("left rows = %#v, want first page", rows)
+	}
+	pager := leftWrapper.Children()[1]
+	if pager.Tag() != "hstack" || len(pager.Children()) != 3 {
+		t.Fatalf("pager = %q children:%d, want hstack with three children", pager.Tag(), len(pager.Children()))
+	}
+}
+
+func TestPageIntentMovesVisiblePage(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "members",
+		propPageSize:    2,
+		propItems: []Item{
+			{Key: "a", Title: "Alpha"},
+			{Key: "b", Title: "Beta"},
+			{Key: "c", Title: "Gamma"},
+			{Key: "d", Title: "Delta"},
+		},
+	})
+
+	if !inst.HandleIntent(PageWithID("members", SearchSideSource, 1)) {
+		t.Fatal("page intent should be handled")
+	}
+	if inst.sourcePage != 1 {
+		t.Fatalf("sourcePage = %d, want 1", inst.sourcePage)
+	}
+	children := inst.RuntimeChildren()
+	leftList := children[0].Children()[0].Children()[0]
+	if header, _ := leftList.Props()["header"].(string); header != "Source (3-4/4)" {
+		t.Fatalf("left header = %q, want Source (3-4/4)", header)
+	}
+	if rows, _ := leftList.Props()["rows"].([]string); !reflect.DeepEqual(rows, []string{"Gamma", "Delta"}) {
+		t.Fatalf("left rows = %#v, want second page", rows)
+	}
+}
+
 func TestSearchFieldChangeUpdatesVisibleRows(t *testing.T) {
 	inst := NewInstance(rtui.Props{
 		propComponentID: "members",
@@ -348,6 +408,29 @@ func TestMoveAllToTargetHonorsSourceSearch(t *testing.T) {
 	}
 	if !reflect.DeepEqual(inst.targetKeys, []string{"alpha", "delta"}) {
 		t.Fatalf("targetKeys = %#v, want []string{\"alpha\", \"delta\"}", inst.targetKeys)
+	}
+}
+
+func TestMoveAllToTargetHonorsCurrentPage(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propComponentID: "members",
+		propPageSize:    2,
+		propItems: []Item{
+			{Key: "alpha", Title: "Alpha"},
+			{Key: "beta", Title: "Beta"},
+			{Key: "gamma", Title: "Gamma"},
+			{Key: "delta", Title: "Delta"},
+		},
+	})
+
+	if !inst.HandleIntent(PageWithID("members", SearchSideSource, 1)) {
+		t.Fatal("page intent should be handled")
+	}
+	if !inst.HandleIntent(MoveAllToTargetWithID("members")) {
+		t.Fatal("move-all-to-target intent should be handled")
+	}
+	if !reflect.DeepEqual(inst.targetKeys, []string{"gamma", "delta"}) {
+		t.Fatalf("targetKeys = %#v, want current page keys", inst.targetKeys)
 	}
 }
 

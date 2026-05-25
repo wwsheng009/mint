@@ -6,6 +6,7 @@ func TestNewTransferBuilder(t *testing.T) {
 	vnode := NewTransferBuilder().
 		BulkOperations(true).
 		BulkOperationLabels("All Send", "All Return").
+		PageSize(2).
 		Items([]TransferItem{
 			NewTransferItem("a", "Alpha"),
 		}).
@@ -21,6 +22,9 @@ func TestNewTransferBuilder(t *testing.T) {
 	}
 	if labels, _ := vnode.Props()["bulkOperationLabels"].([2]string); labels != [2]string{"All Send", "All Return"} {
 		t.Fatalf("bulkOperationLabels = %#v, want custom labels", labels)
+	}
+	if pageSize, _ := vnode.Props()["pageSize"].(int); pageSize != 2 {
+		t.Fatalf("pageSize = %d, want 2", pageSize)
 	}
 }
 

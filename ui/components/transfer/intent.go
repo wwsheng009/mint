@@ -127,3 +127,21 @@ func (i SearchChangeIntent) WithValue(value string) intent.Intent {
 	i.Value = value
 	return i
 }
+
+// PageIntent moves one side of the transfer list by page delta.
+type PageIntent struct {
+	ComponentID string
+	Side        SearchSide
+	Delta       int
+}
+
+func (PageIntent) IntentType() string              { return "transfer.PageIntent" }
+func (PageIntent) Priority() intent.ActionPriority { return intent.PriorityNormal }
+func (PageIntent) IsTransition() bool              { return false }
+func (PageIntent) IsGlobal() bool                  { return false }
+func (i PageIntent) GetComponentID() string        { return i.ComponentID }
+
+// PageWithID creates a scoped transfer page navigation intent.
+func PageWithID(componentID string, side SearchSide, delta int) PageIntent {
+	return PageIntent{ComponentID: componentID, Side: side, Delta: delta}
+}

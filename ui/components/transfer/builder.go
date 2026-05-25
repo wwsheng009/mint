@@ -101,6 +101,11 @@ func (b *Builder) ListHeight(height int) *Builder {
 	return b
 }
 
+func (b *Builder) PageSize(size int) *Builder {
+	b.node.SetPageSize(size)
+	return b
+}
+
 func (b *Builder) Width(width int) *Builder {
 	b.node.SetWidth(width)
 	return b
