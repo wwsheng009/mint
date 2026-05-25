@@ -10,6 +10,8 @@
 - `ReasonField(...)` 通过 `intent.BindField(...)` 接入 Store/Reducer。
 - `ReasonRequired(true)` 在 reason 为空时禁用确认按钮。
 - `AuditReason(field, value)` 快速启用必填审计 reason。
+- `ConfirmPhrase(expected, field, value)` / `RequirePhrase(expected, field, value)` 增加二次确认文本，输入值必须和 expected 完全一致才启用确认按钮。
+- 启用二次确认文本时，弹窗会保护最小高度，避免确认输入框和 footer 挤压。
 - `Danger(confirmText)` 快速配置危险操作确认按钮。
 - `NewDangerOperation(...)` 生成带目标摘要、warning、必填 reason 和 typed intent 的危险操作确认模板。
 - `OnConfirm(...)` / `OnCancel(...)` 派发 typed Intent。
@@ -30,6 +32,7 @@ confirmdialog.NewBuilder().
     ReasonField("actionReason").
     ReasonValue(state.ActionReason).
     ReasonRequired(true).
+    ConfirmPhrase("DISABLE", "confirmPhrase", state.ConfirmPhrase).
     ConfirmText("Disable").
     ConfirmVariant(button.VariantDanger).
     OnConfirm(DisableKeyIntent{}).
@@ -55,11 +58,31 @@ confirmdialog.NewDangerOperation(
 ).Build()
 ```
 
+需要更高风险确认时，可以叠加二次确认短语：
+
+```go
+confirmdialog.NewDangerOperation(
+    "clear-circuit-breakers.confirm",
+    "Clear Circuit Breakers",
+    "Clear circuit breaker state for the selected scope.",
+    "This may immediately send traffic back to previously unhealthy targets.",
+    "Clear",
+    "actionReason",
+    state.ActionReason,
+    ClearCircuitBreakersIntent{},
+    CloseConfirmIntent{},
+    confirmdialog.Target("scope", "Scope", scopeLabel),
+).
+    RequirePhrase("CLEAR", "confirmPhrase", state.ConfirmPhrase).
+    Build()
+```
+
 ## 运维建议
 
 - 禁用、清理熔断、运行态重置、reload、删除等操作应通过 `ConfirmDialog` 或等价确认流程。
 - 弹窗内必须展示清晰目标，例如 group/provider/key。
 - 需要审计的操作必须绑定 reason 字段，且 reason 为空时禁用确认。
+- 删除、清理全部、批量禁用、清理熔断等高风险动作建议叠加 `RequirePhrase(...)`，避免误触。
 - 不要在目标摘要中渲染完整 secret、token、authorization header 或 provider key。
 
 ## 测试
