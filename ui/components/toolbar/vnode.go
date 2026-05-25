@@ -11,6 +11,7 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
 	menucomp "github.com/wwsheng009/mint/ui/components/menu"
+	statusbarcomp "github.com/wwsheng009/mint/ui/components/statusbar"
 )
 
 const (
@@ -316,6 +317,83 @@ func Separator(key string) Item {
 // Custom creates a custom toolbar item.
 func Custom(key string, node rtui.VNode) Item {
 	return Item{Key: key, Kind: ItemCustom, Custom: node}
+}
+
+// KeyValue creates a compact "label: value" toolbar item for operational scopes.
+func KeyValue(key, label, value string) Item {
+	label = strings.TrimSpace(normalizeToolbarText(label))
+	value = strings.TrimSpace(normalizeToolbarText(value))
+	if value == "" {
+		value = "-"
+	}
+	text := value
+	if label != "" {
+		text = label + ": " + value
+	}
+	return Text(key, text)
+}
+
+// MutedKeyValue creates a compact low-emphasis "label: value" toolbar item.
+func MutedKeyValue(key, label, value string) Item {
+	return KeyValue(key, label, value).WithForeground("bright-black")
+}
+
+// StateBadge creates a highlighted toolbar item using common operational tone mapping.
+func StateBadge(key, status string) Item {
+	label := strings.TrimSpace(normalizeToolbarText(status))
+	if label == "" {
+		label = "-"
+	}
+	fg, bg := toneColors(statusbarcomp.DefaultTone(label))
+	return Badge(key, label).WithColors(fg, bg)
+}
+
+// BusyBadge creates a warning-colored toolbar item for running operations.
+func BusyBadge(key, label string) Item {
+	label = strings.TrimSpace(normalizeToolbarText(label))
+	if label == "" {
+		label = "busy"
+	}
+	return Badge(key, label).WithColors("black", "yellow")
+}
+
+// ErrorBadge creates an error-colored toolbar item.
+func ErrorBadge(key, label string) Item {
+	label = strings.TrimSpace(normalizeToolbarText(label))
+	if label == "" {
+		label = "error"
+	}
+	return Badge(key, label).WithColors("white", "red")
+}
+
+// Endpoint creates a standard toolbar item for the active API endpoint.
+func Endpoint(value string) Item {
+	return KeyValue("endpoint", "endpoint", value)
+}
+
+// Scope creates a standard toolbar item for the current page scope.
+func Scope(value string) Item {
+	return KeyValue("scope", "scope", value)
+}
+
+// Selection creates a low-emphasis toolbar item for the current selection.
+func Selection(value string) Item {
+	return MutedKeyValue("selection", "selection", value)
+}
+
+func toneColors(tone statusbarcomp.Tone) (fgColor, bgColor string) {
+	switch tone {
+	case statusbarcomp.ToneNormal:
+		return "black", "green"
+	case statusbarcomp.ToneWarn:
+		return "black", "yellow"
+	case statusbarcomp.ToneError:
+		return "white", "red"
+	case statusbarcomp.ToneInfo:
+		return "black", "cyan"
+	default:
+		return "bright-white", "bright-black"
+	}
 }
 
 func (i Item) WithKey(key string) Item {

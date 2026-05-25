@@ -60,3 +60,43 @@ func ToolbarSeparator(key string) toolbar.Item {
 func ToolbarCustom(key string, node rtui.VNode) toolbar.Item {
 	return toolbar.Custom(key, node)
 }
+
+// ToolbarKeyValue creates a compact "label: value" toolbar item.
+func ToolbarKeyValue(key, label, value string) toolbar.Item {
+	return toolbar.KeyValue(key, label, value)
+}
+
+// ToolbarMutedKeyValue creates a low-emphasis "label: value" toolbar item.
+func ToolbarMutedKeyValue(key, label, value string) toolbar.Item {
+	return toolbar.MutedKeyValue(key, label, value)
+}
+
+// ToolbarStateBadge creates a highlighted toolbar item using operational tone mapping.
+func ToolbarStateBadge(key, status string) toolbar.Item {
+	return toolbar.StateBadge(key, status)
+}
+
+// ToolbarBusyBadge creates a warning-colored toolbar item for running operations.
+func ToolbarBusyBadge(key, label string) toolbar.Item {
+	return toolbar.BusyBadge(key, label)
+}
+
+// ToolbarErrorBadge creates an error-colored toolbar item.
+func ToolbarErrorBadge(key, label string) toolbar.Item {
+	return toolbar.ErrorBadge(key, label)
+}
+
+// ToolbarEndpoint creates a standard toolbar item for the active API endpoint.
+func ToolbarEndpoint(value string) toolbar.Item {
+	return toolbar.Endpoint(value)
+}
+
+// ToolbarScope creates a standard toolbar item for the current page scope.
+func ToolbarScope(value string) toolbar.Item {
+	return toolbar.Scope(value)
+}
+
+// ToolbarSelection creates a low-emphasis toolbar item for the current selection.
+func ToolbarSelection(value string) toolbar.Item {
+	return toolbar.Selection(value)
+}

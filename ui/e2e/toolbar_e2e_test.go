@@ -29,8 +29,8 @@ func newToolbarStaticApp() ui.ComponentFunc {
 					TitleWidth(16).
 					Width(88).
 					Dense(true).
-					Left(toolbarcomp.Text("scope", "group: default")).
-					Center(toolbarcomp.Badge("state", "degraded").WithColors("black", "yellow")).
+					Left(toolbarcomp.Scope("group: default")).
+					Center(toolbarcomp.StateBadge("state", "degraded")).
 					Right(toolbarcomp.Button("refresh", "Refresh", toolbarTestIntent{"toolbar.refresh"}).Primary()).
 					Right(toolbarcomp.Button("reset", "Reset Runtime", toolbarTestIntent{"toolbar.reset"}).Danger().WithDisabledReason("Select a provider before reset")).
 					Build(),
@@ -57,7 +57,7 @@ func TestE2EToolbarRendersAboveTable(t *testing.T) {
 	}
 	defer app.Close()
 
-	for _, text := range []string{"Toolbar E2E Fixture", "Load Balancer", "group: default", "degraded", "Refresh", "Reset Runtime", "Provider"} {
+	for _, text := range []string{"Toolbar E2E Fixture", "Load Balancer", "scope: group: default", "degraded", "Refresh", "Reset Runtime", "Provider"} {
 		if err := app.AssertVisible(ByText(text)); err != nil {
 			t.Fatalf("expected %q to be visible: %v", text, err)
 		}

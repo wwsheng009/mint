@@ -40,3 +40,35 @@ func TestToolbarDirectShortcut(t *testing.T) {
 		t.Fatalf("Toolbar().Tag() = %q, want toolbar", bar.Tag())
 	}
 }
+
+func TestToolbarOperationalShortcutPresets(t *testing.T) {
+	kv := ToolbarKeyValue("endpoint", "endpoint", "http://localhost:8080")
+	if kv.Label != "endpoint: http://localhost:8080" {
+		t.Fatalf("key value label = %q", kv.Label)
+	}
+	muted := ToolbarMutedKeyValue("selection", "selection", "-")
+	if muted.FgColor != "bright-black" {
+		t.Fatalf("muted fg = %q", muted.FgColor)
+	}
+	state := ToolbarStateBadge("state", "healthy")
+	if state.BgColor != "green" {
+		t.Fatalf("state bg = %q", state.BgColor)
+	}
+	busy := ToolbarBusyBadge("busy", "")
+	if busy.Label != "busy" {
+		t.Fatalf("busy label = %q", busy.Label)
+	}
+	err := ToolbarErrorBadge("error", "failed")
+	if err.BgColor != "red" {
+		t.Fatalf("error bg = %q", err.BgColor)
+	}
+	for _, item := range []ToolbarItem{
+		ToolbarEndpoint("local"),
+		ToolbarScope("group: default"),
+		ToolbarSelection("provider/openai"),
+	} {
+		if item.Label == "" {
+			t.Fatalf("operational shortcut returned empty item: %+v", item)
+		}
+	}
+}

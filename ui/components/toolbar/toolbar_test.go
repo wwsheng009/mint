@@ -229,6 +229,54 @@ func TestNormalizeItems(t *testing.T) {
 	}
 }
 
+func TestOperationalPresets(t *testing.T) {
+	tests := []struct {
+		name string
+		got  Item
+		want Item
+	}{
+		{
+			name: "key value",
+			got:  KeyValue("endpoint", "endpoint", "http://localhost:8080"),
+			want: Item{Key: "endpoint", Label: "endpoint: http://localhost:8080", Kind: ItemText},
+		},
+		{
+			name: "key value empty",
+			got:  KeyValue("scope", "scope", ""),
+			want: Item{Key: "scope", Label: "scope: -", Kind: ItemText},
+		},
+		{
+			name: "scope",
+			got:  Scope("group: default"),
+			want: Item{Key: "scope", Label: "scope: group: default", Kind: ItemText},
+		},
+		{
+			name: "selection",
+			got:  Selection("provider/openai"),
+			want: Item{Key: "selection", Label: "selection: provider/openai", Kind: ItemText, FgColor: "bright-black"},
+		},
+	}
+
+	for _, tt := range tests {
+		if tt.got.Key != tt.want.Key || tt.got.Label != tt.want.Label || tt.got.Kind != tt.want.Kind || tt.got.FgColor != tt.want.FgColor {
+			t.Fatalf("%s item = %+v, want %+v", tt.name, tt.got, tt.want)
+		}
+	}
+
+	state := StateBadge("state", "degraded")
+	if state.Kind != ItemBadge || state.Label != "degraded" || state.FgColor != "black" || state.BgColor != "yellow" {
+		t.Fatalf("state badge = %+v", state)
+	}
+	busy := BusyBadge("busy", "")
+	if busy.Label != "busy" || busy.BgColor != "yellow" {
+		t.Fatalf("busy badge = %+v", busy)
+	}
+	err := ErrorBadge("error", "failed")
+	if err.Label != "failed" || err.BgColor != "red" {
+		t.Fatalf("error badge = %+v", err)
+	}
+}
+
 func findVNodeByKey(node rtui.VNode, key string) rtui.VNode {
 	if node == nil {
 		return nil
