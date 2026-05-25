@@ -45,6 +45,14 @@ func ForState(label string, value, max int, state string) *VNode {
 	return builder.BuildTyped()
 }
 
+// ForStateWithValue creates a semantic progress bar that also shows value/max
+// and an optional unit in the label.
+func ForStateWithValue(label string, value, max int, state, unit string) *VNode {
+	return ForState(label, value, max, state).
+		SetShowValue(true).
+		SetUnit(unit)
+}
+
 // Usage creates a progress bar for resource usage with default 80/95 thresholds.
 func Usage(label string, used, total int) *VNode {
 	return UsageWithThresholds(label, used, total, defaultUsageWarnAt, defaultUsageCriticalAt)
@@ -52,6 +60,24 @@ func Usage(label string, used, total int) *VNode {
 
 // UsageWithThresholds creates a resource usage progress bar.
 func UsageWithThresholds(label string, used, total, warnAt, criticalAt int) *VNode {
+	return usageWithThresholds(label, used, total, warnAt, criticalAt)
+}
+
+// UsageWithValue creates a resource usage progress bar that shows used/total
+// and an optional unit in addition to percent.
+func UsageWithValue(label string, used, total int, unit string) *VNode {
+	return UsageWithValueThresholds(label, used, total, unit, defaultUsageWarnAt, defaultUsageCriticalAt)
+}
+
+// UsageWithValueThresholds creates a resource usage progress bar with custom
+// warning/critical thresholds and a value label.
+func UsageWithValueThresholds(label string, used, total int, unit string, warnAt, criticalAt int) *VNode {
+	return usageWithThresholds(label, used, total, warnAt, criticalAt).
+		SetShowValue(true).
+		SetUnit(unit)
+}
+
+func usageWithThresholds(label string, used, total, warnAt, criticalAt int) *VNode {
 	if warnAt <= 0 {
 		warnAt = defaultUsageWarnAt
 	}

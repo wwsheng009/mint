@@ -115,6 +115,16 @@ func (b *Builder) ShowPercent(v bool) *Builder {
 	return b
 }
 
+func (b *Builder) ShowValue(v bool) *Builder {
+	b.node.SetShowValue(v)
+	return b
+}
+
+func (b *Builder) Unit(unit string) *Builder {
+	b.node.SetUnit(unit)
+	return b
+}
+
 func (b *Builder) Key(key string) *Builder {
 	b.node.SetKey(key)
 	return b

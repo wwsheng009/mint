@@ -13,6 +13,7 @@
 - 自定义 `label`
 - 自定义 `width`
 - `showPercent`
+- `showValue` + `unit`，用于展示 `used/total`、队列长度、quota、资源占用等运维值标签
 - 运维语义快捷入口：`StatusForState(...)`、`ForState(...)`、`Usage(...)`、`UsageWithThresholds(...)`、`Busy(...)`、`Complete(...)`、`Failed(...)`
 
 ## 示例
@@ -44,11 +45,28 @@ ui.NewProgressBuilder().
 ui.Progress(60, 100)
 ui.ProgressIndeterminate("Reloading")
 ui.ProgressForState("Config sync", 50, 100, "pending_restart")
+ui.ProgressForStateWithValue("Config sync", 50, 100, "pending_restart", "items")
 ui.ProgressUsage("CPU", 82, 100)
+ui.ProgressUsageWithValue("Queue", 7, 10, "jobs")
 ui.ProgressBusy("Reloading")
 ui.ProgressComplete("Done")
 ui.ProgressFailed("Failed")
 ```
+
+运维值标签：
+
+```go
+ui.NewProgressBuilder().
+    Label("Queue").
+    Value(7).
+    Max(10).
+    ShowValue(true).
+    Unit("jobs").
+    Width(16).
+    Build()
+```
+
+渲染标签示例：`Queue: 7/10 jobs (70%)`。单位为 `%`、`ms`、`MB` 等紧凑后缀时会贴近数值，例如 `Latency: 42ms/100ms (42%)`。
 
 ## 运维语义映射
 

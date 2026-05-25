@@ -32,6 +32,9 @@ func TestProgressPresets(t *testing.T) {
 	if got := ForState("Sync", 50, 100, "pending_restart"); got.Status() != StatusWarning {
 		t.Fatalf("ForState pending_restart status = %v, want warning", got.Status())
 	}
+	if got := ForStateWithValue("Sync", 50, 100, "pending_restart", "items"); got.Status() != StatusWarning || !got.ShowValue() || got.Unit() != "items" {
+		t.Fatalf("ForStateWithValue = status:%v showValue:%v unit:%q", got.Status(), got.ShowValue(), got.Unit())
+	}
 	if got := Usage("CPU", 79, 100); got.Status() != StatusNormal {
 		t.Fatalf("Usage 79%% status = %v, want normal", got.Status())
 	}
@@ -43,6 +46,12 @@ func TestProgressPresets(t *testing.T) {
 	}
 	if got := UsageWithThresholds("Queue", 7, 10, 60, 90); got.Status() != StatusWarning {
 		t.Fatalf("UsageWithThresholds status = %v, want warning", got.Status())
+	}
+	if got := UsageWithValue("Queue", 7, 10, "jobs"); got.Status() != StatusNormal || !got.ShowValue() || got.Unit() != "jobs" {
+		t.Fatalf("UsageWithValue = status:%v showValue:%v unit:%q", got.Status(), got.ShowValue(), got.Unit())
+	}
+	if got := UsageWithValueThresholds("Queue", 9, 10, "jobs", 60, 90); got.Status() != StatusException || !got.ShowValue() || got.Unit() != "jobs" {
+		t.Fatalf("UsageWithValueThresholds = status:%v showValue:%v unit:%q", got.Status(), got.ShowValue(), got.Unit())
 	}
 	if got := Busy("Loading"); !got.IsIndeterminate() || got.Status() != StatusActive {
 		t.Fatalf("Busy = indeterminate:%v status:%v, want active indeterminate", got.IsIndeterminate(), got.Status())

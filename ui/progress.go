@@ -25,6 +25,11 @@ func ProgressForState(label string, value, max int, state string) rtui.VNode {
 	return progress.ForState(label, value, max, state)
 }
 
+// ProgressForStateWithValue creates a semantic progress bar that also displays value/max.
+func ProgressForStateWithValue(label string, value, max int, state, unit string) rtui.VNode {
+	return progress.ForStateWithValue(label, value, max, state, unit)
+}
+
 // ProgressUsage creates a resource usage progress bar with default 80/95 thresholds.
 func ProgressUsage(label string, used, total int) rtui.VNode {
 	return progress.Usage(label, used, total)
@@ -33,6 +38,16 @@ func ProgressUsage(label string, used, total int) rtui.VNode {
 // ProgressUsageWithThresholds creates a resource usage progress bar.
 func ProgressUsageWithThresholds(label string, used, total, warnAt, criticalAt int) rtui.VNode {
 	return progress.UsageWithThresholds(label, used, total, warnAt, criticalAt)
+}
+
+// ProgressUsageWithValue creates a resource usage progress bar that also displays used/total.
+func ProgressUsageWithValue(label string, used, total int, unit string) rtui.VNode {
+	return progress.UsageWithValue(label, used, total, unit)
+}
+
+// ProgressUsageWithValueThresholds creates a resource usage progress bar with custom thresholds and value labels.
+func ProgressUsageWithValueThresholds(label string, used, total int, unit string, warnAt, criticalAt int) rtui.VNode {
+	return progress.UsageWithValueThresholds(label, used, total, unit, warnAt, criticalAt)
 }
 
 // ProgressBusy creates an indeterminate progress bar for work without a known total.

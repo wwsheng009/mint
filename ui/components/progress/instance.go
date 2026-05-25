@@ -47,6 +47,8 @@ type Instance struct {
 	progressType   Type
 	status         Status
 	showPercent    bool
+	showValue      bool
+	unit           string
 	displayPercent float64
 	percentTween   *animation.TweenDriver
 	activeFrame    int
@@ -82,6 +84,8 @@ func NewInstance(props rtui.Props) *Instance {
 		progressType:   getTypeProp(props, TypeLine),
 		status:         getStatusProp(props, StatusNormal),
 		showPercent:    proputil.GetBool(props, propShowPercent, true),
+		showValue:      proputil.GetBool(props, propShowValue, false),
+		unit:           normalizeUnit(proputil.GetString(props, propUnit, "")),
 		displayPercent: float64(progressPercent(value, max)),
 		dirty:          true,
 	}
@@ -113,6 +117,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldType := inst.progressType
 	oldStatus := inst.status
 	oldShowPercent := inst.showPercent
+	oldShowValue := inst.showValue
+	oldUnit := inst.unit
 	currentPercent := inst.currentPercentFloat()
 
 	value, max := normalizeProgressRange(
@@ -130,6 +136,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.progressType = getTypeProp(props, inst.progressType)
 	inst.status = getStatusProp(props, inst.status)
 	inst.showPercent = proputil.GetBool(props, propShowPercent, inst.showPercent)
+	inst.showValue = proputil.GetBool(props, propShowValue, inst.showValue)
+	inst.unit = normalizeUnit(proputil.GetString(props, propUnit, inst.unit))
 
 	if oldValue != inst.value || oldMax != inst.max {
 		inst.startPercentTween(currentPercent, float64(inst.targetPercent()))
@@ -150,7 +158,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldIndeterminate != inst.indeterminate ||
 		oldType != inst.progressType ||
 		oldStatus != inst.status ||
-		oldShowPercent != inst.showPercent
+		oldShowPercent != inst.showPercent ||
+		oldShowValue != inst.showValue ||
+		oldUnit != inst.unit
 	if changed {
 		inst.dirty = true
 	}
@@ -169,6 +179,8 @@ func (inst *Instance) GetProps() rtui.Props {
 		propType:          inst.progressType,
 		propStatus:        inst.status,
 		propShowPercent:   inst.showPercent,
+		propShowValue:     inst.showValue,
+		propUnit:          inst.unit,
 	}
 }
 
@@ -488,14 +500,49 @@ func (inst *Instance) labelText() string {
 		return fmt.Sprintf("%s: ...", inst.label)
 	case inst.indeterminate && inst.showPercent:
 		return "..."
-	case inst.label != "" && inst.showPercent:
-		return fmt.Sprintf("%s: %d%%", inst.label, percent)
+	}
+
+	detail := ""
+	percentText := fmt.Sprintf("%d%%", percent)
+	valueText := progressValueText(inst.value, inst.max, inst.unit)
+	switch {
+	case inst.showValue && inst.showPercent:
+		detail = fmt.Sprintf("%s (%s)", valueText, percentText)
+	case inst.showValue:
+		detail = valueText
+	case inst.showPercent:
+		detail = percentText
+	}
+
+	switch {
+	case inst.label != "" && detail != "":
+		return fmt.Sprintf("%s: %s", inst.label, detail)
 	case inst.label != "":
 		return inst.label
-	case inst.showPercent:
-		return fmt.Sprintf("%d%%", percent)
+	case detail != "":
+		return detail
 	default:
 		return ""
+	}
+}
+
+func progressValueText(value, max int, unit string) string {
+	unit = normalizeUnit(unit)
+	if unit == "" {
+		return fmt.Sprintf("%d/%d", value, max)
+	}
+	if compactProgressUnit(unit) {
+		return fmt.Sprintf("%d%s/%d%s", value, unit, max, unit)
+	}
+	return fmt.Sprintf("%d/%d %s", value, max, unit)
+}
+
+func compactProgressUnit(unit string) bool {
+	switch strings.ToLower(unit) {
+	case "%", "ms", "s", "m", "h", "b", "kb", "mb", "gb", "tb", "kib", "mib", "gib", "tib":
+		return true
+	default:
+		return false
 	}
 }
 

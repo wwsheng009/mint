@@ -66,8 +66,17 @@ func TestFeedbackShortcuts(t *testing.T) {
 	if vnode := ProgressForState("Sync", 50, 100, "pending_restart"); vnode.Tag() != "progress" {
 		t.Fatalf("ProgressForState().Tag() = %q, want progress", vnode.Tag())
 	}
+	if vnode := ProgressForStateWithValue("Sync", 50, 100, "pending_restart", "items"); vnode.Tag() != "progress" {
+		t.Fatalf("ProgressForStateWithValue().Tag() = %q, want progress", vnode.Tag())
+	}
 	if vnode := ProgressUsage("CPU", 82, 100); vnode.Tag() != "progress" {
 		t.Fatalf("ProgressUsage().Tag() = %q, want progress", vnode.Tag())
+	}
+	if vnode := ProgressUsageWithValue("Queue", 7, 10, "jobs"); vnode.Tag() != "progress" {
+		t.Fatalf("ProgressUsageWithValue().Tag() = %q, want progress", vnode.Tag())
+	}
+	if vnode := ProgressUsageWithValueThresholds("Queue", 9, 10, "jobs", 60, 90); vnode.Tag() != "progress" {
+		t.Fatalf("ProgressUsageWithValueThresholds().Tag() = %q, want progress", vnode.Tag())
 	}
 	if vnode := ProgressBusy("Reloading"); vnode.Tag() != "progress" {
 		t.Fatalf("ProgressBusy().Tag() = %q, want progress", vnode.Tag())

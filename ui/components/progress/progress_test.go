@@ -46,6 +46,8 @@ func TestVNode_Builder(t *testing.T) {
 		Circle().
 		Success().
 		ShowPercent(false).
+		ShowValue(true).
+		Unit("items").
 		Key("progress1").
 		Build()
 
@@ -64,6 +66,12 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.ShowPercent() {
 		t.Error("ShowPercent should be false")
+	}
+	if !vnode.ShowValue() {
+		t.Error("ShowValue should be true")
+	}
+	if vnode.Unit() != "items" {
+		t.Errorf("Unit = %q, want items", vnode.Unit())
 	}
 	if vnode.ProgressType() != TypeCircle {
 		t.Errorf("Type = %v, want %v", vnode.ProgressType(), TypeCircle)
@@ -450,6 +458,65 @@ func TestInstance_Paint_WithLabel(t *testing.T) {
 	}
 	if cmds[1].Text != "Loading: 75%" {
 		t.Errorf("Label = %q, want %q", cmds[1].Text, "Loading: 75%")
+	}
+}
+
+func TestInstance_Paint_WithValueLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		unit string
+		want string
+	}{
+		{name: "word unit", unit: "items", want: "Queue: 42/100 items (42%)"},
+		{name: "compact unit", unit: "ms", want: "Latency: 42ms/100ms (42%)"},
+		{name: "percent unit", unit: "%", want: "CPU: 42%/100% (42%)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			label := "Queue"
+			if tt.unit == "ms" {
+				label = "Latency"
+			}
+			if tt.unit == "%" {
+				label = "CPU"
+			}
+			inst := NewInstance(rtui.Props{
+				propValue:       42,
+				propMax:         100,
+				propWidth:       12,
+				propLabel:       label,
+				propShowPercent: true,
+				propShowValue:   true,
+				propUnit:        tt.unit,
+			})
+
+			cmds := inst.Paint(0, 0)
+			if len(cmds) != 2 {
+				t.Fatalf("Paint returned %d commands, want 2", len(cmds))
+			}
+			if cmds[1].Text != tt.want {
+				t.Fatalf("Label = %q, want %q", cmds[1].Text, tt.want)
+			}
+		})
+	}
+}
+
+func TestInstance_Paint_ValueLabelWithoutPercent(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue:       3,
+		propMax:         10,
+		propLabel:       "Retries",
+		propShowPercent: false,
+		propShowValue:   true,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 2 {
+		t.Fatalf("Paint returned %d commands, want 2", len(cmds))
+	}
+	if cmds[1].Text != "Retries: 3/10" {
+		t.Fatalf("Label = %q, want value label", cmds[1].Text)
 	}
 }
 

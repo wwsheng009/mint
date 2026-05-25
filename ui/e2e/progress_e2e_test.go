@@ -56,6 +56,16 @@ func newProgressStaticApp() ui.ComponentFunc {
 					Warning().
 					Build(),
 				progresscomp.NewBuilder().
+					SetID("progress-value-line").
+					Value(7).
+					Max(10).
+					Width(12).
+					Label("Queue").
+					ShowValue(true).
+					Unit("jobs").
+					Warning().
+					Build(),
+				progresscomp.NewBuilder().
 					SetID("progress-block").
 					Value(50).
 					Max(100).
@@ -199,6 +209,9 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("Quota: 85%")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertVisible(ByText("Queue: 7/10 jobs (70%)")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("[█████░░░░░]")); err != nil {

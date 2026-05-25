@@ -1,6 +1,8 @@
 package progress
 
 import (
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
@@ -17,8 +19,10 @@ const (
 	propMax           = "max"
 	propStatus        = "status"
 	propShowPercent   = "showPercent"
+	propShowValue     = "showValue"
 	propStyle         = "style"
 	propType          = "type"
+	propUnit          = "unit"
 	propValue         = "value"
 	propWidth         = "width"
 )
@@ -65,6 +69,8 @@ type VNode struct {
 	progressType  Type
 	status        Status
 	showPercent   bool
+	showValue     bool
+	unit          string
 }
 
 var (
@@ -110,6 +116,8 @@ func (p *VNode) Props() rtui.Props {
 		propType:          p.progressType,
 		propStatus:        p.status,
 		propShowPercent:   p.showPercent,
+		propShowValue:     p.showValue,
+		propUnit:          p.unit,
 	}
 }
 
@@ -144,6 +152,12 @@ func (p *VNode) SetProps(props rtui.Props) rtui.VNode {
 	if v, ok := props[propShowPercent].(bool); ok {
 		p.showPercent = v
 	}
+	if v, ok := props[propShowValue].(bool); ok {
+		p.showValue = v
+	}
+	if v, ok := props[propUnit].(string); ok {
+		p.unit = normalizeUnit(v)
+	}
 	return p
 }
 
@@ -165,6 +179,11 @@ func (p *VNode) SetValue(value int) *VNode      { p.value = value; return p }
 func (p *VNode) SetMax(max int) *VNode          { p.max = max; return p }
 func (p *VNode) SetIndeterminate(v bool) *VNode { p.indeterminate = v; return p }
 func (p *VNode) SetShowPercent(v bool) *VNode   { p.showPercent = v; return p }
+func (p *VNode) SetShowValue(v bool) *VNode     { p.showValue = v; return p }
+func (p *VNode) SetUnit(unit string) *VNode {
+	p.unit = normalizeUnit(unit)
+	return p
+}
 func (p *VNode) SetType(t Type) *VNode          { p.progressType = t; return p }
 func (p *VNode) SetStatus(status Status) *VNode { p.status = status; return p }
 
@@ -241,9 +260,20 @@ func (p *VNode) IsIndeterminate() bool { return p.indeterminate }
 func (p *VNode) ProgressType() Type    { return p.progressType }
 func (p *VNode) Status() Status        { return p.status }
 func (p *VNode) ShowPercent() bool     { return p.showPercent }
+func (p *VNode) ShowValue() bool       { return p.showValue }
+func (p *VNode) Unit() string          { return p.unit }
 func (p *VNode) Percent() int {
 	if p.max == 0 {
 		return 0
 	}
 	return (p.value * 100) / p.max
+}
+
+func normalizeUnit(unit string) string {
+	return strings.TrimSpace(strings.NewReplacer(
+		"\r\n", " ",
+		"\n", " ",
+		"\r", " ",
+		"\t", " ",
+	).Replace(unit))
 }
