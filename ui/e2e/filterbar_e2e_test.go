@@ -19,6 +19,7 @@ func newFilterBarStaticApp() ui.ComponentFunc {
 		bar := filterbarcomp.NewBuilder().
 			Key("provider-filterbar").
 			Title("Filter Toolbar").
+			Summary("scope: production | page: logs").
 			Width(60).
 			LabelWidth(4).
 			Field(filterbarcomp.Search("query", "Query", "openai").
@@ -33,6 +34,7 @@ func newFilterBarStaticApp() ui.ComponentFunc {
 			}).WithSelectedIndex(2).WithWidth(12).ForField("status")).
 			Action(filterbarcomp.Button("refresh", "Refresh", filterBarTestIntent{"refresh"}).Primary()).
 			Action(filterbarcomp.Button("reset", "Reset", intent.Focus("provider-filterbar"))).
+			Action(filterbarcomp.Button("export", "Export", filterBarTestIntent{"export"}).WithDisabledReason("Select at least one provider.")).
 			Build()
 
 		table := ui.DataTable(
@@ -66,7 +68,7 @@ func TestE2EFilterBarFieldsActionsAndTableOrderRender(t *testing.T) {
 	}
 	defer app.Close()
 
-	for _, text := range []string{"Filter Toolbar", "Query", "openai", "Status", "Degraded", "Refresh", "Reset", "Provider"} {
+	for _, text := range []string{"Filter Toolbar", "scope: production", "Query", "openai", "Status", "Degraded", "Refresh", "Reset", "Export", "Disabled: Export: Select at least one provider.", "Provider"} {
 		if err := app.AssertVisible(ByText(text)); err != nil {
 			t.Fatalf("expected %q to be visible: %v", text, err)
 		}

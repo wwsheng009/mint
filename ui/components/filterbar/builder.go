@@ -30,6 +30,11 @@ func (b *Builder) Title(title string) *Builder {
 	return b
 }
 
+func (b *Builder) Summary(summary string) *Builder {
+	b.node.SetSummary(summary)
+	return b
+}
+
 func (b *Builder) Fields(fields []Field) *Builder {
 	b.node.SetFields(fields)
 	return b

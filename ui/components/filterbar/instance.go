@@ -19,6 +19,7 @@ import (
 type Instance struct {
 	key        string
 	title      string
+	summary    string
 	fields     []Field
 	actions    []Action
 	width      int
@@ -40,6 +41,7 @@ func NewInstance(props rtui.Props) *Instance {
 	inst := &Instance{
 		key:        getStringProp(props, propKey, ""),
 		title:      getStringProp(props, propTitle, ""),
+		summary:    getStringProp(props, propSummary, ""),
 		fields:     normalizeFields(getFieldsProp(props, nil)),
 		actions:    normalizeActions(getActionsProp(props, nil)),
 		width:      getIntProp(props, propWidth, 0),
@@ -75,6 +77,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 	inst.key = getStringProp(props, propKey, inst.key)
 	inst.title = getStringProp(props, propTitle, inst.title)
+	inst.summary = getStringProp(props, propSummary, inst.summary)
 	inst.fields = normalizeFields(getFieldsProp(props, inst.fields))
 	inst.actions = normalizeActions(getActionsProp(props, inst.actions))
 	inst.width = getIntProp(props, propWidth, inst.width)
@@ -101,6 +104,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propLabelWidth: inst.labelWidth,
 		propRowGap:     inst.rowGap,
 		propStyle:      inst.rootStyle,
+		propSummary:    inst.summary,
 		propTitle:      inst.title,
 		propWidth:      inst.width,
 		propWrap:       inst.wrap,
@@ -110,19 +114,28 @@ func (inst *Instance) GetProps() rtui.Props {
 // RuntimeChildren synthesizes the filter controls used by Fiber.
 func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	controls := inst.buildControls()
-	if len(controls) == 0 && strings.TrimSpace(inst.title) == "" {
+	if len(controls) == 0 && strings.TrimSpace(inst.title) == "" && strings.TrimSpace(inst.summary) == "" {
 		return nil
 	}
 
-	children := make([]rtui.VNode, 0, 2)
+	children := make([]rtui.VNode, 0, 4)
 	if strings.TrimSpace(inst.title) != "" {
 		children = append(children, text.NewBuilder(inst.title).
 			Key(inst.childKey("title")).
 			Style(style.NewStyle().Foreground(theme.Text()).Bold(true)).
 			Build())
 	}
+	if strings.TrimSpace(inst.summary) != "" {
+		children = append(children, text.NewBuilder(inst.summary).
+			Key(inst.childKey("summary")).
+			Style(style.NewStyle().Foreground(theme.Muted())).
+			Build())
+	}
 	if len(controls) > 0 {
 		children = append(children, inst.buildControlRoot(controls))
+	}
+	if reasons := inst.buildDisabledReasons(); reasons != nil {
+		children = append(children, reasons)
 	}
 
 	root := rtui.VStackBuilder(children...).Gap(inst.rootGap()).AlignCross(rtui.AlignStart)
@@ -277,6 +290,29 @@ func (inst *Instance) buildAction(action Action) rtui.VNode {
 	return node
 }
 
+func (inst *Instance) buildDisabledReasons() rtui.VNode {
+	reasons := make([]string, 0, len(inst.actions))
+	for _, action := range inst.actions {
+		reason := strings.TrimSpace(action.DisabledReason)
+		if action.Disabled && reason != "" {
+			label := strings.TrimSpace(action.Label)
+			if label != "" {
+				reasons = append(reasons, label+": "+reason)
+			} else {
+				reasons = append(reasons, reason)
+			}
+		}
+	}
+	if len(reasons) == 0 {
+		return nil
+	}
+	node := text.NewBuilder("Disabled: " + strings.Join(reasons, " | ")).
+		Key(inst.childKey("disabled-reasons")).
+		Style(style.NewStyle().Foreground(theme.Muted())).
+		Build()
+	return node
+}
+
 func (inst *Instance) effectiveLabelWidth(field Field) int {
 	if field.LabelWidth > 0 {
 		return field.LabelWidth
@@ -299,7 +335,7 @@ func (inst *Instance) placeholder(field Field, def string) string {
 }
 
 func (inst *Instance) rootGap() int {
-	if strings.TrimSpace(inst.title) == "" {
+	if strings.TrimSpace(inst.title) == "" && strings.TrimSpace(inst.summary) == "" {
 		return 0
 	}
 	return 1
@@ -322,6 +358,8 @@ func (inst *Instance) childKey(suffix string) string {
 func (inst *Instance) normalize() {
 	inst.fields = normalizeFields(inst.fields)
 	inst.actions = normalizeActions(inst.actions)
+	inst.title = normalizeInlineText(inst.title)
+	inst.summary = normalizeInlineText(inst.summary)
 	if inst.width < 0 {
 		inst.width = 0
 	}
@@ -339,6 +377,7 @@ func (inst *Instance) normalize() {
 type instanceSnapshot struct {
 	key        string
 	title      string
+	summary    string
 	fields     []Field
 	actions    []Action
 	width      int
@@ -353,6 +392,7 @@ func (inst *Instance) snapshot() instanceSnapshot {
 	return instanceSnapshot{
 		key:        inst.key,
 		title:      inst.title,
+		summary:    inst.summary,
 		fields:     cloneFields(inst.fields),
 		actions:    cloneActions(inst.actions),
 		width:      inst.width,

@@ -18,6 +18,7 @@ func TestBuilderAndProps(t *testing.T) {
 	bar := NewBuilder().
 		Key("providers").
 		Title("Provider Filters").
+		Summary("scope: prod\nstatus: degraded").
 		Width(80).
 		LabelWidth(8).
 		Gap(2).
@@ -28,6 +29,7 @@ func TestBuilderAndProps(t *testing.T) {
 			{Value: "degraded", Label: "Degraded"},
 		}).WithSelectedIndex(1).ForField("status")).
 		Action(Button("refresh", "Refresh", testIntent{"refresh"}).Primary()).
+		Action(Button("export", "Export", testIntent{"export"}).WithDisabledReason("Select a provider first.\n")).
 		BuildVNode()
 
 	if bar.Key() != "providers" {
@@ -36,6 +38,9 @@ func TestBuilderAndProps(t *testing.T) {
 	props := bar.Props()
 	if got := props[propTitle]; got != "Provider Filters" {
 		t.Fatalf("title = %v, want Provider Filters", got)
+	}
+	if got := props[propSummary]; got != "scope: prod status: degraded" {
+		t.Fatalf("summary = %v, want normalized summary", got)
 	}
 	if got := props[propWidth]; got != 80 {
 		t.Fatalf("width = %v, want 80", got)
@@ -54,14 +59,19 @@ func TestBuilderAndProps(t *testing.T) {
 		t.Fatalf("select field = %#v", fields[1])
 	}
 	actions := props[propActions].([]Action)
-	if len(actions) != 1 || actions[0].Variant != button.VariantPrimary {
+	if len(actions) != 2 || actions[0].Variant != button.VariantPrimary {
 		t.Fatalf("actions = %#v", actions)
+	}
+	if !actions[1].Disabled || actions[1].DisabledReason != "Select a provider first." {
+		t.Fatalf("disabled action = %#v", actions[1])
 	}
 }
 
 func TestRuntimeChildrenBuildControlsWithBindings(t *testing.T) {
 	inst := NewBuilder().
 		Key("providers").
+		Title("Provider Filters").
+		Summary("group: default").
 		Width(72).
 		LabelWidth(10).
 		Field(Search("query", "Query", "openai").ForField("query")).
@@ -70,6 +80,7 @@ func TestRuntimeChildrenBuildControlsWithBindings(t *testing.T) {
 			{Value: "failed", Label: "Failed"},
 		}).WithSelectedIndex(1).ForField("status")).
 		Action(Button("reset", "Reset", testIntent{"reset"}).Secondary()).
+		Action(Button("export", "Export", testIntent{"export"}).WithDisabledReason("Select one provider first.")).
 		BuildInstance()
 
 	children := inst.RuntimeChildren()
@@ -109,6 +120,21 @@ func TestRuntimeChildrenBuildControlsWithBindings(t *testing.T) {
 	}
 	if got := reset.Props()["variant"]; got != button.VariantSecondary {
 		t.Fatalf("reset variant = %v, want secondary", got)
+	}
+	summary := findVNodeByKey(root, "providers-summary")
+	if summary == nil {
+		t.Fatal("summary node not found")
+	}
+	reasons := findVNodeByKey(root, "providers-disabled-reasons")
+	if reasons == nil {
+		t.Fatal("disabled reasons node not found")
+	}
+	export := findVNodeByKey(root, "providers-action-export")
+	if export == nil {
+		t.Fatal("export action not found")
+	}
+	if got := export.Props()["disabled"]; got != true {
+		t.Fatalf("export disabled = %v, want true", got)
 	}
 }
 

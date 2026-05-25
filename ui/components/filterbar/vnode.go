@@ -20,6 +20,7 @@ const (
 	propLabelWidth = "labelWidth"
 	propRowGap     = "rowGap"
 	propStyle      = "style"
+	propSummary    = "summary"
 	propTitle      = "title"
 	propWidth      = "width"
 	propWrap       = "wrap"
@@ -59,12 +60,13 @@ type Field struct {
 
 // Action describes a command button in the filter bar.
 type Action struct {
-	Key         string
-	Label       string
-	PressIntent intent.Intent
-	Variant     button.Variant
-	Disabled    bool
-	Width       int
+	Key            string
+	Label          string
+	PressIntent    intent.Intent
+	Variant        button.Variant
+	Disabled       bool
+	DisabledReason string
+	Width          int
 }
 
 // VNode is the declarative description of a FilterBar.
@@ -73,6 +75,7 @@ type VNode struct {
 
 	key        string
 	title      string
+	summary    string
 	fields     []Field
 	actions    []Action
 	width      int
@@ -145,6 +148,7 @@ func (v *VNode) Props() rtui.Props {
 		propLabelWidth: v.labelWidth,
 		propRowGap:     v.rowGap,
 		propStyle:      v.rootStyle,
+		propSummary:    v.summary,
 		propTitle:      v.title,
 		propWidth:      v.width,
 		propWrap:       v.wrap,
@@ -153,7 +157,8 @@ func (v *VNode) Props() rtui.Props {
 
 func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	v.key = getStringProp(props, propKey, v.key)
-	v.title = getStringProp(props, propTitle, v.title)
+	v.title = normalizeInlineText(getStringProp(props, propTitle, v.title))
+	v.summary = normalizeInlineText(getStringProp(props, propSummary, v.summary))
 	v.fields = normalizeFields(getFieldsProp(props, v.fields))
 	v.actions = normalizeActions(getActionsProp(props, v.actions))
 	v.width = getIntProp(props, propWidth, v.width)
@@ -171,7 +176,12 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 }
 
 func (v *VNode) SetTitle(title string) *VNode {
-	v.title = title
+	v.title = normalizeInlineText(title)
+	return v
+}
+
+func (v *VNode) SetSummary(summary string) *VNode {
+	v.summary = normalizeInlineText(summary)
 	return v
 }
 
@@ -356,6 +366,12 @@ func (a Action) WithDisabled(disabled bool) Action {
 	return a
 }
 
+func (a Action) WithDisabledReason(reason string) Action {
+	a.Disabled = true
+	a.DisabledReason = reason
+	return a
+}
+
 func (a Action) WithWidth(width int) Action {
 	a.Width = width
 	return a
@@ -426,6 +442,7 @@ func normalizeActions(actions []Action) []Action {
 		if normalized[index].Width < 0 {
 			normalized[index].Width = 0
 		}
+		normalized[index].DisabledReason = normalizeInlineText(normalized[index].DisabledReason)
 	}
 	return normalized
 }
@@ -458,4 +475,8 @@ func cloneOptions(options []Option) []Option {
 	cloned := make([]Option, len(options))
 	copy(cloned, options)
 	return cloned
+}
+
+func normalizeInlineText(content string) string {
+	return strings.TrimSpace(strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ").Replace(content))
 }

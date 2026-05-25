@@ -7,12 +7,15 @@ The component follows Mint's component model:
 - `VNode` stores declarative fields, actions, sizing, and style.
 - `Instance` implements `RuntimeChildrenProvider` and synthesizes standard `Input`, `Select`, `Button`, `Wrap`, and layout nodes.
 - Field changes use typed `intent.FieldChangeIntent` when `ForField(...)` is configured. Action buttons use normal `intent.Intent`.
+- `Summary(...)` renders a compact scope/status line below the title, useful for current tenant, time range, page, result count, or server-side filter state.
+- `Action.WithDisabledReason(...)` disables the action and renders a compact reason line so operators understand the missing prerequisite.
 
 ## Example
 
 ```go
 filters := filterbar.NewBuilder().
     Title("Provider Filters").
+    Summary("scope: production | page: provider tokens").
     Width(96).
     LabelWidth(8).
     Field(filterbar.Search("query", "Query", state.Query).
@@ -25,6 +28,7 @@ filters := filterbar.NewBuilder().
     }).WithSelectedIndex(state.StatusIndex).ForField("providerStatus")).
     Action(filterbar.Button("refresh", "Refresh", RefreshIntent{}).Primary()).
     Action(filterbar.Button("reset", "Reset", ResetFiltersIntent{})).
+    Action(filterbar.Button("export", "Export", ExportIntent{}).WithDisabledReason("Select at least one provider first.")).
     Build()
 ```
 
@@ -67,6 +71,8 @@ Use `Button(key, label, intent)` for toolbar commands such as refresh, reset, ex
 filterbar.Button("refresh", "Refresh", RefreshIntent{}).Primary()
 filterbar.Button("reset", "Reset", ResetFiltersIntent{})
 filterbar.Button("clear", "Clear", ClearIntent{}).WithDisabled(true)
+filterbar.Button("export", "Export", ExportIntent{}).WithDisabledReason("Select rows first.")
 ```
 
 High-risk actions should not live in a filter bar. Keep them in selection-specific detail panels or confirmations where the target and impact are visible.
+Use disabled reasons for real prerequisites only: missing selection, permission boundaries, loading state, unsupported backend operation, or incomplete filters.
