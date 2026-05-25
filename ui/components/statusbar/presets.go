@@ -1,6 +1,10 @@
 package statusbar
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // Tone describes an operational status severity for status bar presets.
 type Tone string
@@ -59,6 +63,36 @@ func ErrorBadge(label string) Section {
 	return Badge(" "+label+" ", "white", "red")
 }
 
+// Endpoint creates a standard status section for the active API endpoint.
+func Endpoint(value string) Section {
+	return KeyValue("endpoint", value)
+}
+
+// User creates a standard status section for the active user/session label.
+func User(value string) Section {
+	return KeyValue("user", value)
+}
+
+// Page creates a standard status section for the active page or panel.
+func Page(value string) Section {
+	return KeyValue("page", value)
+}
+
+// Selection creates a low-emphasis status section for the current selection.
+func Selection(value string) Section {
+	return MutedKeyValue("selection", value)
+}
+
+// LastSync creates a low-emphasis status section for the last successful sync time.
+func LastSync(syncAt, now time.Time) Section {
+	return MutedKeyValue("last sync", formatElapsed(syncAt, now))
+}
+
+// AutoRefresh creates a low-emphasis status section for a refresh countdown.
+func AutoRefresh(remaining time.Duration) Section {
+	return MutedKeyValue("refresh", formatRemaining(remaining))
+}
+
 // DefaultTone maps common operational status strings to semantic tones.
 func DefaultTone(status string) Tone {
 	normalized := strings.ToLower(strings.TrimSpace(normalizeStatusText(status)))
@@ -90,4 +124,43 @@ func toneColors(tone Tone) (fgColor, bgColor string) {
 	default:
 		return "bright-white", "bright-black"
 	}
+}
+
+func formatElapsed(at, now time.Time) string {
+	if at.IsZero() {
+		return "never"
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	elapsed := now.Sub(at)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	if elapsed < time.Second {
+		return "just now"
+	}
+	if elapsed < time.Minute {
+		return fmt.Sprintf("%ds ago", int(elapsed.Seconds()))
+	}
+	if elapsed < time.Hour {
+		return fmt.Sprintf("%dm ago", int(elapsed.Minutes()))
+	}
+	if elapsed < 24*time.Hour {
+		return fmt.Sprintf("%dh ago", int(elapsed.Hours()))
+	}
+	return fmt.Sprintf("%dd ago", int(elapsed.Hours()/24))
+}
+
+func formatRemaining(remaining time.Duration) string {
+	if remaining <= 0 {
+		return "now"
+	}
+	if remaining < time.Minute {
+		return fmt.Sprintf("%ds", int(remaining.Seconds()))
+	}
+	if remaining < time.Hour {
+		return fmt.Sprintf("%dm", int(remaining.Minutes()))
+	}
+	return fmt.Sprintf("%dh", int(remaining.Hours()))
 }

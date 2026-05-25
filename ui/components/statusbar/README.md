@@ -202,6 +202,27 @@ ui.StatusBarBusyBadge("loading")
 ui.StatusBarErrorBadge("failed")
 ```
 
+运维应用也可以使用更固定的状态栏片段，避免各页面重复拼接 label：
+
+```go
+now := time.Now()
+
+bar := ui.StatusBarWithTheme(
+    ui.StatusBarThemeDefault(),
+    ui.StatusBarSections(
+        ui.StatusBarEndpoint("http://localhost:8080"),
+        ui.StatusBarUser("admin"),
+        ui.StatusBarPage("jobs"),
+    ),
+    ui.StatusBarSections(ui.StatusBarStateBadge("healthy")),
+    ui.StatusBarSections(
+        ui.StatusBarSelection("job-1"),
+        ui.StatusBarLastSync(now.Add(-2*time.Minute), now),
+        ui.StatusBarAutoRefresh(30*time.Second),
+    ),
+)
+```
+
 ## 适用场景
 
 - 交互模式状态栏

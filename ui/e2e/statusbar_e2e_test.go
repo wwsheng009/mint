@@ -145,6 +145,37 @@ func newStatusbarOverlayCornerFixture(spec statusbarOverlayCornerFixtureSpec) ui
 	}
 }
 
+func newStatusbarOperationalPresetFixture() ui.ComponentFunc {
+	return func() ui.VNode {
+		now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+		return ui.NewVStack().
+			SetGap(0).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Statusbar Operational Preset Fixture").Build(),
+				ui.StatusBarWithTheme(
+					ui.StatusBarThemeDefault(),
+					ui.StatusBarSections(
+						ui.StatusBarEndpoint("local"),
+						ui.StatusBarUser("admin"),
+						ui.StatusBarPage("jobs"),
+					),
+					ui.StatusBarSections(ui.StatusBarStateBadge("healthy")),
+					nil,
+				),
+				ui.StatusBarWithTheme(
+					ui.StatusBarThemeDefault(),
+					ui.StatusBarSections(
+						ui.StatusBarSelection("job-1"),
+						ui.StatusBarLastSync(now.Add(-2*time.Minute), now),
+						ui.StatusBarAutoRefresh(30*time.Second),
+					),
+					nil,
+					nil,
+				),
+			})
+	}
+}
+
 func waitForRenderedText(t *testing.T, app *App, text string) {
 	t.Helper()
 	if err := app.AwaitIdleFor(200 * time.Millisecond); err != nil {
@@ -213,6 +244,27 @@ func TestE2EStatusbarOverlayHelpTracksHoverPlacementAndHide(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestE2EStatusbarOperationalPresetsRender(t *testing.T) {
+	app, err := Run(newStatusbarOperationalPresetFixture(), ui.WithSize(120, 6))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, text := range []string{
+		"Statusbar Operational Preset Fixture",
+		"endpoint: local",
+		"user: admin",
+		"page: jobs",
+		"healthy",
+		"selection: job-1",
+		"last sync: 2m ago",
+		"refresh: 30s",
+	} {
+		waitForRenderedText(t, app, text)
 	}
 }
 

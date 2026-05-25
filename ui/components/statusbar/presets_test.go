@@ -1,6 +1,9 @@
 package statusbar
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestKeyValuePreset(t *testing.T) {
 	section := KeyValue("endpoint", "http://localhost:8080")
@@ -76,6 +79,32 @@ func TestDefaultTone(t *testing.T) {
 	for status, want := range tests {
 		if got := DefaultTone(status); got != want {
 			t.Fatalf("DefaultTone(%q) = %q, want %q", status, got, want)
+		}
+	}
+}
+
+func TestOperationalStatusPresets(t *testing.T) {
+	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		got  Section
+		want string
+	}{
+		{"endpoint", Endpoint("http://localhost:8080"), "endpoint: http://localhost:8080"},
+		{"user", User("admin"), "user: admin"},
+		{"page", Page("jobs"), "page: jobs"},
+		{"selection", Selection("job-1"), "selection: job-1"},
+		{"last sync never", LastSync(time.Time{}, now), "last sync: never"},
+		{"last sync seconds", LastSync(now.Add(-30*time.Second), now), "last sync: 30s ago"},
+		{"last sync minutes", LastSync(now.Add(-5*time.Minute), now), "last sync: 5m ago"},
+		{"auto refresh", AutoRefresh(15 * time.Second), "refresh: 15s"},
+		{"auto refresh now", AutoRefresh(0), "refresh: now"},
+	}
+
+	for _, tt := range tests {
+		if tt.got.Text != tt.want {
+			t.Fatalf("%s text = %q, want %q", tt.name, tt.got.Text, tt.want)
 		}
 	}
 }

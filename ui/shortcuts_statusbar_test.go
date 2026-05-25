@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/intent"
 )
@@ -163,5 +164,19 @@ func TestStatusBarOperationalShortcutPresets(t *testing.T) {
 	err := StatusBarErrorBadge("failed")
 	if err.BgColor != "red" {
 		t.Fatalf("error bg = %q", err.BgColor)
+	}
+
+	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+	for _, section := range StatusBarSections(
+		StatusBarEndpoint("http://localhost:8080"),
+		StatusBarUser("admin"),
+		StatusBarPage("jobs"),
+		StatusBarSelection("job-1"),
+		StatusBarLastSync(now.Add(-2*time.Minute), now),
+		StatusBarAutoRefresh(30*time.Second),
+	) {
+		if section.Text == "" {
+			t.Fatalf("operational status shortcut returned empty section: %+v", section)
+		}
 	}
 }
