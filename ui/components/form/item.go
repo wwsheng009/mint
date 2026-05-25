@@ -17,6 +17,8 @@ const (
 	itemPropLabel      = "itemLabel"
 	itemPropLayout     = "itemLayout"
 	itemPropValidators = "validators"
+	itemPropHelp       = "help"
+	itemPropRequired   = "required"
 )
 
 type itemModel struct {
@@ -27,6 +29,8 @@ type itemModel struct {
 	layout     FormLayout
 	child      rtui.VNode
 	validators []validation.Validator
+	help       string
+	required   bool
 }
 
 type itemRuntimeState struct {
@@ -71,6 +75,22 @@ func (b *ItemBuilder) Key(key string) *ItemBuilder {
 func (b *ItemBuilder) Label(label string) *ItemBuilder {
 	props := cloneItemProps(b.node)
 	props[itemPropLabel] = label
+	b.node.SetProps(props)
+	return b
+}
+
+// Help sets a low-emphasis help text shown near the field.
+func (b *ItemBuilder) Help(text string) *ItemBuilder {
+	props := cloneItemProps(b.node)
+	props[itemPropHelp] = text
+	b.node.SetProps(props)
+	return b
+}
+
+// Required marks the field label as required.
+func (b *ItemBuilder) Required(required bool) *ItemBuilder {
+	props := cloneItemProps(b.node)
+	props[itemPropRequired] = required
 	b.node.SetProps(props)
 	return b
 }
@@ -125,11 +145,11 @@ func renderFormItem(props rtui.Props) rtui.VNode {
 
 	switch layout {
 	case LayoutHorizontal:
-		return renderHorizontalItem(model.label, child, errorText)
+		return renderHorizontalItem(model.label, model.required, child, model.help, errorText)
 	case LayoutInline:
-		return renderInlineItem(model.label, child, errorText)
+		return renderInlineItem(model.label, model.required, child, model.help, errorText)
 	default:
-		return renderVerticalItem(model.label, child, errorText)
+		return renderVerticalItem(model.label, model.required, child, model.help, errorText)
 	}
 }
 
@@ -166,6 +186,12 @@ func itemModelFromProps(props rtui.Props) itemModel {
 	}
 	if value, ok := props[itemPropValidators].([]validation.Validator); ok {
 		model.validators = append([]validation.Validator(nil), value...)
+	}
+	if value, ok := props[itemPropHelp].(string); ok {
+		model.help = value
+	}
+	if value, ok := props[itemPropRequired].(bool); ok {
+		model.required = value
 	}
 	return model
 }
@@ -348,13 +374,16 @@ func bindFormItemChild(child rtui.VNode, formID string) rtui.VNode {
 	return child
 }
 
-func renderVerticalItem(label string, child rtui.VNode, errorText string) rtui.VNode {
-	children := make([]rtui.VNode, 0, 3)
+func renderVerticalItem(label string, required bool, child rtui.VNode, helpText, errorText string) rtui.VNode {
+	children := make([]rtui.VNode, 0, 4)
 	if label != "" {
-		children = append(children, buildItemLabel(label))
+		children = append(children, buildItemLabel(label, required))
 	}
 	if child != nil {
 		children = append(children, child)
+	}
+	if helpText != "" {
+		children = append(children, buildItemHelp(helpText))
 	}
 	if errorText != "" {
 		children = append(children, buildItemError(errorText))
@@ -362,29 +391,39 @@ func renderVerticalItem(label string, child rtui.VNode, errorText string) rtui.V
 	return rtui.VStackBuilder(children...).Gap(0).Build()
 }
 
-func renderHorizontalItem(label string, child rtui.VNode, errorText string) rtui.VNode {
+func renderHorizontalItem(label string, required bool, child rtui.VNode, helpText, errorText string) rtui.VNode {
 	rowChildren := make([]rtui.VNode, 0, 2)
 	if label != "" {
-		rowChildren = append(rowChildren, buildItemLabel(label))
+		rowChildren = append(rowChildren, buildItemLabel(label, required))
 	}
 	if child != nil {
 		rowChildren = append(rowChildren, rtui.Flex(child, 1))
 	}
 
 	row := rtui.HStackBuilder(rowChildren...).Gap(1).AlignCross(rtui.AlignStart).Build()
-	if errorText == "" {
+	if helpText == "" && errorText == "" {
 		return row
 	}
-	return rtui.VStackBuilder(row, buildItemError(errorText)).Gap(0).Build()
+	children := []rtui.VNode{row}
+	if helpText != "" {
+		children = append(children, buildItemHelp(helpText))
+	}
+	if errorText != "" {
+		children = append(children, buildItemError(errorText))
+	}
+	return rtui.VStackBuilder(children...).Gap(0).Build()
 }
 
-func renderInlineItem(label string, child rtui.VNode, errorText string) rtui.VNode {
-	children := make([]rtui.VNode, 0, 3)
+func renderInlineItem(label string, required bool, child rtui.VNode, helpText, errorText string) rtui.VNode {
+	children := make([]rtui.VNode, 0, 4)
 	if label != "" {
-		children = append(children, buildItemLabel(label))
+		children = append(children, buildItemLabel(label, required))
 	}
 	if child != nil {
 		children = append(children, child)
+	}
+	if helpText != "" {
+		children = append(children, buildItemHelp(helpText))
 	}
 	if errorText != "" {
 		children = append(children, buildItemError(errorText))
@@ -392,10 +431,18 @@ func renderInlineItem(label string, child rtui.VNode, errorText string) rtui.VNo
 	return rtui.HStackBuilder(children...).Gap(1).AlignCross(rtui.AlignCenter).Build()
 }
 
-func buildItemLabel(label string) rtui.VNode {
+func buildItemLabel(label string, required bool) rtui.VNode {
+	if required {
+		label += " *"
+	}
 	return textcomp.New(label).
 		Foreground(theme.Muted()).
 		Bold(true)
+}
+
+func buildItemHelp(helpText string) rtui.VNode {
+	return textcomp.New(helpText).
+		Foreground(theme.Muted())
 }
 
 func buildItemError(errorText string) rtui.VNode {

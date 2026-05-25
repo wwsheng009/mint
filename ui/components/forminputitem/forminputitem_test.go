@@ -19,6 +19,8 @@ func TestNew(t *testing.T) {
 		ForForm("loginForm"),
 		Layout(formcomp.LayoutInline),
 		Validators(validation.Required(), validation.MinLength(8), validation.MaxLength(128)),
+		Help("Use the Admin API base URL."),
+		Required(),
 	)
 	if item == nil {
 		t.Fatal("New() returned nil")
@@ -32,6 +34,12 @@ func TestNew(t *testing.T) {
 	}
 	if got := props["itemLayout"]; got != formcomp.LayoutInline {
 		t.Fatalf("itemLayout = %v, want %v", got, formcomp.LayoutInline)
+	}
+	if got := props["help"]; got != "Use the Admin API base URL." {
+		t.Fatalf("help = %v, want helper text", got)
+	}
+	if got := props["required"]; got != true {
+		t.Fatalf("required = %v, want true", got)
 	}
 	validators, ok := props["validators"].([]validation.Validator)
 	if !ok {

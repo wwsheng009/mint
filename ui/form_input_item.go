@@ -84,6 +84,16 @@ func FormInputValidators(validators ...Validator) FormInputItemOption {
 	return forminputitem.Validators(validators...)
 }
 
+// FormInputHelp sets helper text for the field.
+func FormInputHelp(text string) FormInputItemOption {
+	return forminputitem.Help(text)
+}
+
+// FormInputRequired marks the field label as required.
+func FormInputRequired() FormInputItemOption {
+	return forminputitem.Required()
+}
+
 // Validator is the public validation contract used by form helpers.
 type Validator = validation.Validator
 

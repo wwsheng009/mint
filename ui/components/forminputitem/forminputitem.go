@@ -25,6 +25,8 @@ type Config struct {
 	FormID      string
 	Layout      formcomp.FormLayout
 	Validators  []validation.Validator
+	Help        string
+	Required    bool
 }
 
 // New builds a FormItem containing a field-bound Input.
@@ -68,6 +70,12 @@ func New(field, label, value string, opts ...Option) rtui.VNode {
 	}
 
 	itemBuilder := formcomp.NewItem(field, inputBuilder.Build()).Label(label)
+	if cfg.Help != "" {
+		itemBuilder.Help(cfg.Help)
+	}
+	if cfg.Required {
+		itemBuilder.Required(true)
+	}
 	if cfg.FormID != "" {
 		itemBuilder.ForForm(cfg.FormID)
 	}
@@ -168,5 +176,19 @@ func Layout(layout formcomp.FormLayout) Option {
 func Validators(validators ...validation.Validator) Option {
 	return func(cfg *Config) {
 		cfg.Validators = append([]validation.Validator(nil), validators...)
+	}
+}
+
+// Help sets helper text for the field.
+func Help(text string) Option {
+	return func(cfg *Config) {
+		cfg.Help = text
+	}
+}
+
+// Required marks the field label as required.
+func Required() Option {
+	return func(cfg *Config) {
+		cfg.Required = true
 	}
 }

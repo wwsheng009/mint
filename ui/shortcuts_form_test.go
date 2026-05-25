@@ -63,6 +63,8 @@ func TestFormInputItemShortcuts(t *testing.T) {
 		FormInputForForm("loginForm"),
 		FormInputLayout(FormInline),
 		FormInputValidators(Required(), MinLength(8), MaxLength(128)),
+		FormInputHelp("Use the Admin API base URL."),
+		FormInputRequired(),
 	)
 	if item == nil {
 		t.Fatal("FormInputItem() returned nil")
@@ -76,6 +78,12 @@ func TestFormInputItemShortcuts(t *testing.T) {
 	}
 	if got := props["itemLayout"]; got != FormInline {
 		t.Fatalf("itemLayout = %v, want %v", got, FormInline)
+	}
+	if got := props["help"]; got != "Use the Admin API base URL." {
+		t.Fatalf("help = %v, want helper text", got)
+	}
+	if got := props["required"]; got != true {
+		t.Fatalf("required = %v, want true", got)
 	}
 	validators, ok := props["validators"].([]Validator)
 	if !ok {

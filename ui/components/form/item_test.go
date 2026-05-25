@@ -44,6 +44,24 @@ func TestFormItemInheritsParentFormID(t *testing.T) {
 	}
 }
 
+func TestFormItemHelpAndRequiredRender(t *testing.T) {
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "endpoint-field"})
+	item := NewItem("endpoint", child).
+		Label("Gateway URL").
+		Help("Use the Admin API base URL.").
+		Required(true).
+		Build()
+
+	rendered := renderFormItem(item.Props())
+	text := strings.Join(collectText(rendered), "\n")
+	if !strings.Contains(text, "Gateway URL *") {
+		t.Fatalf("expected required label marker, got %q", text)
+	}
+	if !strings.Contains(text, "Use the Admin API base URL.") {
+		t.Fatalf("expected help text, got %q", text)
+	}
+}
+
 func TestFormItemOwnerlessRenderDoesNotResolveRegisteredForm(t *testing.T) {
 	ResetRegistry()
 	defer ResetRegistry()
