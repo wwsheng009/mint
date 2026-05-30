@@ -691,8 +691,7 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	}
 
 	// Get the currently focused index
-	focusedIndex := r.focusMgr.CurrentIndex()
-	if focusedIndex < 0 {
+	if r.focusMgr.CurrentIndex() < 0 {
 		// No focused element, clear all focus
 		r.clearFocusOnFiber(fiber)
 		return
@@ -701,6 +700,7 @@ func (r *Reconciler) applyFocusStateToFiber(fiber *Fiber) {
 	// Collect all focusable Fibers (Fiber-first)
 	r.focusMgr.CollectFromFiber(fiber)
 	focusable := r.focusMgr.GetFocusable()
+	focusedIndex := r.focusMgr.CurrentIndex()
 
 	log.FocusLogger.IfEnabled().Debug("applyFocus focusedIndex=%d, totalFocusable=%d", focusedIndex, len(focusable))
 

@@ -23,6 +23,12 @@ type FiberFocusManager struct {
 	activeLayer    Layer                 // Current active layer (highest layer with content)
 }
 
+type fiberFocusIdentity struct {
+	nodeID uint64
+	path   string
+	tag    string
+}
+
 // NewFiberFocusManager creates a new Fiber-based focus manager.
 func NewFiberFocusManager() *FiberFocusManager {
 	return &FiberFocusManager{
@@ -60,7 +66,9 @@ func (m *FiberFocusManager) HasActiveLayer() bool {
 // CollectFromFiber collects all focusable Fiber nodes from a Fiber tree.
 // This should be called during Commit phase after the Fiber tree is complete.
 func (m *FiberFocusManager) CollectFromFiber(root *Fiber) {
+	previousIdentity, previousIndex, previousFiber := m.snapshotCurrentFocus()
 	m.focusable, m.focusableLayer = m.collectFocusableFibers(root, LayerBase)
+	m.restoreCurrentFocus(previousIdentity, previousIndex, previousFiber)
 	log.FocusLogger.IfEnabled().Debug("CollectFromFiber: collected %d focusable fibers", len(m.focusable))
 	for i, f := range m.focusable {
 		focusID := fmt.Sprintf("node-%d", f.NodeID)
@@ -117,16 +125,9 @@ func (m *FiberFocusManager) collectFocusableFibers(fiber *Fiber, inheritedLayer 
 }
 
 // SetFocusable sets the list of focusable Fiber nodes.
-// It attempts to preserve focus by NodeID across re-renders.
+// It attempts to preserve focus by Fiber identity across re-renders.
 func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
-	// Save current focus ID and index
-	currentID := ""
-	currentIndexBefore := m.current
-	if m.current >= 0 && m.current < len(m.focusable) {
-		// Fiber-first: use NodeID to generate FocusID
-		currentID = fmt.Sprintf("node-%d", m.focusable[m.current].NodeID)
-		log.FocusLogger.IfEnabled().Debug("SetFocusable: saving currentID=%s from index %d", currentID, m.current)
-	}
+	previousIdentity, previousIndex, previousFiber := m.snapshotCurrentFocus()
 
 	m.focusable = fibers
 	m.focusableLayer = make([]Layer, len(fibers))
@@ -136,48 +137,79 @@ func (m *FiberFocusManager) SetFocusable(fibers []*Fiber) {
 		}
 	}
 
-	// Try to restore focus by ID and index
-	m.current = -1
-	if currentID != "" && currentIndexBefore >= 0 {
-		// First, try to preserve focus by index if the fiber at that index has the same ID
-		if currentIndexBefore < len(m.focusable) {
-			nodeID := fmt.Sprintf("node-%d", m.focusable[currentIndexBefore].NodeID)
-			if nodeID == currentID {
-				m.current = currentIndexBefore
-				m.applyFocusState(m.current, true)
-				log.FocusLogger.IfEnabled().Debug("SetFocusable: preserved focus at index %d by position", m.current)
-			} else {
-				// Different ID - search by ID
-				for i, fiber := range m.focusable {
-					fiberID := fmt.Sprintf("node-%d", fiber.NodeID)
-					if fiberID == currentID {
-						m.current = i
-						m.applyFocusState(m.current, true)
-						log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
-						break
-					}
-				}
-			}
-		} else {
-			// Previous index out of range - search by ID
-			for i, fiber := range m.focusable {
-				fiberID := fmt.Sprintf("node-%d", fiber.NodeID)
-				if fiberID == currentID {
-					m.current = i
-					m.applyFocusState(m.current, true)
-					log.FocusLogger.IfEnabled().Debug("SetFocusable: restored focus to index %d by ID=%s", i, currentID)
-					break
-				}
-			}
-		}
-	}
+	m.restoreCurrentFocus(previousIdentity, previousIndex, previousFiber)
 
-	log.FocusLogger.IfEnabled().Debug("SetFocusable: before=%d, after=%d, fibers=%d", currentIndexBefore, m.current, len(fibers))
+	log.FocusLogger.IfEnabled().Debug("SetFocusable: before=%d, after=%d, fibers=%d", previousIndex, m.current, len(fibers))
 
 	// If no focus and there are focusable fibers, focus the first one
 	if m.current < 0 && len(m.focusable) > 0 {
 		m.FocusFirst()
 	}
+}
+
+func (m *FiberFocusManager) snapshotCurrentFocus() (fiberFocusIdentity, int, *Fiber) {
+	index := m.current
+	if index < 0 || index >= len(m.focusable) {
+		return fiberFocusIdentity{}, index, nil
+	}
+	fiber := m.focusable[index]
+	return focusIdentityForFiber(fiber), index, fiber
+}
+
+func (m *FiberFocusManager) restoreCurrentFocus(identity fiberFocusIdentity, previousIndex int, previousFiber *Fiber) {
+	newIndex := m.findFocusIdentity(identity)
+
+	if newIndex < 0 && previousIndex >= 0 && len(m.focusable) > 0 {
+		if previousIndex >= len(m.focusable) {
+			newIndex = len(m.focusable) - 1
+		} else {
+			newIndex = previousIndex
+		}
+	}
+
+	m.current = newIndex
+	newFiber := m.getFiber(newIndex)
+	if previousFiber != nil && previousFiber != newFiber {
+		setFiberFocused(previousFiber, false)
+	}
+	setFiberFocused(newFiber, true)
+}
+
+func (m *FiberFocusManager) findFocusIdentity(identity fiberFocusIdentity) int {
+	if !identity.valid() {
+		return -1
+	}
+	for i, fiber := range m.focusable {
+		if identity.matches(fiber) {
+			return i
+		}
+	}
+	return -1
+}
+
+func focusIdentityForFiber(fiber *Fiber) fiberFocusIdentity {
+	if fiber == nil {
+		return fiberFocusIdentity{}
+	}
+	return fiberFocusIdentity{
+		nodeID: fiber.NodeID,
+		path:   fiber.Path,
+		tag:    fiber.Tag,
+	}
+}
+
+func (id fiberFocusIdentity) valid() bool {
+	return id.nodeID != 0 || id.path != ""
+}
+
+func (id fiberFocusIdentity) matches(fiber *Fiber) bool {
+	if fiber == nil {
+		return false
+	}
+	if id.nodeID != 0 && fiber.NodeID == id.nodeID {
+		return true
+	}
+	return id.path != "" && fiber.Path == id.path && fiber.Tag == id.tag
 }
 
 // FocusNext moves focus to the next focusable Fiber.
@@ -495,15 +527,19 @@ func (m *FiberFocusManager) applyFocusState(index int, focused bool) {
 		return
 	}
 
-	fiber := m.focusable[index]
+	setFiberFocused(m.focusable[index], focused)
+}
+
+func setFiberFocused(fiber *Fiber, focused bool) {
+	if fiber == nil || fiber.Instance == nil {
+		return
+	}
 
 	// IMPORTANT: Use Instance.(FocusableInstance).SetFocus() instead of FocusableVNode.SetFocus()
 	// FocusableVNode is DEPRECATED and its hasFocus field is not used during rendering.
 	// Instance.state.Focused is the actual runtime state used by resolveStyle().
-	if fiber.Instance != nil {
-		if focusable, ok := fiber.Instance.(interface{ SetFocus(bool) }); ok {
-			focusable.SetFocus(focused)
-		}
+	if focusable, ok := fiber.Instance.(interface{ SetFocus(bool) }); ok {
+		focusable.SetFocus(focused)
 	}
 }
 

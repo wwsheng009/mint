@@ -58,6 +58,120 @@ func TestFiberFocusManager_SetFocusByIndex_NoRetoggleOnSameIndex(t *testing.T) {
 	}
 }
 
+func TestFiberFocusManager_CollectFromFiberPreservesFocusedIdentityWhenEarlierControlAppears(t *testing.T) {
+	manager := NewFiberFocusManager()
+
+	baseURLInst := &mockFiberFocusableInstance{}
+	captchaInst := &mockFiberFocusableInstance{}
+	loginInst := &mockFiberFocusableInstance{}
+
+	root := &Fiber{Key: "root", Type: VNodeComponent}
+	baseURL := &Fiber{
+		NodeID:   1,
+		Tag:      "input",
+		Layer:    LayerBase,
+		Path:     "/root/login/baseURL/input[0]",
+		Instance: baseURLInst,
+	}
+	captcha := &Fiber{
+		NodeID:   2,
+		Tag:      "input",
+		Layer:    LayerBase,
+		Path:     "/root/login/captchaCode/input[0]",
+		Instance: captchaInst,
+	}
+	root.Child = baseURL
+	baseURL.Sibling = captcha
+
+	manager.CollectFromFiber(root)
+	if ok := manager.SetFocusByIndex(1); !ok {
+		t.Fatal("SetFocusByIndex(1) should focus captcha")
+	}
+	if got := manager.GetCurrent(); got != captcha {
+		t.Fatalf("focused fiber = %#v, want captcha", got)
+	}
+
+	login := &Fiber{
+		NodeID:   3,
+		Tag:      "button",
+		Layer:    LayerBase,
+		Path:     "/root/login/actions/button[0]",
+		Instance: loginInst,
+	}
+	baseURL.Sibling = login
+	login.Sibling = captcha
+
+	manager.CollectFromFiber(root)
+
+	if got := manager.GetCurrent(); got != captcha {
+		t.Fatalf("focused fiber after earlier login appears = %#v, want captcha", got)
+	}
+	if manager.CurrentIndex() != 2 {
+		t.Fatalf("focus index after earlier login appears = %d, want 2", manager.CurrentIndex())
+	}
+	if !captchaInst.focused {
+		t.Fatal("captcha should remain focused after focusable list changes")
+	}
+	if loginInst.focused {
+		t.Fatal("newly enabled login button should not steal focus from captcha")
+	}
+}
+
+func TestFiberFocusManager_CollectFromFiberPreservesFocusByPathWhenNodeIDChanges(t *testing.T) {
+	manager := NewFiberFocusManager()
+
+	oldCaptchaInst := &mockFiberFocusableInstance{}
+	newCaptchaInst := &mockFiberFocusableInstance{}
+	loginInst := &mockFiberFocusableInstance{}
+
+	root := &Fiber{Key: "root", Type: VNodeComponent}
+	oldCaptcha := &Fiber{
+		NodeID:   11,
+		Tag:      "input",
+		Layer:    LayerBase,
+		Path:     "/root/login/captchaCode/input[0]",
+		Instance: oldCaptchaInst,
+	}
+	root.Child = oldCaptcha
+
+	manager.CollectFromFiber(root)
+	if ok := manager.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should focus old captcha")
+	}
+
+	login := &Fiber{
+		NodeID:   12,
+		Tag:      "button",
+		Layer:    LayerBase,
+		Path:     "/root/login/actions/button[0]",
+		Instance: loginInst,
+	}
+	newCaptcha := &Fiber{
+		NodeID:   13,
+		Tag:      "input",
+		Layer:    LayerBase,
+		Path:     oldCaptcha.Path,
+		Instance: newCaptchaInst,
+	}
+	root.Child = login
+	login.Sibling = newCaptcha
+
+	manager.CollectFromFiber(root)
+
+	if got := manager.GetCurrent(); got != newCaptcha {
+		t.Fatalf("focused fiber after node replacement = %#v, want new captcha", got)
+	}
+	if oldCaptchaInst.focused {
+		t.Fatal("old captcha instance should be blurred after replacement")
+	}
+	if !newCaptchaInst.focused {
+		t.Fatal("new captcha instance should receive preserved focus")
+	}
+	if loginInst.focused {
+		t.Fatal("login should not be focused when captcha path identity is preserved")
+	}
+}
+
 func TestFiberFocusManager_SetActiveLayer_TrapsFocusToModalSubtree(t *testing.T) {
 	manager := NewFiberFocusManager()
 
