@@ -28,6 +28,15 @@ func (m *mockCustomPaintNode) Paint(x, y int) []paint.DrawCmd {
 	return m.paint(x, y)
 }
 
+func newPortalRootPaintableNode(rootID string) *FiberPaintableNode {
+	return NewFiberPaintableNode(&rtui.Fiber{
+		Type:  rtui.VNodeElement,
+		Tag:   "box",
+		Props: rtui.Props{"portalRootId": rootID},
+		Layer: rtui.LayerModal,
+	})
+}
+
 // =============================================================================
 // PaintEngine New API Tests
 // =============================================================================
@@ -244,10 +253,7 @@ func TestPaintEngine_PaintPaintablePlanes_IgnoresPortalHostForBackdrop(t *testin
 	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 20, 8)
 	baseBox.Layer = int(paint.RenderLayerBase)
 
-	hostVNode := rtui.NewElement("box").
-		SetPortalRootId(rtui.DefaultModalPortalRootID).
-		SetLayer(rtui.LayerModal)
-	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox := paint.NewPaintableBoxWithBounds(newPortalRootPaintableNode(rtui.DefaultModalPortalRootID), 0, 0, 1, 1)
 	hostBox.Layer = int(paint.RenderLayerModal)
 
 	planes := paint.NewPaintablePlanes()
@@ -283,10 +289,7 @@ func TestPaintEngine_PaintPaintablePlanes_UsesVisibleModalBoxForBackdrop(t *test
 	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 30, 10)
 	baseBox.Layer = int(paint.RenderLayerBase)
 
-	hostVNode := rtui.NewElement("box").
-		SetPortalRootId(rtui.DefaultModalPortalRootID).
-		SetLayer(rtui.LayerModal)
-	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox := paint.NewPaintableBoxWithBounds(newPortalRootPaintableNode(rtui.DefaultModalPortalRootID), 0, 0, 1, 1)
 	hostBox.Layer = int(paint.RenderLayerModal)
 
 	dialogNode := &mockCustomPaintNode{
@@ -343,10 +346,7 @@ func TestPaintEngine_PaintPaintableLayouts_UsesVisibleModalChildForBackdrop(t *t
 	}
 	baseBox := paint.NewPaintableBoxWithBounds(baseNode, 0, 0, 30, 10)
 
-	hostVNode := rtui.NewElement("box").
-		SetPortalRootId(rtui.DefaultModalPortalRootID).
-		SetLayer(rtui.LayerModal)
-	hostBox := paint.NewPaintableBoxWithBounds(NewVNodePaintableNode(hostVNode), 0, 0, 1, 1)
+	hostBox := paint.NewPaintableBoxWithBounds(newPortalRootPaintableNode(rtui.DefaultModalPortalRootID), 0, 0, 1, 1)
 	hostBox.Layer = int(paint.RenderLayerModal)
 
 	dialogNode := &mockCustomPaintNode{

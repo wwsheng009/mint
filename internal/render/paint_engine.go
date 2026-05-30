@@ -542,8 +542,6 @@ func (e *PaintEngine) isPortalRootBox(box *paint.PaintableBox) bool {
 	switch node := box.Node.(type) {
 	case *FiberPaintableNode:
 		return hasPortalRootID(node.fiber.Props)
-	case *VNodePaintableNode:
-		return hasPortalRootID(node.vnode.Props())
 	default:
 		return false
 	}
