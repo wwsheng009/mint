@@ -10,7 +10,6 @@ import (
 	"github.com/wwsheng009/mint/runtime/event"
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/paint"
-	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
 // RenderingPipeline is the rendering pipeline with separated Layout and Paint phases.
@@ -51,7 +50,7 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // Render performs the complete rendering pipeline:
 // 1. Layout phase: calculate positions for all nodes using layout.Engine
 // 2. Paint phase: render using computed positions
-func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
+func (p *RenderingPipeline) Render(fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
 	if fiber == nil {
 		return fmt.Errorf("rendering pipeline requires a Fiber root")
 	}
@@ -137,7 +136,6 @@ func (p *RenderingPipeline) ClearCache() {
 // RenderLayers renders a VNode tree with multi-layer support.
 // This is the main entry point for layer-based rendering.
 func (p *RenderingPipeline) RenderLayers(
-	vnode rtui.VNode,
 	fiber *reconciler.Fiber,
 	constraints runtime.BoxConstraints,
 	buffer *paint.Buffer,

@@ -69,8 +69,8 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
-	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
-	hasLayers := r.hasLayerNodes(vnode)
+	// Check if Fiber tree contains any layer nodes (Modal, Overlay, Tooltip)
+	hasLayers := r.hasLayerNodes()
 
 	log.LayerLogger.IfEnabled().Debug("hasLayers=%v", hasLayers)
 
@@ -78,11 +78,11 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
 		log.RenderLogger.IfEnabled().Debug("Using RenderLayers for multi-layer rendering")
-		err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buf)
+		err = r.pipeline.RenderLayers(r.fiber, constraints, buf)
 	} else {
 		// Use standard rendering for simple VNode trees
 		log.RenderLogger.IfEnabled().Debug("Using standard Render")
-		err = r.pipeline.Render(vnode, r.fiber, constraints, buf)
+		err = r.pipeline.Render(r.fiber, constraints, buf)
 	}
 
 	if err != nil {
@@ -100,7 +100,7 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 }
 
 // hasLayerNodes checks the Fiber tree for non-base layer nodes.
-func (r *PipelineRenderer) hasLayerNodes(vnode rtui.VNode) bool {
+func (r *PipelineRenderer) hasLayerNodes() bool {
 	return r.hasLayerNodesFromFiber(r.fiber)
 }
 
@@ -190,16 +190,16 @@ func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, 
 	log.LayerLogger.Debug("Layout constraints: %dx%d (buffer: %dx%d)",
 		layoutWidth, layoutHeight, buffer.Width, buffer.Height)
 
-	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
-	hasLayers := r.hasLayerNodes(vnode)
+	// Check if Fiber tree contains any layer nodes (Modal, Overlay, Tooltip)
+	hasLayers := r.hasLayerNodes()
 
 	log.LayerLogger.IfEnabled().Debug("hasLayers=%v", hasLayers)
 
 	var err error
 	if hasLayers {
-		err = r.pipeline.RenderLayers(vnode, r.fiber, constraints, buffer)
+		err = r.pipeline.RenderLayers(r.fiber, constraints, buffer)
 	} else {
-		err = r.pipeline.Render(vnode, r.fiber, constraints, buffer)
+		err = r.pipeline.Render(r.fiber, constraints, buffer)
 	}
 
 	if err != nil {
@@ -273,18 +273,8 @@ func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.F
 
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 
-	// Get Fiber from DeclarativeNode if available
-	// This allows NodeID propagation when DeclarativeNode has Fiber reconciler
-	if fiber == nil {
-		// Try to get Fiber from VNode tree's source
-		// Check if vnode came from a FiberReconciler-aware DeclarativeNode
-		if declNode, ok := vnode.(interface{ GetFiberRoot() *reconciler.Fiber }); ok {
-			fiber = declNode.GetFiberRoot()
-		}
-	}
-
-	// Check if VNode tree contains any layer nodes (Modal, Overlay, Tooltip)
-	hasLayers := r.hasLayerNodes(vnode)
+	// Check if Fiber tree contains any layer nodes (Modal, Overlay, Tooltip)
+	hasLayers := r.hasLayerNodesFromFiber(fiber)
 
 	log.LayerLogger.IfEnabled().Debug("RenderWithFiber: hasLayers=%v, fiber=%v", hasLayers, fiber != nil)
 
@@ -292,11 +282,11 @@ func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.F
 	if hasLayers {
 		// Use multi-layer rendering for modals, overlays, tooltips
 		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using RenderLayers for multi-layer rendering")
-		err = r.pipeline.RenderLayers(vnode, fiber, constraints, buffer)
+		err = r.pipeline.RenderLayers(fiber, constraints, buffer)
 	} else {
 		// Use standard rendering for simple VNode trees
 		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using standard Render")
-		err = r.pipeline.Render(vnode, fiber, constraints, buffer)
+		err = r.pipeline.Render(fiber, constraints, buffer)
 	}
 
 	if err != nil {
