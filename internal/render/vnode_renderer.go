@@ -21,20 +21,6 @@ func getBuffer(buffer interface{}) *paint.Buffer {
 	return nil
 }
 
-// measureExplicitDimensions checks for explicit width/height in props
-// Returns (width, height) with 0 meaning not explicitly set
-func measureExplicitDimensions(vnode rtui.VNode) (width, height int) {
-	if vnode == nil {
-		return 0, 0
-	}
-	props := vnode.Props()
-	if props == nil {
-		return 0, 0
-	}
-	return props.GetInt("width"), props.GetInt("height")
-}
-
-
 // =============================================================================
 // PipelineRendererAdapter - Adapts PipelineRenderer to VNodeRenderer interface
 // =============================================================================
@@ -104,4 +90,3 @@ func (r *PipelineRendererAdapter) GetHooks() *render.HookManager {
 func (r *PipelineRendererAdapter) SetFiber(fiber *reconciler.Fiber) {
 	r.pipeline.fiber = fiber
 }
-
