@@ -69,10 +69,10 @@ func (a *fiberReconcilerAdapter) SetFocusManager(mgr interface{}) {
 	}
 }
 
-// SetRenderer sets the VNode renderer (adapter method)
-// Phase 8: This allows reconciler to call SetFiber for NodeID propagation
-func (a *fiberReconcilerAdapter) SetRenderer(renderer rtui.VNodeRenderer) {
-	a.r.SetRenderer(renderer)
+// SetFiberTarget sets the receiver for the committed Fiber root.
+// Phase 8: This allows reconciler to call SetFiber for NodeID propagation.
+func (a *fiberReconcilerAdapter) SetFiberTarget(target interface{ SetFiber(*reconciler.Fiber) }) {
+	a.r.SetFiberTarget(target)
 }
 
 // GetRenderedRoot returns the rendered VNode tree (adapter method)

@@ -165,10 +165,10 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 	// while PipelineRenderer handles the actual rendering
 	renderer := NewPipelineRendererAdapter()
 
-	// Phase 8: Set renderer on reconciler for NodeID propagation
-	// This enables SetFiber() to be called after reconciliation completes
+	// Phase 8: Publish the reconciled Fiber root to the pipeline renderer.
+	// This enables SetFiber() to be called after reconciliation completes.
 	if adapter, ok := r.(*fiberReconcilerAdapter); ok {
-		adapter.SetRenderer(renderer)
+		adapter.SetFiberTarget(renderer)
 	}
 
 	node := &DeclarativeNode{
@@ -288,16 +288,18 @@ func (n *DeclarativeNode) GetIntentRuntime() *intent.Runtime {
 
 // SetReconciler sets the Fiber reconciler for this node
 // This is called by ui.Run when Fiber mode is enabled
-// Phase 8: Set renderer on reconciler for NodeID propagation
+// Phase 8: Set Fiber target on reconciler for NodeID propagation
 func (n *DeclarativeNode) SetReconciler(r rtui.Reconciler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.reconciler = r
 
-	// Phase 8: Set renderer on reconciler so it can call SetFiber after reconciliation
-	// This enables NodeID propagation from Fiber tree to LayoutEngine
-	if setter, ok := r.(interface{ SetRenderer(rtui.VNodeRenderer) }); ok {
-		setter.SetRenderer(n.renderer)
+	// Phase 8: Set Fiber target on reconciler so it can call SetFiber after reconciliation.
+	// This enables NodeID propagation from Fiber tree to LayoutEngine.
+	if setter, ok := r.(interface{ SetFiberTarget(interface{ SetFiber(*reconciler.Fiber) }) }); ok {
+		if target, ok := n.renderer.(interface{ SetFiber(*reconciler.Fiber) }); ok {
+			setter.SetFiberTarget(target)
+		}
 	}
 }
 

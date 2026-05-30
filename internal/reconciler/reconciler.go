@@ -30,6 +30,10 @@ type Scheduler interface {
 	MarkDirty()
 }
 
+type fiberTarget interface {
+	SetFiber(*Fiber)
+}
+
 // Reconciler manages Fiber reconciliation
 type Reconciler struct {
 	// === Fiber Trees ===
@@ -66,8 +70,8 @@ type Reconciler struct {
 	// === Path Generation ===
 	pathGenerator *PathGenerator // Automatic path key generator for static UI
 
-	// === Renderer ===
-	renderer rtui.VNodeRenderer // Renderer for SetFiber call
+	// === Fiber Target ===
+	fiberTarget fiberTarget // Receives the committed Fiber root for layout/paint.
 }
 
 // ReconcilerConfig configures the reconciler
@@ -367,12 +371,9 @@ func (r *Reconciler) CommitRoot() {
 	// then apply the focus manager's current index to set focus on the right element
 	r.applyFocusStateToFiber(r.root)
 
-	// Phase 8: Set Fiber on renderer for NodeID propagation before layout
-	// This ensures layout engine has access to Fiber tree for NodeID propagation
-	if r.renderer != nil {
-		if adapter, ok := r.renderer.(interface{ SetFiber(*Fiber) }); ok {
-			adapter.SetFiber(r.root)
-		}
+	// Phase 8: Publish the Fiber root before layout so renderers can propagate NodeIDs.
+	if r.fiberTarget != nil {
+		r.fiberTarget.SetFiber(r.root)
 	}
 
 	// Phase 1: Build layout tree from Fiber tree
@@ -847,9 +848,9 @@ func (r *Reconciler) Stats() map[string]interface{} {
 // currentReconciler holds the currently executing reconciler
 var currentReconciler *Reconciler
 
-// SetRenderer sets the VNode renderer for SetFiber call
-func (r *Reconciler) SetRenderer(renderer rtui.VNodeRenderer) {
-	r.renderer = renderer
+// SetFiberTarget sets the Fiber root recipient used after reconciliation.
+func (r *Reconciler) SetFiberTarget(target interface{ SetFiber(*Fiber) }) {
+	r.fiberTarget = target
 }
 
 // SetIntentRuntime sets the Intent Runtime for this reconciler.
