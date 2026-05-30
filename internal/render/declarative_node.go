@@ -25,18 +25,13 @@ import (
 // This enables mixing declarative UI (VNode) with imperative Components.
 
 // RenderMode specifies the declarative rendering path.
-//
-// Fiber-first is the only active path. The legacy value is retained only for
-// source compatibility with older callers that still pass it to SetRenderMode.
+// Fiber-first is the only supported path.
 type RenderMode int
 
 const (
-	// RenderModeLegacy is deprecated and no longer selects a rendering path.
-	// SetRenderMode normalizes it to RenderModeFiberFirst.
-	RenderModeLegacy RenderMode = iota
 	// RenderModeFiberFirst uses the new Fiber-first rendering pipeline
-	// This is the default and recommended rendering mode.
-	RenderModeFiberFirst
+	// This is the default and only rendering mode.
+	RenderModeFiberFirst RenderMode = iota
 )
 
 // DeclarativeNode wraps a VNode function for use as a framework Component
@@ -218,14 +213,10 @@ func (n *DeclarativeNode) initPortalLayoutSupport() {
 	}
 }
 
-// SetRenderMode preserves the historical API while keeping the active renderer
-// Fiber-first. Legacy mode has been removed, so non-Fiber values are ignored.
+// SetRenderMode preserves the historical API while keeping the active renderer Fiber-first.
 func (n *DeclarativeNode) SetRenderMode(mode RenderMode) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if mode != RenderModeFiberFirst {
-		log.RenderLogger.IfEnabled().Warn("[DeclarativeNode.SetRenderMode] legacy render mode %d is no longer supported; using Fiber-first", mode)
-	}
 	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher.
 	if n.newLayoutEngine == nil {
 		n.newLayoutEngine = NewNewLayoutEngineAdapter()
