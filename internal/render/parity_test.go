@@ -1,4 +1,4 @@
-// Package render provides parity tests between Fiber and non-Fiber rendering modes.
+// Package render verifies compatibility behavior for the Fiber-first renderer.
 package render
 
 import (
@@ -8,17 +8,16 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// TestRenderingParity_SimpleText tests that both modes render simple text identically
-func TestRenderingParity_SimpleText(t *testing.T) {
+// TestFiberRendererMeasurement_SimpleText verifies simple text measurement.
+func TestFiberRendererMeasurement_SimpleText(t *testing.T) {
 	vnode := rtui.Element("text").Prop("content", "Hello, World!").Build()
 
-	// Render with non-Fiber mode
-	nonFiberNode := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+	node := NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
 		return vnode
 	})
 
 	// Just verify the renderer can measure the VNode
-	renderer := nonFiberNode.GetRenderer()
+	renderer := node.GetRenderer()
 	w, h := renderer.Measure(vnode)
 
 	if w != len("Hello, World!") {
@@ -31,8 +30,8 @@ func TestRenderingParity_SimpleText(t *testing.T) {
 	t.Logf("Simple text renders correctly: %dx%d", w, h)
 }
 
-// TestRenderingParity_NestedElements tests nested element rendering
-func TestRenderingParity_NestedElements(t *testing.T) {
+// TestFiberRendererMeasurement_NestedElements tests nested element measurement.
+func TestFiberRendererMeasurement_NestedElements(t *testing.T) {
 	// Create a nested structure
 	vnode := rtui.HStack(
 		rtui.Element("text").Prop("content", "A").Build(),
@@ -57,8 +56,8 @@ func TestRenderingParity_NestedElements(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_LayoutNodes tests layout container measurements
-func TestRenderingParity_LayoutNodes(t *testing.T) {
+// TestFiberRendererMeasurement_LayoutNodes tests layout container measurements.
+func TestFiberRendererMeasurement_LayoutNodes(t *testing.T) {
 	tests := []struct {
 		name        string
 		vnode       rtui.VNode
@@ -99,8 +98,8 @@ func TestRenderingParity_LayoutNodes(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_FragmentTests fragment rendering
-func TestRenderingParity_FragmentTests(t *testing.T) {
+// TestFiberRendererMeasurement_Fragments tests fragment measurement.
+func TestFiberRendererMeasurement_Fragments(t *testing.T) {
 	tests := []struct {
 		name            string
 		vnode           rtui.VNode
@@ -155,8 +154,8 @@ func TestRenderingParity_FragmentTests(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_ButtonLikeElements tests button measurement
-func TestRenderingParity_ButtonLikeElements(t *testing.T) {
+// TestFiberRendererMeasurement_ButtonLikeElements tests button measurement.
+func TestFiberRendererMeasurement_ButtonLikeElements(t *testing.T) {
 	// Note: True button components from components/button implement Label()
 	// These tests use elements that mimic button structure
 
@@ -195,8 +194,8 @@ func TestRenderingParity_ButtonLikeElements(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_DeepNesting tests deeply nested VNode structures
-func TestRenderingParity_DeepNesting(t *testing.T) {
+// TestFiberRendererMeasurement_DeepNesting tests deeply nested VNode structures.
+func TestFiberRendererMeasurement_DeepNesting(t *testing.T) {
 	// Create a deeply nested structure
 	deepVNode := rtui.VStack(
 		rtui.HStack(
@@ -227,8 +226,8 @@ func TestRenderingParity_DeepNesting(t *testing.T) {
 	// Width can be 0 for nested layouts (known limitation)
 }
 
-// TestRenderingParity_PropsHandling tests that props are preserved
-func TestRenderingParity_PropsHandling(t *testing.T) {
+// TestFiberRendererMeasurement_PropsHandling tests that props are preserved.
+func TestFiberRendererMeasurement_PropsHandling(t *testing.T) {
 	props := rtui.Props{
 		"id":         "test-id",
 		"class":      "test-class",
@@ -256,8 +255,8 @@ func TestRenderingParity_PropsHandling(t *testing.T) {
 	t.Log("Props are correctly preserved on VNode")
 }
 
-// TestRenderingParity_KeyHandling tests VNode key handling
-func TestRenderingParity_KeyHandling(t *testing.T) {
+// TestFiberRendererMeasurement_KeyHandling tests VNode key handling.
+func TestFiberRendererMeasurement_KeyHandling(t *testing.T) {
 	tests := []struct {
 		name  string
 		vnode rtui.VNode
@@ -293,8 +292,8 @@ func TestRenderingParity_KeyHandling(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_StyleHandling tests that styles are applied
-func TestRenderingParity_StyleHandling(t *testing.T) {
+// TestFiberRendererMeasurement_StyleHandling tests that styles are applied.
+func TestFiberRendererMeasurement_StyleHandling(t *testing.T) {
 	customStyle := style.NewStyle().
 		Foreground(style.Red).
 		Background(style.Blue).
@@ -323,8 +322,8 @@ func TestRenderingParity_StyleHandling(t *testing.T) {
 	t.Logf("Style handling: FG=%v, BG=%v, Bold=%v", vnodeStyle.FG, vnodeStyle.BG, vnodeStyle.IsBold())
 }
 
-// TestRenderingParity_TypeConsistency tests VNode type consistency
-func TestRenderingParity_TypeConsistency(t *testing.T) {
+// TestFiberRendererMeasurement_TypeConsistency tests VNode type consistency.
+func TestFiberRendererMeasurement_TypeConsistency(t *testing.T) {
 	tests := []struct {
 		name     string
 		vnode    rtui.VNode
@@ -362,8 +361,8 @@ func TestRenderingParity_TypeConsistency(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_TextContentExtraction tests GetTextContent utility
-func TestRenderingParity_TextContentExtraction(t *testing.T) {
+// TestFiberRendererMeasurement_TextContentExtraction tests GetTextContent utility.
+func TestFiberRendererMeasurement_TextContentExtraction(t *testing.T) {
 	tests := []struct {
 		name        string
 		vnode       rtui.VNode
@@ -397,8 +396,8 @@ func TestRenderingParity_TextContentExtraction(t *testing.T) {
 	}
 }
 
-// TestRenderingParity_LayoutInfoExtraction tests GetLayoutInfo utility
-func TestRenderingParity_LayoutInfoExtraction(t *testing.T) {
+// TestFiberRendererMeasurement_LayoutInfoExtraction tests GetLayoutInfo utility.
+func TestFiberRendererMeasurement_LayoutInfoExtraction(t *testing.T) {
 	tests := []struct {
 		name          string
 		vnode         rtui.VNode

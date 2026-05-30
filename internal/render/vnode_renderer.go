@@ -1,4 +1,4 @@
-// Package render provides VNode rendering implementations.
+// Package render provides Fiber-backed declarative rendering implementations.
 package render
 
 import (
@@ -25,21 +25,22 @@ func getBuffer(buffer interface{}) *paint.Buffer {
 // PipelineRendererAdapter - Adapts PipelineRenderer to VNodeRenderer interface
 // =============================================================================
 
-// PipelineRendererAdapter wraps the new PipelineRenderer to implement VNodeRenderer.
-// This is now the DEFAULT renderer for all VNode rendering.
+// PipelineRendererAdapter wraps PipelineRenderer for the VNodeRenderer compatibility API.
+// Declarative application rendering is Fiber-first; VNode arguments are retained
+// for older measurement and renderer-access callers.
 type PipelineRendererAdapter struct {
 	pipeline *PipelineRenderer
 }
 
-// NewPipelineRendererAdapter creates a new adapter using the new rendering pipeline.
+// NewPipelineRendererAdapter creates a new adapter using the Fiber-backed pipeline.
 func NewPipelineRendererAdapter() *PipelineRendererAdapter {
 	return &PipelineRendererAdapter{
 		pipeline: NewPipelineRenderer(),
 	}
 }
 
-// Render renders a VNode using the new Layout/Paint pipeline.
-// This implements the VNodeRenderer interface.
+// Render implements the VNodeRenderer compatibility interface.
+// The underlying pipeline renders the current Fiber tree set by SetFiber.
 func (r *PipelineRendererAdapter) Render(vnode rtui.VNode, x, y int, buffer interface{}) {
 	buf := getBuffer(buffer)
 	if buf == nil {
@@ -48,10 +49,10 @@ func (r *PipelineRendererAdapter) Render(vnode rtui.VNode, x, y int, buffer inte
 	r.pipeline.Render(vnode, x, y, buf)
 }
 
-// Measure returns the width and height of a VNode using the new pipeline.
-// This implements the VNodeRenderer interface.
+// Measure implements the VNodeRenderer compatibility interface.
+// The underlying pipeline measures the current Fiber tree set by SetFiber.
 func (r *PipelineRendererAdapter) Measure(vnode rtui.VNode) (width, height int) {
-	// Use the new pipeline's measure method
+	// Use the pipeline's measure method.
 	// We use a large max value for unbounded measurement
 	return r.pipeline.Measure(vnode, 1000, 1000)
 }

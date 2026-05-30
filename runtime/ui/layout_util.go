@@ -1,8 +1,8 @@
 package ui
 
-// VNodeRenderer defines the contract for rendering VNodes.
-// Both Fiber and non-Fiber rendering paths should implement this interface
-// to ensure consistent behavior across different rendering modes.
+// VNodeRenderer defines the compatibility contract for VNode-oriented renderer access.
+// Current declarative rendering is Fiber-first; this interface remains for older
+// measurement and renderer-access callers.
 //
 // The interface is intentionally simple to allow flexibility in implementation
 // while maintaining a clear contract for VNode rendering.
@@ -49,7 +49,7 @@ type LayoutInfo struct {
 }
 
 // GetLayoutInfo extracts layout information from a VNode.
-// This is a shared utility used by both Fiber and non-Fiber rendering paths.
+// This is shared by VNode declaration helpers and Fiber conversion code.
 //
 // It handles:
 // - LayoutNode (from HStack/VStack)
@@ -281,7 +281,7 @@ func GetLayoutInfo(vnode VNode) LayoutInfo {
 }
 
 // GetTextContent extracts text content from a VNode.
-// This is a shared utility used by both Fiber and non-Fiber rendering paths.
+// This is shared by VNode declaration helpers and Fiber conversion code.
 //
 // It handles:
 // - VNodeText with "content" prop
