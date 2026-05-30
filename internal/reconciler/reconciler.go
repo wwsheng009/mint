@@ -70,14 +70,14 @@ type Reconciler struct {
 	renderer rtui.VNodeRenderer // Renderer for SetFiber call
 
 	// === Configuration ===
-	enableFiber bool // Use Fiber reconciliation (env controlled)
+	enableFiber bool // Compatibility flag; reconciler rendering is always Fiber-first.
 }
 
 // ReconcilerConfig configures the reconciler
 type ReconcilerConfig struct {
 	TimeBudget      time.Duration // Time slice budget
 	EnableProfiling bool          // Enable performance profiling
-	EnableFiber     bool          // Enable Fiber reconciliation
+	EnableFiber     bool          // Deprecated: Fiber reconciliation is always enabled.
 }
 
 // NewReconciler creates a new reconciler
@@ -108,14 +108,9 @@ func NewReconciler(scheduler Scheduler, rootComponent rtui.ComponentFunc, config
 // Render executes the rendering process
 // This is the main entry point called from declarativeRoot.Paint
 func (r *Reconciler) Render(ctx component.PaintContext, buffer *paint.Buffer, renderFunc func() rtui.VNode) {
-	// Note: renderFunc returns ui.VNode (VNode interface is from ui package)
-	// This is correct as VNode implementations are in ui package
-	if !r.enableFiber {
-		log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ⚠️  Fiber NOT enabled! enableFiber=%v", r.enableFiber)
-		return // Fiber not enabled, use legacy rendering
-	}
-
-	log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] ✅ Fiber enabled, starting render...")
+	// Note: renderFunc returns ui.VNode (VNode interface is from ui package).
+	// Declarative rendering always reconciles that VNode tree into Fiber first.
+	log.FiberLogger.IfEnabled().Debug("[Reconciler.Render] Fiber-first render starting...")
 	r.buffer = buffer
 	r.paintCtx = ctx
 
