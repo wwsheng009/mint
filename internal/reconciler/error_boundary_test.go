@@ -24,7 +24,7 @@ func TestErrorBoundary_CatchesPanic(t *testing.T) {
 	// Wrap in error boundary
 	boundary := rtui.NewErrorBoundary("testBoundary", panicComponent, rtui.FallbackText("Error occurred"))
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -77,7 +77,7 @@ func TestErrorBoundary_RendersFallbackWhenPanicking(t *testing.T) {
 
 	boundary := rtui.NewErrorBoundary("testBoundary", panicComponent, fallback)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -112,7 +112,7 @@ func TestErrorBoundary_RendersComponentWhenNoPanic(t *testing.T) {
 	fallback := rtui.FallbackText("Error occurred")
 	boundary := rtui.NewErrorBoundary("testBoundary", normalComponent, fallback)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -162,7 +162,7 @@ func TestErrorBoundary_NestedErrorBoundaries(t *testing.T) {
 	// Wrap in outer error boundary
 	outerBoundary := rtui.NewErrorBoundary("outer", outerComponent, rtui.FallbackText("Outer error"))
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -203,7 +203,7 @@ func TestErrorBoundary_SiblingErrorBoundaries(t *testing.T) {
 	}
 	secondBoundary := rtui.NewErrorBoundary("second", secondComponent, rtui.FallbackText("Second error"))
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -270,7 +270,7 @@ func TestErrorBoundary_FullRenderCycle(t *testing.T) {
 	fallback := rtui.FallbackText("Error occurred")
 	boundary := rtui.NewErrorBoundary("testBoundary", panicComponent, fallback)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -307,7 +307,7 @@ func TestErrorBoundary_WithComponentChildren(t *testing.T) {
 
 	boundary := rtui.NewErrorBoundary("testBoundary", wrapComponent, rtui.FallbackText("Child error"))
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -346,7 +346,7 @@ func TestErrorBoundary_ResetError(t *testing.T) {
 	fallback := rtui.FallbackText("Error occurred")
 	boundary := rtui.NewErrorBoundary("testBoundary", panicComponent, fallback)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -420,7 +420,7 @@ func TestErrorBoundary_FallbackVariants(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			boundary := rtui.NewErrorBoundary("test", panicComponent, tt.fallback)
 
-			config := ReconcilerConfig{EnableFiber: true}
+			config := ReconcilerConfig{}
 			reconciler := NewReconciler(nil, nil, config)
 			currentReconciler = reconciler
 			defer func() { currentReconciler = nil }()
@@ -458,7 +458,7 @@ func TestErrorBoundary_ErrorBoundaryFunction(t *testing.T) {
 	}
 
 	// Test through reconciler
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -479,7 +479,7 @@ func TestErrorBoundary_NilComponent(t *testing.T) {
 
 	boundary := rtui.NewErrorBoundary("test", nilComponent, rtui.FallbackText("Error"))
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -503,7 +503,7 @@ func TestErrorBoundary_NilFallback(t *testing.T) {
 	var nilFallback rtui.VNode = nil
 	boundary := rtui.NewErrorBoundary("test", panicComponent, nilFallback)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()

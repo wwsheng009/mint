@@ -29,7 +29,7 @@ func (m *focusLayerInstance) HasFocus() bool                     { return m.focu
 func (m *focusLayerInstance) IsDisabled() bool                   { return false }
 
 func TestReconciler_UpdateFocusManagerFromFiber_SwitchesToOverlayFocus(t *testing.T) {
-	reconciler := NewReconciler(nil, nil, ReconcilerConfig{EnableFiber: true})
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{})
 	reconciler.focusMgr = rtui.NewFiberFocusManager()
 
 	baseInst := &focusLayerInstance{}
@@ -69,7 +69,7 @@ func TestReconciler_UpdateFocusManagerFromFiber_SwitchesToOverlayFocus(t *testin
 }
 
 func TestReconciler_UpdateFocusManagerFromFiber_TrapsFocusInModalSubtree(t *testing.T) {
-	reconciler := NewReconciler(nil, nil, ReconcilerConfig{EnableFiber: true})
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{})
 	reconciler.focusMgr = rtui.NewFiberFocusManager()
 
 	baseInst := &focusLayerInstance{}
@@ -139,7 +139,7 @@ func TestReconciler_UpdateFocusManagerFromFiber_TrapsFocusInModalSubtree(t *test
 }
 
 func TestReconciler_UpdateFocusManagerFromFiber_IgnoresEmptyPortalHosts(t *testing.T) {
-	reconciler := NewReconciler(nil, nil, ReconcilerConfig{EnableFiber: true})
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{})
 	reconciler.focusMgr = rtui.NewFiberFocusManager()
 
 	baseInst := &focusLayerInstance{}

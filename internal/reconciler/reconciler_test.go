@@ -204,7 +204,6 @@ func TestReconcilerConfig(t *testing.T) {
 	config := ReconcilerConfig{
 		TimeBudget:      10 * 1000000, // 10ms in nanoseconds
 		EnableProfiling: true,
-		EnableFiber:     true,
 	}
 
 	if config.TimeBudget == 0 {
@@ -214,18 +213,10 @@ func TestReconcilerConfig(t *testing.T) {
 
 // TestNewReconciler tests reconciler creation
 func TestNewReconciler(t *testing.T) {
-	config := ReconcilerConfig{
-		EnableFiber: true,
-	}
-
-	reconciler := NewReconciler(nil, nil, config)
+	reconciler := NewReconciler(nil, nil, ReconcilerConfig{})
 
 	if reconciler == nil {
 		t.Fatal("NewReconciler returned nil")
-	}
-
-	if !reconciler.enableFiber {
-		t.Error("Reconciler.enableFiber should be true")
 	}
 
 	if reconciler.instanceMgr == nil {
@@ -243,7 +234,7 @@ func TestNewReconciler(t *testing.T) {
 
 // TestReconciler_GetInstanceManager tests getting instance manager
 func TestReconciler_GetInstanceManager(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	mgr := reconciler.GetInstanceManager()
@@ -260,7 +251,7 @@ func TestReconciler_GetInstanceManager(t *testing.T) {
 
 // TestReconciler_GetInteractionStateManager tests getting interaction state manager
 func TestReconciler_GetInteractionStateManager(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	mgr := reconciler.GetInteractionStateManager()
@@ -277,7 +268,7 @@ func TestReconciler_GetInteractionStateManager(t *testing.T) {
 
 // TestReconciler_GetKeyValidator tests getting key validator
 func TestReconciler_GetKeyValidator(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	validator := reconciler.GetKeyValidator()
@@ -294,7 +285,7 @@ func TestReconciler_GetKeyValidator(t *testing.T) {
 
 // TestReconciler_Stats tests getting statistics
 func TestReconciler_Stats(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	stats := reconciler.Stats()
@@ -314,7 +305,7 @@ func TestReconciler_Stats(t *testing.T) {
 
 // TestReconciler_ScheduleUpdate tests scheduling updates
 func TestReconciler_ScheduleUpdate(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Initially no pending work
@@ -340,7 +331,7 @@ func TestReconciler_ScheduleUpdate(t *testing.T) {
 
 // TestReconciler_MarkDirty tests marking dirty
 func TestReconciler_MarkDirty(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// MarkDirty should not panic
@@ -349,7 +340,7 @@ func TestReconciler_MarkDirty(t *testing.T) {
 
 // TestGetRootContext tests getting root context
 func TestGetRootContext(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	ctx := reconciler.GetContext()
@@ -360,7 +351,7 @@ func TestGetRootContext(t *testing.T) {
 
 // TestGetCurrentReconciler tests getting current reconciler
 func TestGetCurrentReconciler(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Not set initially
@@ -526,7 +517,7 @@ func TestVNodeTypeString(t *testing.T) {
 // TestNewComponent tests creating component from NewComponent
 func TestNewComponent(t *testing.T) {
 	// Get a component from reconciler's instance manager
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	currentReconciler = reconciler

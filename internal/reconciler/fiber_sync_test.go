@@ -76,7 +76,7 @@ func TestFiberSync_RootReplacement(t *testing.T) {
 		return rtui.Element("div").Prop("id", "old-root").Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	r := NewReconciler(nil, renderFn1, config)
 
 	r.prepareFreshStack(renderFn1)
@@ -190,7 +190,7 @@ func TestFiberSync_DeepNesting(t *testing.T) {
 
 	root := nested(depth)
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	r := NewReconciler(nil, func() rtui.VNode { return root }, config)
 
 	r.prepareFreshStack(func() rtui.VNode { return root })

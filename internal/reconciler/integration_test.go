@@ -33,7 +33,7 @@ func TestBeginWork_Component(t *testing.T) {
 	})
 	comp.SetKey("test-comp")
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -131,7 +131,7 @@ func TestCompleteWork_Component(t *testing.T) {
 	})
 	comp.SetKey("test-comp")
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -301,7 +301,7 @@ func TestRender(t *testing.T) {
 		return rtui.Element("div").Prop("id", "test").Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	// prepareFreshStack creates the fiber tree
@@ -325,7 +325,7 @@ func TestPrepareFreshStack(t *testing.T) {
 		return rtui.Element("root").Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	reconciler.prepareFreshStack(renderFn)
@@ -341,7 +341,7 @@ func TestCommitRoot(t *testing.T) {
 		return rtui.Element("div").Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	reconciler.prepareFreshStack(renderFn)
@@ -368,7 +368,7 @@ func TestStats_FullCycle(t *testing.T) {
 			Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	reconciler.prepareFreshStack(renderFn)
@@ -592,7 +592,7 @@ func TestBeginWork_VNodeText(t *testing.T) {
 
 // TestReconciler_SetScheduler tests setting the scheduler
 func TestReconciler_SetScheduler(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Create a mock scheduler - we can't use framework.NewApp() in tests
@@ -604,7 +604,7 @@ func TestReconciler_SetScheduler(t *testing.T) {
 
 // TestReconciler_SetInstanceManager tests setting instance manager
 func TestReconciler_SetInstanceManager(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	_ = reconciler
@@ -612,7 +612,7 @@ func TestReconciler_SetInstanceManager(t *testing.T) {
 
 // TestReconciler_SetRenderCallback tests setting render callback
 func TestReconciler_SetRenderCallback(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	callback := func(fiber *Fiber, x, y int, buffer *paint.Buffer) {
@@ -624,7 +624,7 @@ func TestReconciler_SetRenderCallback(t *testing.T) {
 
 // TestReconciler_GetLayoutBoxes tests getting layout boxes
 // func TestReconciler_GetLayoutBoxes(t *testing.T) {
-// 	config := ReconcilerConfig{EnableFiber: true}
+// 	config := ReconcilerConfig{}
 // 	reconciler := NewReconciler(nil, nil, config)
 
 // 	// Initially should be nil (no layout computed yet)
@@ -638,7 +638,7 @@ func TestReconciler_SetRenderCallback(t *testing.T) {
 
 // TestGetNextWorkUnit tests depth-first traversal
 func TestGetNextWorkUnit(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Create a simple fiber tree: root -> child -> grandchild
@@ -679,7 +679,7 @@ func TestGetNextWorkUnit(t *testing.T) {
 
 // TestGetNextWorkUnit_Nil tests getNextWorkUnit with nil
 func TestGetNextWorkUnit_Nil(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	next := reconciler.getNextWorkUnit(nil)
@@ -690,7 +690,7 @@ func TestGetNextWorkUnit_Nil(t *testing.T) {
 
 // TestGetNextWorkUnit_SiblingTraversal tests sibling traversal
 func TestGetNextWorkUnit_SiblingTraversal(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Create a tree with siblings only
@@ -732,7 +732,7 @@ func TestGetNextWorkUnit_SiblingTraversal(t *testing.T) {
 
 // TestCreateWorkInProgress tests creating work-in-progress fibers
 func TestCreateWorkInProgress(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Create a fiber from a VNode
@@ -765,7 +765,7 @@ func TestCreateWorkInProgress(t *testing.T) {
 
 // TestCreateWorkInProgress_New tests creating work-in-progress for new fibers
 func TestCreateWorkInProgress_New(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Create work-in-progress without current fiber (mount)
@@ -945,7 +945,7 @@ func TestVNodeConverter_ConvertFragment(t *testing.T) {
 
 // TestReconciler_HasMoreWork tests hasMoreWork
 func TestReconciler_HasMoreWork(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Initially no work
@@ -963,7 +963,7 @@ func TestReconciler_HasMoreWork(t *testing.T) {
 
 // TestReconciler_RequestWork tests requestWork
 func TestReconciler_RequestWork(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Request work with nil app should not panic
@@ -982,7 +982,7 @@ func TestReconciler_WorkLoopSync_FullTree(t *testing.T) {
 		)
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	reconciler.prepareFreshStack(renderFn)
@@ -1012,7 +1012,7 @@ func TestReconciler_WorkLoopSync_NestedComponents(t *testing.T) {
 		)
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn, config)
 
 	reconciler.prepareFreshStack(renderFn)
@@ -1033,7 +1033,7 @@ func TestReconciler_PrepareFreshStack_MultipleRenders(t *testing.T) {
 		return rtui.Element("div").Prop("id", "v2").Build()
 	}
 
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, renderFn1, config)
 
 	// First render
@@ -1177,7 +1177,7 @@ func TestCloneFiber_WithAlternate(t *testing.T) {
 
 // TestReconciler_Stats_Fresh tests stats on fresh reconciler
 func TestReconciler_Stats_Fresh(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	stats := reconciler.Stats()
@@ -1337,7 +1337,7 @@ func TestVNodeConverter_ConvertElementWithChildren(t *testing.T) {
 
 // TestReconciler_ScheduleUpdate_MultipleLanes tests scheduling multiple lanes
 func TestReconciler_ScheduleUpdate_MultipleLanes(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// Schedule different lanes
@@ -1395,7 +1395,7 @@ func TestVNodeConverter_IDGeneration_SameVNode(t *testing.T) {
 
 // TestReconciler_MarkDirty_SchedulesWork tests MarkDirty schedules work
 func TestReconciler_MarkDirty_SchedulesWork(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 
 	// MarkDirty should not panic (even with nil app)

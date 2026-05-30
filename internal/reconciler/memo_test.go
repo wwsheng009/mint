@@ -305,7 +305,7 @@ func TestMemoComponent_ConvenienceFunc(t *testing.T) {
 
 // TestBeginWork_MemoSkipRender tests that memo skips render when props unchanged
 func TestBeginWork_MemoSkipRender(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -349,7 +349,7 @@ func TestBeginWork_MemoSkipRender(t *testing.T) {
 
 // TestBeginWork_MemoForceUpdate tests that memo processes different props correctly
 func TestBeginWork_MemoForceUpdate(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -398,7 +398,7 @@ func TestBeginWork_MemoForceUpdate(t *testing.T) {
 
 // TestBeginWork_MemoWithPendingUpdate tests that memo re-renders with pending updates
 func TestBeginWork_MemoWithPendingUpdate(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()
@@ -478,7 +478,7 @@ func TestPureComponent_WithProps(t *testing.T) {
 
 // TestPureComponent_RerenderOptimization tests that Memo components skip re-renders
 func TestPureComponent_RerenderOptimization(t *testing.T) {
-	config := ReconcilerConfig{EnableFiber: true}
+	config := ReconcilerConfig{}
 	reconciler := NewReconciler(nil, nil, config)
 	currentReconciler = reconciler
 	defer func() { currentReconciler = nil }()

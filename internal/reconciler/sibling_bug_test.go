@@ -41,7 +41,6 @@ func TestSiblingTraversalBugReproduction(t *testing.T) {
 	r := &Reconciler{
 		root:           nil,
 		workInProgress: fiberTree,
-		enableFiber:    true,
 	}
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
@@ -120,7 +119,6 @@ func TestMultipleLevelsOfSiblings(t *testing.T) {
 	r := &Reconciler{
 		root:           nil,
 		workInProgress: fiberTree,
-		enableFiber:    true,
 	}
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
@@ -169,7 +167,6 @@ func TestLongSiblingChain(t *testing.T) {
 	r := &Reconciler{
 		root:        nil,
 		workInProgress: fiberTree,
-		enableFiber: true,
 	}
 	currentReconciler = r
 	defer func() { currentReconciler = nil }()
@@ -217,9 +214,7 @@ func TestFullRenderCycleWithSiblings(t *testing.T) {
 	}
 
 	app := &framework.App{}
-	reconciler := NewReconciler(app, rootComponent, ReconcilerConfig{
-		EnableFiber: true,
-	})
+	reconciler := NewReconciler(app, rootComponent, ReconcilerConfig{})
 
 	// Get the root fiber tree (without calling Render)
 	testRoot := rtui.Element("div").Children(

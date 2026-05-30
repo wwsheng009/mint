@@ -21,9 +21,7 @@ type fiberReconcilerAdapter struct {
 // newFiberReconciler creates a new Fiber reconciler for the given scheduler, render function and root context
 func newFiberReconciler(scheduler reconciler.Scheduler, fn rtui.ComponentFunc, rootCtx *rtui.ComponentContext) rtui.Reconciler {
 	// Create the actual reconciler from internal/reconciler
-	r := reconciler.NewReconciler(scheduler, fn, reconciler.ReconcilerConfig{
-		EnableFiber: true,
-	})
+	r := reconciler.NewReconciler(scheduler, fn, reconciler.ReconcilerConfig{})
 
 	// Set the root component context for global state management
 	// This ensures Intent Handlers update the same state that App() reads

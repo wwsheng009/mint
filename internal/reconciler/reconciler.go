@@ -68,16 +68,12 @@ type Reconciler struct {
 
 	// === Renderer ===
 	renderer rtui.VNodeRenderer // Renderer for SetFiber call
-
-	// === Configuration ===
-	enableFiber bool // Compatibility flag; reconciler rendering is always Fiber-first.
 }
 
 // ReconcilerConfig configures the reconciler
 type ReconcilerConfig struct {
 	TimeBudget      time.Duration // Time slice budget
 	EnableProfiling bool          // Enable performance profiling
-	EnableFiber     bool          // Deprecated: Fiber reconciliation is always enabled.
 }
 
 // NewReconciler creates a new reconciler
@@ -95,7 +91,6 @@ func NewReconciler(scheduler Scheduler, rootComponent rtui.ComponentFunc, config
 		keyValidator:        state.NewKeyValidator(),
 		timeBudget:          timeBudget,
 		ctx:                 rtui.NewComponentContextForRoot(),
-		enableFiber:         config.EnableFiber,
 		vnodeConverter:      NewVNodeConverter(),
 		pathGenerator:       NewPathGenerator(), // ✨ Initialize path generator
 	}

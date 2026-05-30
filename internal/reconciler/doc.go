@@ -42,7 +42,6 @@
 // # Usage
 //
 //	reconciler := NewReconciler(app, rootComponent, ReconcilerConfig{
-//	    EnableFiber: true,
 //	    TimeBudget: 5 * time.Millisecond,
 //	})
 //	reconciler.Render(ctx, buffer, renderFunc)
