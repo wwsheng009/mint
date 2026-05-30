@@ -52,11 +52,10 @@ func (p *RenderingPipeline) SetPaintDebug(debug bool) {
 // 1. Layout phase: calculate positions for all nodes using layout.Engine
 // 2. Paint phase: render using computed positions
 func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints, buffer *paint.Buffer) error {
-	if vnode == nil {
-		log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] vnode is nil, returning")
-		return nil
+	if fiber == nil {
+		return fmt.Errorf("rendering pipeline requires a Fiber root")
 	}
-	log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] START: vnode type=%d, tag=%s, buffer=%dx%d", vnode.Type(), vnode.Tag(), buffer.Width, buffer.Height)
+	log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] START: fiber tag=%s, buffer=%dx%d", fiber.Tag, buffer.Width, buffer.Height)
 	// Convert constraints to layout.Constraints
 	layoutConstraints := layout.Constraints{
 		MinWidth:  constraints.MinWidth,
@@ -65,19 +64,8 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 		MaxHeight: constraints.MaxHeight,
 	}
 
-	// Choose adapter based on whether we have Fiber or VNode
-	var node layout.Node
-	var converter PaintableConverter
-
-	if fiber != nil {
-		// Fiber-first path: use FiberToNodeAdapterPure
-		node = NewFiberToNodeAdapterPure(fiber)
-		converter = NewFiberToPaintableConverter(fiber)
-	} else {
-		// Legacy VNode path: use VNodeToNodeAdapter
-		node = NewVNodeToNodeAdapter(vnode)
-		converter = NewVNodeToPaintableConverter(vnode)
-	}
+	node := NewFiberToNodeAdapterPure(fiber)
+	converter := NewFiberToPaintableConverter(fiber)
 
 	// Phase 1: Layout using layout.Engine
 	result := p.layoutEngine.Layout(node, layoutConstraints)
@@ -107,12 +95,6 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 	}
 
 	return err
-}
-
-// RenderToSize renders with specific window size constraints
-func (p *RenderingPipeline) RenderToSize(vnode rtui.VNode, width, height int, buffer *paint.Buffer) error {
-	constraints := runtime.NewBoxConstraints(0, width, 0, height)
-	return p.Render(vnode, nil, constraints, buffer)
 }
 
 // GetLayoutEngine returns the layout engine for direct access
@@ -160,8 +142,8 @@ func (p *RenderingPipeline) RenderLayers(
 	constraints runtime.BoxConstraints,
 	buffer *paint.Buffer,
 ) error {
-	if vnode == nil {
-		return nil
+	if fiber == nil {
+		return fmt.Errorf("rendering pipeline layer render requires a Fiber root")
 	}
 
 	log.PipelineLogger.IfEnabled().Debug("RenderLayers started (layout.Engine path)")
@@ -174,19 +156,8 @@ func (p *RenderingPipeline) RenderLayers(
 		MaxHeight: constraints.MaxHeight,
 	}
 
-	// Choose adapter based on whether we have Fiber or VNode
-	var node layout.Node
-	var converter PaintableConverter
-
-	if fiber != nil {
-		// Fiber-first path: use FiberToNodeAdapterPure
-		node = NewFiberToNodeAdapterPure(fiber)
-		converter = NewFiberToPaintableConverter(fiber)
-	} else {
-		// Legacy VNode path: use VNodeToNodeAdapter
-		node = NewVNodeToNodeAdapter(vnode)
-		converter = NewVNodeToPaintableConverter(vnode)
-	}
+	node := NewFiberToNodeAdapterPure(fiber)
+	converter := NewFiberToPaintableConverter(fiber)
 
 	// Perform layout using layout.Engine
 	result := p.layoutEngine.Layout(node, layoutConstraints)
