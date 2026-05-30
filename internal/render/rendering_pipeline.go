@@ -2,6 +2,8 @@
 package render
 
 import (
+	"fmt"
+
 	"github.com/wwsheng009/mint/internal/log"
 	"github.com/wwsheng009/mint/internal/reconciler"
 	"github.com/wwsheng009/mint/runtime"
@@ -80,8 +82,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 	// Phase 1: Layout using layout.Engine
 	result := p.layoutEngine.Layout(node, layoutConstraints)
 	if result == nil || result.Root == nil {
-		log.PipelineLogger.IfEnabled().Debug("❌ Layout returned nil result, falling back to legacy")
-		return p.renderLegacy(vnode, 0, 0, buffer)
+		return fmt.Errorf("rendering pipeline layout returned nil result")
 	}
 
 	log.PaintLogger.IfEnabled().Debug("[RenderingPipeline.Render] Layout: Root=%dx%d", result.Root.Width, result.Root.Height)
@@ -90,8 +91,7 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 	// Convert LayoutBox to PaintableBox
 	paintableLayout := converter.ConvertToLayout(result.Root)
 	if paintableLayout == nil || paintableLayout.Root == nil {
-		log.PipelineLogger.IfEnabled().Debug("❌ PaintableLayout conversion failed, falling back to legacy")
-		return p.renderLegacy(vnode, 0, 0, buffer)
+		return fmt.Errorf("rendering pipeline paintable conversion returned nil result")
 	}
 
 	// Phase 2: Paint using PaintableLayout
@@ -113,16 +113,6 @@ func (p *RenderingPipeline) Render(vnode rtui.VNode, fiber *reconciler.Fiber, co
 func (p *RenderingPipeline) RenderToSize(vnode rtui.VNode, width, height int, buffer *paint.Buffer) error {
 	constraints := runtime.NewBoxConstraints(0, width, 0, height)
 	return p.Render(vnode, nil, constraints, buffer)
-}
-
-// renderLegacy fallback rendering for when the new pipeline fails
-// This preserves backward compatibility
-func (p *RenderingPipeline) renderLegacy(vnode rtui.VNode, x, y int, buffer *paint.Buffer) error {
-	// Create a temporary DeclarativeNode to use legacy rendering
-	// This bridges the new pipeline with the old PaintVNode approach
-	tempNode := NewDeclarativeNode(vnode)
-	tempNode.PaintVNode(vnode, x, y, buffer)
-	return nil
 }
 
 // GetLayoutEngine returns the layout engine for direct access

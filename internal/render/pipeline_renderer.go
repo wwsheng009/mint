@@ -87,9 +87,8 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 	}
 
 	if err != nil {
-		log.RenderLogger.IfEnabled().Debug("X[Render FAILED: %v, falling back to legacy", err)
-		// Fall back to legacy rendering if pipeline fails
-		return r.renderLegacy(vnode, x, y, buf)
+		log.RenderLogger.IfEnabled().Debug("X[Render FAILED: %v", err)
+		return err
 	}
 
 	log.RenderLogger.IfEnabled().Debug("✅ Render SUCCESS")
@@ -208,14 +207,6 @@ func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (w
 	}
 
 	return result.Root.Width, result.Root.Height
-}
-
-// renderLegacy provides fallback rendering using the legacy PaintVNode approach
-func (r *PipelineRenderer) renderLegacy(vnode rtui.VNode, x, y int, buffer *paint.Buffer) error {
-	// Create a temporary DeclarativeNode to use legacy rendering
-	tempNode := NewDeclarativeNode(vnode)
-	tempNode.PaintVNode(vnode, x, y, buffer)
-	return nil
 }
 
 // GetPipeline returns the underlying RenderingPipeline for advanced usage
