@@ -1,4 +1,4 @@
-// Package render provides pipeline-based VNode renderer using the new Layout/Paint separation
+// Package render provides Fiber-backed declarative rendering with separated layout and paint phases.
 package render
 
 import (
@@ -12,8 +12,11 @@ import (
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
 
-// PipelineRenderer is a VNodeRenderer that uses the new RenderingPipeline
-// with separated Layout and Paint phases.
+// PipelineRenderer owns the Fiber-backed RenderingPipeline.
+//
+// It still satisfies the VNodeRenderer compatibility API, but the active
+// application render path is Fiber-first: DeclarativeNode reconciles VNodes
+// into Fiber, then this renderer lays out and paints the Fiber tree.
 //
 // This renderer provides:
 // - Constraint-driven layout calculation
@@ -21,7 +24,7 @@ import (
 // - Caching for leaf nodes
 // - Multi-layer rendering support (Modal, Overlay, Tooltip)
 // - Better separation of concerns
-// - Hook system for VNode transformation (e.g., Inspector injection)
+// - Hook manager for VNode transforms before Fiber reconciliation
 type PipelineRenderer struct {
 	pipeline *RenderingPipeline
 	hooks    *render.HookManager
@@ -29,7 +32,7 @@ type PipelineRenderer struct {
 	debug    bool
 }
 
-// NewPipelineRenderer creates a new pipeline-based VNodeRenderer
+// NewPipelineRenderer creates a new Fiber-backed pipeline renderer.
 func NewPipelineRenderer() *PipelineRenderer {
 	return &PipelineRenderer{
 		pipeline: NewRenderingPipeline(),
@@ -38,8 +41,11 @@ func NewPipelineRenderer() *PipelineRenderer {
 	}
 }
 
-// Render implements the VNodeRenderer interface
-func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}) error {
+// Render implements the VNodeRenderer compatibility interface.
+//
+// The VNode and offset arguments are kept for API compatibility. Rendering uses
+// the current Fiber tree supplied by the reconciler via SetFiber.
+func (r *PipelineRenderer) Render(_ rtui.VNode, _, _ int, buffer interface{}) error {
 	buf, ok := buffer.(*paint.Buffer)
 	if !ok {
 		// Try to convert from other buffer types
@@ -54,12 +60,7 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 		return nil
 	}
 
-	// Apply VNode hooks (e.g., Inspector injection)
-	// Hooks can modify the VNode tree before rendering
-	vnode = r.hooks.ApplyVNodeHooks(vnode)
-
-	// For the new pipeline, we use the buffer size as constraints
-	// Note: This is the legacy behavior - use RenderWithConstraints for proper layout sizing
+	// Compatibility rendering uses the buffer size as constraints.
 	width := buf.Width
 	height := buf.Height
 
@@ -80,7 +81,7 @@ func (r *PipelineRenderer) Render(vnode rtui.VNode, x, y int, buffer interface{}
 		log.RenderLogger.IfEnabled().Debug("Using RenderLayers for multi-layer rendering")
 		err = r.pipeline.RenderLayers(r.fiber, constraints, buf)
 	} else {
-		// Use standard rendering for simple VNode trees
+		// Use standard rendering for simple Fiber trees
 		log.RenderLogger.IfEnabled().Debug("Using standard Render")
 		err = r.pipeline.Render(r.fiber, constraints, buf)
 	}
@@ -137,15 +138,14 @@ func (r *PipelineRenderer) GetRenderingPipeline() *RenderingPipeline {
 }
 
 // GetHooks returns the HookManager for registering VNode transformation hooks.
-// This allows external code (like framework) to register hooks for features
-// like Inspector injection.
+// DeclarativeNode applies these hooks before Fiber reconciliation.
 func (r *PipelineRenderer) GetHooks() *render.HookManager {
 	return r.hooks
 }
 
-// Measure implements the VNodeRenderer Measure interface
-// This allows the renderer to be used for size calculation
-func (r *PipelineRenderer) Measure(vnode rtui.VNode, maxWidth, maxHeight int) (width, height int) {
+// Measure implements the VNodeRenderer compatibility measurement API.
+// It measures the current Fiber root, not the VNode argument.
+func (r *PipelineRenderer) Measure(_ rtui.VNode, maxWidth, maxHeight int) (width, height int) {
 	if r.fiber == nil {
 		log.RenderLogger.IfEnabled().Debug("[PipelineRenderer.Measure] no Fiber root available")
 		return 0, 0
@@ -222,7 +222,7 @@ func (r *PipelineRenderer) RenderWithFiber(fiber *reconciler.Fiber, buffer *pain
 		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using RenderLayers for multi-layer rendering")
 		err = r.pipeline.RenderLayers(fiber, constraints, buffer)
 	} else {
-		// Use standard rendering for simple VNode trees
+		// Use standard rendering for simple Fiber trees
 		log.RenderLogger.IfEnabled().Debug("RenderWithFiber: Using standard Render")
 		err = r.pipeline.Render(fiber, constraints, buffer)
 	}
