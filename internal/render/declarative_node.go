@@ -911,7 +911,7 @@ func (n *DeclarativeNode) RenderWithFiber(buffer *paint.Buffer) error {
 	// Get the renderer and call its RenderWithFiber method
 	// This allows NodeID propagation from Fiber tree to ComputedBox
 	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-		return adapter.RenderWithFiber(n.root, buffer)
+		return adapter.RenderWithFiber(buffer)
 	}
 
 	// Fallback for non-PipelineRenderer types

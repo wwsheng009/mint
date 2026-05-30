@@ -253,16 +253,13 @@ func UsePipelineRendererOption() func(*DeclarativeNode) {
 // so that NodeIDs can be propagated to ComputedBox for proper identity tracking
 //
 // Parameters:
-//   vnode: The rendered VNode tree
-//   fiber: The actual Fiber tree with NodeIDs (nil for non-Fiber mode)
-//   buffer: Paint buffer for rendering
-func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.Fiber, buffer *paint.Buffer) error {
+//
+//	fiber: The actual Fiber tree with NodeIDs.
+//	buffer: Paint buffer for rendering.
+func (r *PipelineRenderer) RenderWithFiber(fiber *reconciler.Fiber, buffer *paint.Buffer) error {
 	if buffer == nil {
 		return nil
 	}
-
-	// Apply VNode hooks (e.g., Inspector injection)
-	vnode = r.hooks.ApplyVNodeHooks(vnode)
 
 	// Get buffer dimensions for layout constraints
 	width := buffer.Width
@@ -298,8 +295,8 @@ func (r *PipelineRenderer) RenderWithFiber(vnode rtui.VNode, fiber *reconciler.F
 
 // RenderWithFiber renders with explicit Fiber tree for NodeID propagation
 // Phase 8: Adapter method that delegates to pipeline.RenderWithFiber
-func (a *PipelineRendererAdapter) RenderWithFiber(vnode rtui.VNode, buffer *paint.Buffer) error {
-	return a.pipeline.RenderWithFiber(vnode, a.pipeline.fiber, buffer)
+func (a *PipelineRendererAdapter) RenderWithFiber(buffer *paint.Buffer) error {
+	return a.pipeline.RenderWithFiber(a.pipeline.fiber, buffer)
 }
 
 // =============================================================================
