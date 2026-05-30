@@ -18,7 +18,6 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	n.mu.RLock()
 	root := n.root
 	focusMgr := n.focusMgr
-	useFiber := n.useFiber
 	reconciler := n.reconciler
 	n.mu.RUnlock()
 
@@ -33,7 +32,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 			if keyEv.Key.Name == "escape" || keyEv.Key.Name == "esc" {
 				if n.handleLayerKeyEvent(root) {
 					// Modal was closed, trigger re-render
-					n.requestRender(useFiber, reconciler)
+					n.requestRender(reconciler)
 					return true
 				}
 			}
@@ -46,10 +45,9 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 		if handled {
 			log.RenderLogger.IfEnabled().Debug("DeclarativeNode.HandleEvent: focus manager handled event, shouldRender=%v", shouldRender)
 
-			// Request a re-render when focus changes
-			// In Fiber mode, use the reconciler; in non-Fiber mode, mark as dirty
+			// Request a re-render when focus changes.
 			if shouldRender {
-				if useFiber && reconciler != nil {
+				if reconciler != nil {
 					// Fiber mode: schedule reconciler update
 					if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
 						r.r.ScheduleUpdate(rtui.LaneSyncLane)
@@ -79,7 +77,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 					log.RenderLogger.IfEnabled().Debug("DeclarativeNode.HandleEvent: mouse click switched focus")
 
 					// Focus was switched, trigger re-render
-					if useFiber && reconciler != nil {
+					if reconciler != nil {
 						if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
 							r.r.ScheduleUpdate(rtui.LaneSyncLane)
 						}
@@ -100,7 +98,7 @@ func (n *DeclarativeNode) HandleEvent(ev frameworkevent.Event) bool {
 	if handled {
 		// Event was handled by a component (e.g., button click)
 		// Trigger re-render to update the UI with new state
-		n.requestRender(useFiber, reconciler)
+		n.requestRender(reconciler)
 	}
 	return handled
 }

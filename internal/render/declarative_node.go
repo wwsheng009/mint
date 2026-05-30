@@ -26,13 +26,15 @@ import (
 // DeclarativeNode allows a VNode tree to be used as a framework Component.
 // This enables mixing declarative UI (VNode) with imperative Components.
 
-// RenderMode specifies which rendering path to use
+// RenderMode specifies the declarative rendering path.
+//
+// Fiber-first is the only active path. The legacy value is retained only for
+// source compatibility with older callers that still pass it to SetRenderMode.
 type RenderMode int
 
 const (
-	// RenderModeLegacy uses the old VNode-based rendering (DEPRECATED)
-	// This mode is kept backward compatibility but may be removed in future versions.
-	// Use RenderModeFiberFirst instead, which is now the default.
+	// RenderModeLegacy is deprecated and no longer selects a rendering path.
+	// SetRenderMode normalizes it to RenderModeFiberFirst.
 	RenderModeLegacy RenderMode = iota
 	// RenderModeFiberFirst uses the new Fiber-first rendering pipeline
 	// This is the default and recommended rendering mode.
@@ -50,20 +52,17 @@ type DeclarativeNode struct {
 	// Framework integration
 	reconciler rtui.Reconciler    // Fiber reconciler (if enabled) - use interface to avoid import cycle
 	renderer   rtui.VNodeRenderer // VNode renderer (implements VNodeRenderer interface)
-	useFiber   bool               // Whether Fiber mode is enabled
 
-	// scheduler 用于非 Fiber 模式下请求帧调度
-	scheduler reconciler.Scheduler // Scheduler for frame requests (non-Fiber mode only)
+	// Scheduler fallback for global render requests before the reconciler is available.
+	scheduler reconciler.Scheduler
 
 	// === Intent Integration ===
 	intentRuntime *intent.Runtime // Intent runtime for dispatching intents
 
 	// === Fiber-first Rendering Pipeline (Phase 4) ===
-	renderMode        RenderMode                 // Current rendering mode
-	newLayoutEngine   *NewLayoutEngineAdapter    // New layout engine (Fiber-first only)
-	paintEngine       *PaintEngine               // Paint engine for Fiber-first
-	converter         *FiberToPaintableConverter // Fiber to Paintable converter
-	fiberFirstEnabled bool                       // Whether Fiber-first mode is enabled
+	newLayoutEngine *NewLayoutEngineAdapter // New layout engine (Fiber-first only)
+	paintEngine     *PaintEngine            // Paint engine for Fiber-first
+	converter       *FiberToPaintableConverter
 
 	// === Portal Support (Two-Phase Layout) ===
 	portalLayoutEngine *PortalAwareLayoutEngine // Portal-aware layout engine (Phase 5)
@@ -93,7 +92,8 @@ func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
 }
 
 // SetScheduler sets the scheduler for requesting frame updates
-// Only used in non-Fiber mode. In Fiber mode, the reconciler handles scheduling internally.
+// The Fiber reconciler owns normal update scheduling; this fallback scheduler
+// is kept for global render requests before a reconciler update can be issued.
 func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -116,7 +116,7 @@ func (n *DeclarativeNode) SetScheduler(scheduler reconciler.Scheduler) {
 //
 // This is called from ui.Run to enable frame scheduling.
 func (n *DeclarativeNode) SetApp(app interface{}) {
-	// Set scheduler on the DeclarativeNode (for non-Fiber mode)
+	// Keep a scheduler fallback for global render requests.
 	if scheduler, ok := app.(reconciler.Scheduler); ok {
 		n.SetScheduler(scheduler)
 	}
@@ -153,9 +153,8 @@ func (n *DeclarativeNode) SetApp(app interface{}) {
 //   - Fiber-first mode (reconciliation + layout + paint pipeline)
 //   - Portal-aware layout (two-phase layout for Portal components)
 //
-// These can be disabled via environment variables for backward compatibility:
-//   - MINT_FIBER_FIRST=false or MINT_FIBER_FIRST=0 to disable Fiber-first
-//   - MINT_PORTAL_LAYOUT=false or MINT_PORTAL_LAYOUT=0 to disable Portal-aware layout
+// Portal-aware layout can be disabled via environment variable for compatibility:
+//   - MINT_PORTAL_LAYOUT=false or MINT_PORTAL_LAYOUT=0
 //
 // Scheduler must be set later via SetApp() to enable frame scheduling (optional for static rendering).
 func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode {
@@ -187,14 +186,11 @@ func NewDeclarativeNodeFromFuncWithFiber(fn rtui.ComponentFunc) *DeclarativeNode
 	}
 
 	node := &DeclarativeNode{
-		renderFn:          fn,
-		instance:          rootCtx, // Use the same context for global state
-		focusMgr:          focusMgr,
-		reconciler:        r,
-		renderer:          renderer,
-		useFiber:          true,
-		renderMode:        RenderModeFiberFirst, // Initialize with Fiber-first mode
-		fiberFirstEnabled: true,                 // Fiber-first always enabled
+		renderFn:   fn,
+		instance:   rootCtx, // Use the same context for global state
+		focusMgr:   focusMgr,
+		reconciler: r,
+		renderer:   renderer,
 	}
 
 	// Initialize Fiber-first pipeline components
@@ -231,35 +227,31 @@ func (n *DeclarativeNode) initPortalLayoutSupport() {
 	}
 }
 
-// SetRenderMode sets the rendering mode
+// SetRenderMode preserves the historical API while keeping the active renderer
+// Fiber-first. Legacy mode has been removed, so non-Fiber values are ignored.
 func (n *DeclarativeNode) SetRenderMode(mode RenderMode) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.renderMode = mode
-	if mode == RenderModeFiberFirst {
-		n.fiberFirstEnabled = true
-		// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher
-		if n.newLayoutEngine == nil {
-			n.newLayoutEngine = NewNewLayoutEngineAdapter()
-		}
-		if n.paintEngine == nil {
-			n.paintEngine = NewPaintEngine()
-		}
+	if mode != RenderModeFiberFirst {
+		log.RenderLogger.IfEnabled().Warn("[DeclarativeNode.SetRenderMode] legacy render mode %d is no longer supported; using Fiber-first", mode)
+	}
+	// Use the new layout engine directly (runtime/layout), bypassing LayoutSwitcher.
+	if n.newLayoutEngine == nil {
+		n.newLayoutEngine = NewNewLayoutEngineAdapter()
+	}
+	if n.paintEngine == nil {
+		n.paintEngine = NewPaintEngine()
 	}
 }
 
-// GetRenderMode returns the current rendering mode
+// GetRenderMode returns the active rendering mode.
 func (n *DeclarativeNode) GetRenderMode() RenderMode {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return n.renderMode
+	return RenderModeFiberFirst
 }
 
-// IsFiberFirstEnabled returns whether Fiber-first mode is enabled
+// IsFiberFirstEnabled returns whether Fiber-first mode is enabled.
 func (n *DeclarativeNode) IsFiberFirstEnabled() bool {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	return n.fiberFirstEnabled
+	return true
 }
 
 // =============================================================================
@@ -319,7 +311,6 @@ func (n *DeclarativeNode) SetReconciler(r rtui.Reconciler) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.reconciler = r
-	n.useFiber = r != nil
 
 	// Phase 8: Set renderer on reconciler so it can call SetFiber after reconciliation
 	// This enables NodeID propagation from Fiber tree to LayoutEngine
@@ -411,35 +402,23 @@ func (n *DeclarativeNode) Measure(maxWidth, maxHeight int) (width, height int) {
 // framework.Paintable interface implementation
 // =============================================================================
 
-// Paint renders the VNode tree to the buffer
-// UNIFIED RENDERING: Supports both Legacy and Fiber-first rendering paths
+// Paint renders the declarative tree using the Fiber-first pipeline.
 func (n *DeclarativeNode) Paint(ctx paint.PaintContext, buf *paint.Buffer) {
-	// Acquire read lock to read state for determining render mode
-	// useFiber is implied by the presence of reconciler (see SetReconciler)
+	// Acquire read lock to read state needed for rendering.
 	n.mu.RLock()
-	fiberFirstEnabled := n.fiberFirstEnabled
-	renderMode := n.renderMode
 	reconciler := n.reconciler
 	n.mu.RUnlock()
 
 	// Debug logging
-	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, hasReconciler=%v, renderMode=%v, fiberFirstEnabled=%v",
-		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, reconciler != nil, renderMode, fiberFirstEnabled)
+	log.PaintLogger.Debug("[DeclarativeNode.Paint] START: ctx.X=%d, ctx.Y=%d, buf=%dx%d, hasReconciler=%v",
+		ctx.Bounds.X, ctx.Bounds.Y, buf.Width, buf.Height, reconciler != nil)
 
-	// Check if Fiber-first mode is enabled (reconciler != nil implies useFiber)
-	if fiberFirstEnabled && reconciler != nil {
-		switch renderMode {
-		case RenderModeFiberFirst:
-			// Release locks before calling fiberFirstPaint (it will acquire its own locks)
-			n.fiberFirstPaint(ctx, buf)
-			return
-		}
+	if reconciler != nil {
+		n.fiberFirstPaint(ctx, buf)
+		return
 	}
 
-	// Legacy rendering path is deprecated - no longer called
-	// Fiber-first mode is enabled by default when using NewDeclarativeNodeFromFuncWithFiber
-	// If you need legacy mode, set MINT_FIBER_FIRST=false (not recommended)
-	log.PaintLogger.IfEnabled().Warn("[DeclarativeNode.Paint] Legacy rendering path not available. Fiber-first mode is recommended.")
+	log.PaintLogger.IfEnabled().Warn("[DeclarativeNode.Paint] Fiber-first renderer is not initialized; render skipped")
 }
 
 // PaintScene renders the text buffer using the existing Fiber-first paint
@@ -591,19 +570,11 @@ func (n *DeclarativeNode) fiberFirstPaint(ctx paint.PaintContext, buf *paint.Buf
 		planes := paint.NewPaintablePlanes()
 		dirtyRects := make([]paint.Rect, 0, 8)
 		sceneLayers := make([]paint.ImageLayer, 0, 4)
-		var walkPaintable func(box *paint.PaintableBox)
-		walkPaintable = func(box *paint.PaintableBox) {
-			if box == nil {
-				return
-			}
-			planes.AddToLayer(paint.RenderLayer(box.Layer), box)
+		walkPaintableBoxesByEffectiveLayer(paintableLayout.Root, func(layer paint.RenderLayer, box *paint.PaintableBox) {
+			planes.AddToLayer(layer, box)
 			collectPaintableDirtyRectFromBox(box, &dirtyRects)
 			collectSceneImageLayerFromBox(box, &sceneLayers)
-			for _, child := range box.Children {
-				walkPaintable(child)
-			}
-		}
-		walkPaintable(paintableLayout.Root)
+		})
 
 		// Save paintable root for GetPaintableBoxes().
 		n.mu.Lock()
@@ -647,260 +618,6 @@ func countFiberChildren(fiber *rtui.Fiber) int {
 		count++
 	}
 	return count
-}
-
-// legacyPaint is the original VNode-based rendering path (DEPRECATED)
-//
-// Deprecated: Use fiberFirstPaint with Fiber-first architecture instead.
-//
-// This method is no longer used in normal rendering operations:
-//   - Not called from Paint() (fiberFirstPaint is the default)
-//   - Not used as fallback in fiberFirstPaint() (errors abort render)
-//
-// The legacy path has the following issues:
-//   - VNode is kept in memory during rendering (not discarded after Fiber reconciliation)
-//   - Uses LayoutSwitcher which is deprecated
-//   - Does not follow Fiber-first architecture where VNode is discarded after Fiber creation
-//
-// Note: Fiber-first mode is now enabled by default when using NewDeclarativeNodeFromFuncWithFiber.
-// This function will be removed in a future version once RenderModeLegacy is removed.
-func (n *DeclarativeNode) legacyPaint(ctx paint.PaintContext, buf *paint.Buffer) {
-	// Debug logging
-	log.PaintLogger.Debug("[DeclarativeNode.legacyPaint] START: hasReconciler=%v",
-		n.reconciler != nil)
-
-	// Phase 1: Get the VNode tree
-	// useFiber is implied by the presence of reconciler (see SetReconciler)
-	if n.reconciler != nil {
-		// Fiber mode: just call render function directly for now
-		// The reconciler's state management still happens through hooks
-		log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.legacyPaint] ✅ Calling renderWithFiberContext")
-
-		n.root = n.renderWithFiberContext()
-
-		// Debug: Check if root is valid
-		if n.root != nil {
-			log.PaintLogger.Debug("[DeclarativeNode.Paint] n.root type=%d, tag=%s, children=%d",
-				n.root.Type(), n.root.Tag(), len(n.root.Children()))
-		} else {
-			log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.root is NIL after renderWithFiberContext")
-		}
-
-	} else {
-		// Non-Fiber mode
-		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️  Using nonFiberRender")
-
-		n.root = n.nonFiberRender()
-	}
-
-	if n.root == nil {
-		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: root is nil, returning")
-
-		return
-	}
-
-	// Phase 2: Apply focus state
-	n.applyFocusState()
-
-	// Phase 3: UNIFIED RENDERING - use PipelineRenderer with constraint-based layout
-	log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.renderer = %v", n.renderer)
-	if n.renderer != nil {
-		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] renderer type = %T", n.renderer)
-	}
-
-	log.PaintLogger.IfEnabled().Debug("[DeclarativeNode.Paint] n.renderer=%v, isAdapter=%v", n.renderer != nil, n.renderer != nil && fmt.Sprintf("%T", n.renderer) == "*render.PipelineRendererAdapter")
-
-	if n.renderer != nil {
-		// Use the PaintContext dimensions as layout constraints (not buffer size)
-		// The PaintContext.AvailableWidth/Height contains the user's configured layout size
-		// while the buffer size may be larger (actual terminal size)
-		if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
-			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ✅ Using PipelineRendererAdapter")
-			log.RenderLogger.Debug("[DeclarativeNode.Paint] Layout constraints: %dx%d (buffer: %dx%d)",
-				ctx.AvailableWidth, ctx.AvailableHeight, buf.Width, buf.Height)
-
-			// Call RenderWithConstraints which will:
-			// 1. Use PaintContext dimensions as BoxConstraints (user's configured layout size)
-			// 2. Detect layer nodes and call RenderLayers() if needed
-			// 3. Apply modal centering for LayerModal nodes using the correct layout size
-			pipeline := adapter.GetPipeline()
-			if err := pipeline.RenderWithConstraints(n.root, ctx.AvailableWidth, ctx.AvailableHeight, buf); err != nil {
-				// Fallback to legacy rendering if pipeline fails
-				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ❌ Pipeline render FAILED: %v, falling back to legacy", err)
-				n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
-			} else {
-				log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ✅ Pipeline render SUCCESS")
-				// NOTE: Inspector attachment is now handled by application layer
-				// The demo calls inspector.AttachToApp() after reconciliation completes
-				// This avoids circular dependency between render and framework packages
-			}
-		} else {
-			// Use the generic renderer interface (old path)
-			log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️ Using generic renderer interface (old path)")
-
-			n.renderer.Render(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
-		}
-	} else {
-		// Fallback to legacy painting
-		log.RenderLogger.IfEnabled().Debug("[DeclarativeNode.Paint] ⚠️ No renderer, using legacy PaintVNode")
-
-		n.PaintVNode(n.root, ctx.Bounds.X, ctx.Bounds.Y, buf)
-	}
-
-	log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: painting complete")
-
-}
-
-// renderWithFiberContext renders the VNode tree with Fiber hook context
-// This ensures hooks work correctly in Fiber mode
-func (n *DeclarativeNode) renderWithFiberContext() rtui.VNode {
-	if n.renderFn == nil {
-		return n.root
-	}
-
-	log.RenderLogger.IfEnabled().Debug("[renderWithFiberContext] reconciler=%v", n.reconciler != nil)
-
-	// The reconciler manages hook context through its render cycle
-	// We capture the VNode tree during the render to avoid calling renderFn twice
-	var capturedVNode rtui.VNode
-	callCount := 0
-
-	nullBuf := paint.NewBuffer(1, 1)
-	n.reconciler.Render(paint.PaintContext{
-		Bounds: paint.Rect{X: 0, Y: 0, Width: 1, Height: 1},
-	}, nullBuf, func() rtui.VNode {
-		callCount++
-		vnode := n.renderFn()
-		capturedVNode = vnode // Capture for PipelineRenderer
-		if vnode != nil {
-			log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] renderFn call #%d: returned type=%d tag=%s children=%d", callCount, vnode.Type(), vnode.Tag(), len(vnode.Children()))
-		} else {
-			log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] renderFn call #%d: returned nil", callCount)
-		}
-
-		return vnode
-	})
-
-	if capturedVNode != nil {
-		log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] FINAL capturedVNode type=%d tag=%s children=%d (total calls: %d)", capturedVNode.Type(), capturedVNode.Tag(), len(capturedVNode.Children()), callCount)
-	} else {
-		log.PaintLogger.IfEnabled().Debug("[renderWithFiberContext] FINAL capturedVNode is nil (total calls: %d)", callCount)
-	}
-
-	// Return the captured VNode tree for PipelineRenderer
-	return capturedVNode
-}
-
-// nonFiberRender renders the VNode tree in non-Fiber mode
-func (n *DeclarativeNode) nonFiberRender() rtui.VNode {
-	// Initialize component context if needed
-	instanceCreated := false
-	if n.instance == nil && n.renderFn != nil {
-		n.instance = rtui.NewComponentContextForRoot()
-		instanceCreated = true
-	}
-
-	if n.renderFn == nil {
-		return n.root
-	}
-
-	// Set Intent Runtime to component context (enables intent.EmitIntents)
-	n.mu.RLock()
-	intentRuntime := n.intentRuntime
-	n.mu.RUnlock()
-	n.instance.SetIntentRuntime(intentRuntime)
-
-	// Set StateSetter on dispatcher if this is a new instance
-	if instanceCreated && intentRuntime != nil {
-		intentRuntime.Dispatcher.SetStateSetter(n.instance)
-		// Set schedule update callback
-		n.instance.SetScheduleUpdate(func() {
-			// Request re-render through scheduler (framework app)
-			if n.scheduler != nil {
-				n.scheduler.MarkDirty()
-			}
-		})
-	}
-
-	// Set component context for hooks
-	n.instance.ResetContext()
-	rtui.SetCurrentContext(n.instance)
-
-	// Call render function
-	n.root = n.renderFn()
-
-	// Expand all ComponentVNodes recursively
-	n.root = n.expandComponents(n.root)
-
-	// Clear context
-	rtui.SetCurrentContext(nil)
-
-	return n.root
-}
-
-// applyFocusState applies focus state to the VNode tree
-// In Fiber mode, focus is managed by the reconciler's FiberFocusManager
-// IMPORTANT: Also syncs focusManager to framework.App for event routing
-func (n *DeclarativeNode) applyFocusState() {
-	if n.focusMgr == nil {
-		return
-	}
-
-	// In Fiber mode, focus is managed by reconciler during commit phase
-	// The FiberFocusManager is updated by reconciler.updateFocusManagerFromFiber()
-	// Fiber mode is enabled when reconciler != nil (see SetReconciler)
-	if n.reconciler != nil {
-		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.applyFocusState: Fiber mode, focus managed by reconciler")
-		return
-	}
-
-	// Non-Fiber mode: legacy focus management via VNode tree
-	if n.root == nil {
-		return
-	}
-
-	var focusable []rtui.FocusableVNode
-
-	// Check if there's a modal open - if so, trap focus in modal
-	hasModal := rtui.HasModalInTree(n.root)
-
-	if hasModal {
-		// Focus trap: only collect focusable elements from modal layer
-		focusable = rtui.CollectFocusableInLayer(n.root, rtui.LayerModal)
-		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: modal detected, collected %d modal focusable nodes", len(focusable))
-	} else {
-		// No modal: collect all focusable elements
-		focusable = rtui.CollectFocusable(n.root)
-		log.RenderLogger.IfEnabled().Debug("DeclarativeNode.Paint: no modal, collected %d focusable nodes", len(focusable))
-	}
-
-	// Legacy: This path is only for non-Fiber mode
-	// For Fiber mode, focus is managed by FiberFocusManager which stores []*Fiber
-	// We skip this update in Fiber mode
-	if n.reconciler == nil {
-		// Cast to VNodeFocusManager for legacy mode
-		type legacyFocusManager interface {
-			UpdateFocusableList([]rtui.FocusableVNode)
-		}
-		if legacyMgr, ok := interface{}(n.focusMgr).(legacyFocusManager); ok {
-			legacyMgr.UpdateFocusableList(focusable)
-
-			// Clamp focus index
-			currentIndex := n.focusMgr.CurrentIndex()
-			if currentIndex >= len(focusable) {
-				currentIndex = len(focusable) - 1
-			}
-			if currentIndex < 0 && len(focusable) > 0 {
-				currentIndex = 0
-			}
-			if currentIndex >= 0 {
-				n.focusMgr.SetFocusByIndex(currentIndex)
-			}
-		}
-
-		// Apply focus state
-		n.applyFocus(focusable)
-	}
 }
 
 // PaintVNode recursively paints a VNode and its children.
@@ -969,9 +686,8 @@ func (n *DeclarativeNode) PaintVNode(vnode rtui.VNode, x, y int, buf *paint.Buff
 		n.paintElement(vnode, x, y, buf)
 
 	case rtui.VNodeComponent:
-		// Component nodes should be expanded before painting
-		// In non-Fiber mode, expandComponents() handles this
-		// In Fiber mode, components are already expanded in the Fiber tree
+		// Component nodes must be expanded before PaintVNode is called. In the
+		// active Fiber-first path this happens during reconciliation.
 
 	case rtui.VNodeFragment:
 		// Fragment - just paint children, no self-rendering
@@ -1422,139 +1138,6 @@ func (n *DeclarativeNode) MeasureVNodeHeight(vnode rtui.VNode) int {
 	return 1
 }
 
-// applyFocus applies focus state to VNodes based on the current focus index.
-// This is called in non-Fiber mode to ensure the focused element is visually highlighted.
-func (n *DeclarativeNode) applyFocus(focusable []rtui.FocusableVNode) {
-	if n.focusMgr == nil {
-		return
-	}
-
-	focusedIndex := n.focusMgr.CurrentIndex()
-	if focusedIndex < 0 || focusedIndex >= len(focusable) {
-		// No valid focus, clear all focus
-		for _, elem := range focusable {
-			elem.SetFocus(false)
-		}
-		return
-	}
-
-	// Set focus by index
-	for i, elem := range focusable {
-		if i == focusedIndex {
-			log.RenderLogger.IfEnabled().Debug("[applyFocus] setting focus=true on index %d (%s)", i, elem.GetFocusID())
-
-			elem.SetFocus(true)
-		} else {
-			elem.SetFocus(false)
-		}
-	}
-}
-
-// expandComponents recursively expands all ComponentVNodes in the tree
-// This is used in non-Fiber mode to ensure components are rendered with proper hook context
-// The hook context must be set before calling this function
-func (n *DeclarativeNode) expandComponents(vnode rtui.VNode) rtui.VNode {
-	if vnode == nil {
-		return nil
-	}
-
-	// If this is a ComponentVNode, expand it by calling its render function
-	if vnode.Type() == rtui.VNodeComponent {
-		if componentVNode, ok := vnode.(*rtui.ComponentVNode); ok {
-			rendered := componentVNode.Render()
-			if rendered != nil {
-				// Recursively expand the rendered VNode
-				return n.expandComponents(rendered)
-			}
-		}
-		return nil
-	}
-
-	// For non-component nodes, we need to expand their children
-	// Create a new VNode with expanded children
-	switch v := vnode.(type) {
-	case *rtui.ElementVNode:
-		// Expand children of ElementVNode
-		children := vnode.Children()
-		if len(children) == 0 {
-			return vnode
-		}
-		expandedChildren := make([]rtui.VNode, 0, len(children))
-		for _, child := range children {
-			expanded := n.expandComponents(child)
-			if expanded != nil {
-				expandedChildren = append(expandedChildren, expanded)
-			}
-		}
-		// Create a clone with expanded children AND layer info
-		cloned := rtui.NewElement(v.Tag())
-		cloned.SetProps(vnode.Props().Clone()) // Clone to preserve _layer
-		cloned.SetKey(vnode.Key())
-		cloned.SetStyle(vnode.Style())
-		cloned.SetChildren(expandedChildren)
-		// Preserve layer information
-		if layer := vnode.GetLayer(); layer != rtui.LayerBase {
-			cloned.SetLayer(layer)
-		}
-		return cloned
-
-	case *rtui.LayoutNode:
-		// LayoutNode embeds ElementVNode, so similar handling
-		children := vnode.Children()
-		if len(children) == 0 {
-			return vnode
-		}
-		expandedChildren := make([]rtui.VNode, 0, len(children))
-		for _, child := range children {
-			expanded := n.expandComponents(child)
-			if expanded != nil {
-				expandedChildren = append(expandedChildren, expanded)
-			}
-		}
-		// For LayoutNode, we can't directly clone it because private fields
-		// Instead, modify the existing node's children in place
-		vnode.SetChildren(expandedChildren)
-		return vnode
-
-	case *rtui.FragmentVNode:
-		// Fragment - expand children
-		children := vnode.Children()
-		if len(children) == 0 {
-			return vnode
-		}
-		expandedChildren := make([]rtui.VNode, 0, len(children))
-		for _, child := range children {
-			expanded := n.expandComponents(child)
-			if expanded != nil {
-				expandedChildren = append(expandedChildren, expanded)
-			}
-		}
-		return rtui.Fragment(expandedChildren...)
-
-	case *rtui.BorderedNode:
-		// BorderedNode embeds ElementVNode, need to expand children
-		children := vnode.Children()
-		if len(children) == 0 {
-			return vnode
-		}
-		expandedChildren := make([]rtui.VNode, 0, len(children))
-		for _, child := range children {
-			expanded := n.expandComponents(child)
-			if expanded != nil {
-				expandedChildren = append(expandedChildren, expanded)
-			}
-		}
-		// Modify in place like LayoutNode since we can't clone BorderedNode easily
-		// Layer info should be preserved in the props
-		vnode.SetChildren(expandedChildren)
-		return vnode
-
-	default:
-		// For TextVNode and other leaf nodes, return as-is
-		return vnode
-	}
-}
-
 // =============================================================================
 // framework.Mountable interface implementation
 // =============================================================================
@@ -1654,7 +1237,8 @@ func (n *DeclarativeNode) GetHitMap() *event.HitMap {
 		return n.fiberLastHitMap
 	}
 
-	// Priority 2: Check if renderer is PipelineRendererAdapter (Legacy path)
+	// Priority 2: Check the renderer pipeline for compatibility callers that
+	// invoked PipelineRenderer directly.
 	if adapter, ok := n.renderer.(*PipelineRendererAdapter); ok {
 		// Get the RenderingPipeline from the adapter
 		pipeline := adapter.GetRenderingPipeline()
@@ -1799,9 +1383,8 @@ func (n *DeclarativeNode) findModalNode(vnode rtui.VNode) rtui.VNode {
 	return nil
 }
 
-// requestRender triggers a re-render
-// useFiber parameter is kept for backward compatibility but is implied by reconciler != nil
-func (n *DeclarativeNode) requestRender(useFiber bool, reconciler rtui.Reconciler) {
+// requestRender triggers a re-render.
+func (n *DeclarativeNode) requestRender(reconciler rtui.Reconciler) {
 	if reconciler != nil {
 		// Fiber mode: schedule reconciler update
 		if r, ok := reconciler.(*fiberReconcilerAdapter); ok {
