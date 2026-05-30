@@ -171,51 +171,6 @@ func (r *PipelineRenderer) GetPipeline() *RenderingPipeline {
 	return r.pipeline
 }
 
-// RenderWithConstraints renders with explicit layout constraints (not buffer size)
-// This is important when the buffer size differs from the desired layout constraints
-// For example: terminal is 156x44 but user configured 80x24 for layout
-func (r *PipelineRenderer) RenderWithConstraints(vnode rtui.VNode, layoutWidth, layoutHeight int, buffer *paint.Buffer) error {
-	if buffer == nil {
-		return nil
-	}
-
-	// Apply VNode hooks (e.g., Inspector injection)
-	vnode = r.hooks.ApplyVNodeHooks(vnode)
-
-	// Use explicit layout constraints instead of buffer size
-	constraints := runtime.NewBoxConstraints(0, layoutWidth, 0, layoutHeight)
-
-	log.RenderLogger.Debug("Layout constraints: %dx%d (buffer: %dx%d)",
-		layoutWidth, layoutHeight, buffer.Width, buffer.Height)
-	log.LayerLogger.Debug("Layout constraints: %dx%d (buffer: %dx%d)",
-		layoutWidth, layoutHeight, buffer.Width, buffer.Height)
-
-	// Check if Fiber tree contains any layer nodes (Modal, Overlay, Tooltip)
-	hasLayers := r.hasLayerNodes()
-
-	log.LayerLogger.IfEnabled().Debug("hasLayers=%v", hasLayers)
-
-	var err error
-	if hasLayers {
-		err = r.pipeline.RenderLayers(r.fiber, constraints, buffer)
-	} else {
-		err = r.pipeline.Render(r.fiber, constraints, buffer)
-	}
-
-	if err != nil {
-		log.RenderLogger.IfEnabled().Debug("❌ Render FAILED: %v", err)
-		return err
-	}
-
-	log.RenderLogger.IfEnabled().Debug("✅ Render SUCCESS")
-
-	if r.debug {
-		log.RenderLogger.IfEnabled().Debug("Render complete, cache stats: %s", r.GetCacheStats())
-	}
-
-	return nil
-}
-
 // SetDebug enables/disables debug output
 func (r *PipelineRenderer) SetDebug(debug bool) {
 	r.debug = debug
@@ -232,20 +187,6 @@ func (r *PipelineRenderer) GetCacheStats() string {
 // ClearCache clears the layout cache
 func (r *PipelineRenderer) ClearCache() {
 	r.pipeline.ClearCache()
-}
-
-// =============================================================================
-// Helper Functions for Using Pipeline Renderer
-// =============================================================================
-
-// UsePipelineRendererOption creates an option that configures a DeclarativeNode
-// to use the new pipeline-based renderer
-func UsePipelineRendererOption() func(*DeclarativeNode) {
-	return func(node *DeclarativeNode) {
-		// Note: This would require adding a SetRenderer method to DeclarativeNode
-		// For now, this is a placeholder for future enhancement
-		_ = node
-	}
 }
 
 // RenderWithFiber renders with explicit Fiber tree for NodeID propagation
@@ -297,17 +238,4 @@ func (r *PipelineRenderer) RenderWithFiber(fiber *reconciler.Fiber, buffer *pain
 // Phase 8: Adapter method that delegates to pipeline.RenderWithFiber
 func (a *PipelineRendererAdapter) RenderWithFiber(buffer *paint.Buffer) error {
 	return a.pipeline.RenderWithFiber(a.pipeline.fiber, buffer)
-}
-
-// =============================================================================
-// Error Types
-// =============================================================================
-
-// ErrInvalidBuffer is returned when an invalid buffer is provided
-type ErrInvalidBuffer struct {
-	Msg string
-}
-
-func (e *ErrInvalidBuffer) Error() string {
-	return e.Msg
 }
