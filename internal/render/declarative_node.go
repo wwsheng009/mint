@@ -82,13 +82,6 @@ type DeclarativeNode struct {
 	lastPortalBoxes []*layout.LayoutBox // Portal boxes from last layout (for debugging)
 }
 
-// NewDeclarativeNode creates a new declarative node from a VNode
-func NewDeclarativeNode(vnode rtui.VNode) *DeclarativeNode {
-	return &DeclarativeNode{
-		root: vnode,
-	}
-}
-
 // SetScheduler sets the scheduler for requesting frame updates
 // The Fiber reconciler owns normal update scheduling; this fallback scheduler
 // is kept for global render requests before a reconciler update can be issued.
