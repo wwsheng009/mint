@@ -57,19 +57,12 @@ func NewNewLayoutEngineAdapter() *NewLayoutEngineAdapter {
 }
 
 // Layout performs layout using the new layout engine.
-// Fiber-first: Uses Fiber data when available, falls back to VNode.
+// Fiber-first requires a Fiber root; VNode fallback is no longer supported.
 func (a *NewLayoutEngineAdapter) Layout(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (LayoutResult, error) {
-	// Fiber-first: Prefer Fiber over VNode
-	var node layout.Node
-	if fiber != nil {
-		// Use Fiber-only adapter (no VNode dependency)
-		node = NewFiberToNodeAdapterPure(fiber)
-	} else if vnode != nil {
-		// Fallback to VNode adapter for legacy support
-		node = NewVNodeToNodeAdapter(vnode)
-	} else {
-		return nil, fmt.Errorf("both fiber and vnode are nil")
+	if fiber == nil {
+		return nil, fmt.Errorf("fiber is nil")
 	}
+	node := NewFiberToNodeAdapterPure(fiber)
 
 	// Convert constraints
 	layoutConstraints := layout.Constraints{
@@ -278,8 +271,8 @@ func buildFiberNodeIDIndex(root *rtui.Fiber) map[uint64]*rtui.Fiber {
 // This function bridges the new layout engine (runtime/layout) with the legacy compute.Engine API.
 //
 // Parameters:
-//   - vnode: The VNode tree to layout (optional, used as fallback if fiber is nil)
-//   - fiber: The Fiber tree for layout (Fiber-first: preferred over vnode)
+//   - vnode: Deprecated and ignored; kept in the signature for compute bridge compatibility.
+//   - fiber: The Fiber tree for layout.
 //   - constraints: Box constraints for layout
 //
 // Returns:
@@ -290,23 +283,15 @@ func buildFiberNodeIDIndex(root *rtui.Fiber) map[uint64]*rtui.Fiber {
 //
 //	Callers in runtime/compute can type-assert the result safely.
 func LayoutV3(vnode rtui.VNode, fiber *reconciler.Fiber, constraints runtime.BoxConstraints) (interface{}, error) {
-	// Validate inputs
-	if vnode == nil && fiber == nil {
-		return nil, fmt.Errorf("cannot layout: both vnode and fiber are nil")
+	if fiber == nil {
+		return nil, fmt.Errorf("cannot layout: fiber is nil")
 	}
 
 	// Step 1: Create new layout engine instance
 	layoutEngine := layout.NewEngine()
 
-	// Step 2: Use adapters to create layout.Node (Fiber-first preferred)
-	var rootNode layout.Node
-	if fiber != nil {
-		// Fiber-first: Use Fiber-only adapter (no VNode dependency)
-		rootNode = NewFiberToNodeAdapterPure(fiber)
-	} else {
-		// Fallback: Use VNode adapter for legacy compatibility
-		rootNode = NewVNodeToNodeAdapter(vnode)
-	}
+	// Step 2: Use Fiber-only adapter (no VNode dependency)
+	rootNode := NewFiberToNodeAdapterPure(fiber)
 
 	// Step 3: Convert constraints
 	layoutConstraints := ConvertBoxConstraints(constraints)
