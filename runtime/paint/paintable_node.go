@@ -9,7 +9,8 @@ import (
 // PaintableNode - Abstract Node Interface for Paint Engine
 // =============================================================================
 // This interface decouples the Paint Engine from VNode/Fiber dependencies.
-// Adapters in runtime/compute package implement this interface for VNode/Fiber.
+// The active renderer builds PaintableBox trees from Fiber layout results before
+// paint, so the paint package does not depend on declarative node types.
 
 // NodeType represents the type of a paintable node.
 type NodeType int
