@@ -11,6 +11,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/input"
+	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -175,21 +176,24 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	if !inst.open {
 		return nil
 	}
-	builder := rtui.VStackBuilder(inst.buildContent()).
-		Gap(0).
-		AlignCross(rtui.AlignStart).
-		Padding(1, 1, 1, 1).
+	builder := modal.NewBuilder().
+		Key(inst.rootKey()).
+		Title(inst.titleOrDefault()).
+		Content(inst.buildBody()).
+		Footer(inst.buildFooter()).
+		Open(true).
+		Centered(true).
+		Closeable(false).
+		CloseOnEsc(false).
+		CloseOnBackdrop(false).
+		Padding(1).
 		Width(inst.widthOrDefault()).
 		Height(inst.heightOrDefault()).
-		BorderStyle(rtui.BorderDouble).
-		BorderLabel(" " + inst.titleOrDefault() + " ")
+		BorderStyle("double")
 	if !inst.rootStyle.IsEmpty() {
-		builder.SetStyleProps(inst.rootStyle)
+		builder.Style(inst.rootStyle)
 	}
-	dialog := builder.Build()
-	dialog.SetKey(inst.rootKey())
-	dialog.SetLayer(rtui.LayerModal)
-	return []rtui.VNode{dialog}
+	return []rtui.VNode{builder.Build()}
 }
 
 func (inst *Instance) buildContent() rtui.VNode {
@@ -199,7 +203,7 @@ func (inst *Instance) buildContent() rtui.VNode {
 }
 
 func (inst *Instance) buildBody() rtui.VNode {
-	children := make([]rtui.VNode, 0, 5)
+	children := make([]rtui.VNode, 0, 6)
 	if strings.TrimSpace(inst.message) != "" {
 		children = append(children, text.NewBuilder(inst.message).
 			Key(inst.childKey("message")).
@@ -221,8 +225,8 @@ func (inst *Instance) buildBody() rtui.VNode {
 	if strings.TrimSpace(inst.confirmPhrase) != "" {
 		children = append(children, inst.buildConfirmPhraseInput())
 	}
-	if strings.TrimSpace(inst.disabledReason) != "" {
-		children = append(children, text.NewBuilder(inst.disabledReason).
+	if disabledReason := inst.confirmDisabledReason(); disabledReason != "" {
+		children = append(children, text.NewBuilder(disabledReason).
 			Key(inst.childKey("disabled-reason")).
 			Style(style.NewStyle().Foreground(style.BrightBlack)).
 			Build())
@@ -236,9 +240,10 @@ func (inst *Instance) buildBody() rtui.VNode {
 }
 
 func (inst *Instance) buildTargetSummary() rtui.VNode {
+	columns := inst.targetSummaryColumns()
 	builder := descriptions.NewBuilder().
 		Key(inst.childKey("targets")).
-		Column(1).
+		Column(columns).
 		LabelWidth(14).
 		ContentWidth(inst.targetContentWidth()).
 		EmptyText("-").
@@ -332,6 +337,28 @@ func (inst *Instance) buildFooter() rtui.VNode {
 	return footer.Build()
 }
 
+func (inst *Instance) confirmDisabledReason() string {
+	reasons := make([]string, 0, 3)
+	if reason := strings.TrimSpace(inst.disabledReason); reason != "" {
+		reasons = append(reasons, reason)
+	}
+	if inst.reasonRequired && strings.TrimSpace(inst.reasonValue) == "" {
+		label := strings.TrimSpace(strings.TrimSuffix(inst.reasonLabel, "*"))
+		if label == "" {
+			label = "reason"
+		}
+		reasons = append(reasons, "Enter "+strings.ToLower(label)+" before confirming.")
+	}
+	expected := strings.TrimSpace(inst.confirmPhrase)
+	if expected != "" && !inst.confirmPhraseSatisfied() {
+		reasons = append(reasons, confirmPhrasePlaceholder(expected))
+	}
+	if inst.disableConfirm && len(reasons) == 0 {
+		reasons = append(reasons, "Confirmation is disabled.")
+	}
+	return strings.Join(reasons, " ")
+}
+
 func (inst *Instance) confirmPhraseSatisfied() bool {
 	expected := strings.TrimSpace(inst.confirmPhrase)
 	if expected == "" {
@@ -379,11 +406,31 @@ func (inst *Instance) heightOrDefault() int {
 }
 
 func (inst *Instance) targetContentWidth() int {
+	if inst.targetSummaryColumns() > 1 {
+		innerWidth := inst.widthOrDefault() - 6
+		if innerWidth < 1 {
+			innerWidth = 1
+		}
+		columnGap := 3
+		cellWidth := (innerWidth - columnGap) / 2
+		width := cellWidth - 15
+		if width < 16 {
+			return 16
+		}
+		return width
+	}
 	width := inst.widthOrDefault() - 26
 	if width < 20 {
 		return 20
 	}
 	return width
+}
+
+func (inst *Instance) targetSummaryColumns() int {
+	if len(inst.targetItems) >= 6 && inst.widthOrDefault() >= 80 {
+		return 2
+	}
+	return 1
 }
 
 func (inst *Instance) reasonInputWidth() int {

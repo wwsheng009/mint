@@ -785,8 +785,36 @@ func TestFormInstance_Measurable(t *testing.T) {
 	if size.Width != constraints.MaxWidth {
 		t.Errorf("Expected width=%v, got %v", constraints.MaxWidth, size.Width)
 	}
-	if size.Height != constraints.MaxHeight {
-		t.Errorf("Expected height=%v, got %v", constraints.MaxHeight, size.Height)
+	if size.Height != constraints.MinHeight {
+		t.Errorf("Expected height=%v, got %v", constraints.MinHeight, size.Height)
+	}
+}
+
+func TestFormInstance_MeasureDoesNotFillMaxHeight(t *testing.T) {
+	inst := NewInstance(rtui.Props{"key": "testForm"})
+
+	size := inst.Measure(layout.Constraints{MaxWidth: 80, MaxHeight: 20})
+
+	if size.Height != 0 {
+		t.Fatalf("Measure().Height = %d, want 0 for chrome-only form container", size.Height)
+	}
+	if size.Width != 80 {
+		t.Fatalf("Measure().Width = %d, want 80", size.Width)
+	}
+}
+
+func TestFormInstance_FlexStyleUsesNaturalVerticalLayout(t *testing.T) {
+	inst := NewInstance(rtui.Props{"key": "testForm", "label": "Profile"})
+
+	flexStyle := inst.GetFlexStyle()
+	if flexStyle == nil {
+		t.Fatal("expected form flex style")
+	}
+	if flexStyle.Direction != layout.FlexColumn {
+		t.Fatalf("Direction = %v, want FlexColumn", flexStyle.Direction)
+	}
+	if flexStyle.Padding.Top != 1 {
+		t.Fatalf("Padding.Top = %d, want 1 for label row", flexStyle.Padding.Top)
 	}
 }
 

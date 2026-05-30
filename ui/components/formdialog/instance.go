@@ -11,7 +11,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/button"
 	"github.com/wwsheng009/mint/ui/components/descriptions"
 	"github.com/wwsheng009/mint/ui/components/form"
-	"github.com/wwsheng009/mint/ui/components/panel"
+	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/text"
 )
 
@@ -163,24 +163,32 @@ func (inst *Instance) GetProps() rtui.Props {
 	}
 }
 
-// RuntimeChildren synthesizes a framed form surface for Fiber.
+// RuntimeChildren synthesizes the modal, form body, footer, and controls used by Fiber.
 func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	if !inst.open {
 		return nil
 	}
-	return []rtui.VNode{
-		panel.NewBuilder().
-			Key(inst.childKey("root")).
-			Title(inst.titleOrDefault()).
-			Content(inst.buildContent()).
-			Footer(inst.buildFooter()).
-			Rounded().
-			Padding(1).
-			Width(inst.widthOrDefault()).
-			Height(inst.heightOrDefault()).
-			Style(inst.rootStyle).
-			Build(),
+	builder := modal.NewBuilder().
+		Key(inst.childKey("root")).
+		Title(inst.titleOrDefault()).
+		Content(inst.buildContent()).
+		Footer(inst.buildFooter()).
+		Open(true).
+		Centered(true).
+		Closeable(inst.closeable).
+		CloseOnEsc(inst.closeOnEsc).
+		CloseOnBackdrop(inst.closeOnBackdrop).
+		Padding(1).
+		Width(inst.widthOrDefault()).
+		Height(inst.heightOrDefault()).
+		BorderStyle("rounded")
+	if inst.effectiveCloseIntent() != nil {
+		builder.OnClose(inst.effectiveCloseIntent())
 	}
+	if !inst.rootStyle.IsEmpty() {
+		builder.Style(inst.rootStyle)
+	}
+	return []rtui.VNode{builder.Build()}
 }
 
 func (inst *Instance) buildContent() rtui.VNode {
@@ -202,8 +210,7 @@ func (inst *Instance) buildContent() rtui.VNode {
 			Build())
 	}
 	root := rtui.VStackBuilder(children...).Gap(1).AlignCross(rtui.AlignStart).
-		Width(inst.widthOrDefault()).
-		Height(inst.contentHeight())
+		Width(inst.widthOrDefault())
 	root.SetKey(inst.childKey("content"))
 	return root.Build()
 }

@@ -66,9 +66,10 @@ type Instance struct {
 }
 
 var (
-	_ rtui.ComponentInstance = (*Instance)(nil)
-	_ rtui.PaintableInstance = (*Instance)(nil)
-	_ intent.IntentHandler   = (*Instance)(nil)
+	_ rtui.ComponentInstance   = (*Instance)(nil)
+	_ rtui.PaintableInstance   = (*Instance)(nil)
+	_ intent.IntentHandler     = (*Instance)(nil)
+	_ layout.FlexStyleProvider = (*Instance)(nil)
 	_ interface {
 		Measure(layout.Constraints) layout.Size
 	} = (*Instance)(nil)
@@ -801,11 +802,38 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 
 // Measure implements layout.Measurable interface.
 func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
-	// Forms delegate measurement to children
-	// Return a reasonable default size
+	width := 0
+	if constraints.MaxWidth > 0 && constraints.MaxWidth < layout.MaxInt {
+		width = constraints.MaxWidth
+	}
+
+	height := 0
+	inst.mu.RLock()
+	if inst.label != "" {
+		height = 1
+	}
+	inst.mu.RUnlock()
+
 	return layout.Size{
-		Width:  constraints.MaxWidth,
-		Height: constraints.MaxHeight,
+		Width:  constraints.ConstrainWidth(width),
+		Height: constraints.ConstrainHeight(height),
+	}
+}
+
+// GetFlexStyle makes Form behave as a natural-height vertical container.
+func (inst *Instance) GetFlexStyle() *layout.FlexStyle {
+	padding := layout.Padding{}
+	inst.mu.RLock()
+	if inst.label != "" {
+		padding.Top = 1
+	}
+	inst.mu.RUnlock()
+
+	return &layout.FlexStyle{
+		Direction: layout.FlexColumn,
+		MainAxis:  layout.MainStart,
+		CrossAxis: layout.CrossStart,
+		Padding:   padding,
 	}
 }
 

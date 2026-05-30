@@ -351,6 +351,29 @@ func SensitiveTarget(key, label, value string) TargetItem {
 	return TargetItem{Key: key, Label: label, Value: value, Sensitive: true}
 }
 
+// APITarget creates a standard target summary item for the API route that will
+// be called by an operation.
+func APITarget(method, path string) TargetItem {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	path = strings.TrimSpace(path)
+	value := strings.TrimSpace(method + " " + path)
+	return TargetItem{Key: "api", Label: "API", Value: value}
+}
+
+// ImpactTarget creates a standard target summary item for the operational
+// impact of a confirmed operation.
+func ImpactTarget(level, text string) TargetItem {
+	level = strings.ToLower(strings.TrimSpace(level))
+	text = strings.TrimSpace(text)
+	value := text
+	if level != "" && text != "" {
+		value = level + ": " + text
+	} else if level != "" {
+		value = level
+	}
+	return TargetItem{Key: "impact", Label: "Impact", Value: value}
+}
+
 func (i TargetItem) WithKey(key string) TargetItem {
 	i.Key = key
 	return i

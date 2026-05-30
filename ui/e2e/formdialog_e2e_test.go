@@ -144,6 +144,52 @@ func TestE2EFormDialogSubmitDispatch(t *testing.T) {
 	}
 }
 
+func TestE2EFormDialogCancelDispatch(t *testing.T) {
+	unregisters := make([]func(), 0, 1)
+	initFn := func() {
+		rt := rtui.GetGlobalIntentRuntime()
+		if rt == nil {
+			return
+		}
+		unregisters = append(unregisters,
+			rt.Register("formdialog.cancel", intent.HandlerFunc(func(_ *intent.ActionContext, _ intent.Intent) intent.IntentResult {
+				return intent.HandledResult()
+			})),
+		)
+	}
+	defer func() {
+		for i := len(unregisters) - 1; i >= 0; i-- {
+			unregisters[i]()
+		}
+	}()
+
+	key := "runtime-reload-cancel-dialog"
+	app, err := Run(newFormDialogStaticAppWithKey(key, false, false), ui.WithSize(100, 30), ui.WithInit(initFn))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	point, err := app.ResolvePoint(ByKey(key + "-cancel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertHit(point, ByKey(key+"-cancel")); err != nil {
+		t.Fatalf("cancel button should be the top hit target: %v\n%s", err, app.RenderString())
+	}
+
+	app.ClearIntentLogs()
+	if err := app.Driver().Click(ByKey(key + "-cancel")); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AwaitIntent("formdialog.cancel", 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled("formdialog.cancel"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestE2EFormDialogDisabledReason(t *testing.T) {
 	app, err := Run(newFormDialogStaticApp(true), ui.WithSize(100, 30))
 	if err != nil {

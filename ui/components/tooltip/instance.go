@@ -30,6 +30,7 @@ type Instance struct {
 	position     Position
 	delay        time.Duration
 	tooltipStyle style.Style
+	layer        rtui.Layer
 
 	// === Runtime State ===
 	visible   bool
@@ -75,6 +76,7 @@ func NewInstance(props rtui.Props) *Instance {
 		position:     getPositionProp(props, PositionAuto),
 		delay:        getDurationProp(props, 500*time.Millisecond),
 		tooltipStyle: proputil.GetStyle(props, "style", style.Style{}),
+		layer:        getLayerProp(props, rtui.LayerTooltip),
 		visible:      false,
 		dirty:        true,
 	}
@@ -122,16 +124,19 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldPosition := inst.position
 	oldDelay := inst.delay
 	oldStyle := inst.tooltipStyle
+	oldLayer := inst.layer
 
 	inst.text = proputil.GetString(props, "text", inst.text)
 	inst.position = getPositionProp(props, inst.position)
 	inst.delay = getDurationProp(props, inst.delay)
 	inst.tooltipStyle = proputil.GetStyle(props, "style", style.Style{})
+	inst.layer = getLayerProp(props, inst.layer)
 
 	changed := oldText != inst.text ||
 		oldPosition != inst.position ||
 		oldDelay != inst.delay ||
-		oldStyle != inst.tooltipStyle
+		oldStyle != inst.tooltipStyle ||
+		oldLayer != inst.layer
 
 	if !changed {
 		return false
@@ -156,6 +161,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propText:     inst.text,
 		propPosition: inst.position,
 		propDelay:    inst.delay,
+		propLayer:    inst.layer,
 	}
 }
 
@@ -297,7 +303,7 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 	if !inst.visible || inst.text == "" {
 		return nil
 	}
-	overlay := newOverlayVNode(inst.text, inst.position, inst.tooltipStyle, inst.anchorBounds, inst.viewportSize)
+	overlay := newOverlayVNode(inst.text, inst.position, inst.tooltipStyle, inst.layer, inst.anchorBounds, inst.viewportSize)
 	if inst.key != "" {
 		overlay.SetKey(inst.key + "-overlay")
 	}
@@ -458,6 +464,18 @@ func getDurationProp(props rtui.Props, def time.Duration) time.Duration {
 		if d, ok := v.(time.Duration); ok {
 			return d
 		}
+	}
+	return def
+}
+
+func getLayerProp(props rtui.Props, def rtui.Layer) rtui.Layer {
+	if v, ok := props[propLayer]; ok {
+		if layer, ok := v.(rtui.Layer); ok && layer.IsValid() {
+			return layer
+		}
+	}
+	if !def.IsValid() {
+		return rtui.LayerTooltip
 	}
 	return def
 }

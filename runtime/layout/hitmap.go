@@ -16,6 +16,8 @@ type HitMapEntry struct {
 	ZIndex int
 }
 
+const hitMapLayerZStride = 10000
+
 // HitMap 命中映射表
 // 用于快速查找给定坐标处的所有节点
 type HitMap struct {
@@ -42,14 +44,21 @@ func (hm *HitMap) BuildFromLayoutBox(box *LayoutBox) {
 	// 清空现有条目
 	hm.entries = make(map[string]*HitMapEntry)
 
-	// 递归构建条目
-	hm.buildFromLayoutBoxRecursive(box, 0)
+	// 递归构建条目。Hit testing must follow the same effective layer model as
+	// painting: children inherit their parent's layer, and non-base layers sort
+	// above deeper base-layer content.
+	hm.buildFromLayoutBoxRecursive(box, 0, LayerBase)
 }
 
 // buildFromLayoutBoxRecursive 递归构建命中映射条目
-func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int) {
+func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int, inheritedLayer Layer) {
 	if box == nil {
 		return
+	}
+
+	effectiveLayer := box.Layer
+	if effectiveLayer < inheritedLayer {
+		effectiveLayer = inheritedLayer
 	}
 
 	// Use box.ZIndex if it's explicitly set (non-zero),
@@ -60,6 +69,7 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int) {
 	if box.ZIndex != 0 {
 		actualZIndex = box.ZIndex
 	}
+	actualZIndex += effectiveLayer.ZIndex() * hitMapLayerZStride
 
 	// 为当前盒子创建条目
 	rect := Rect{
@@ -76,15 +86,15 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int) {
 	}
 
 	// 递归处理子节点
-	// Portal nodes (box.ZIndex != 0): each child gets unique ZIndex
+	// Portal nodes (box.ZIndex != 0): each child gets unique local ZIndex
 	// Main tree nodes (box.ZIndex == 0): all children get same ZIndex (backward compatible)
 	for i, child := range box.Children {
 		if box.ZIndex != 0 {
-			// Portal: each child gets unique ZIndex (parent.ZIndex + 1, +2, +3, ...)
-			hm.buildFromLayoutBoxRecursive(child, box.ZIndex+1+i)
+			// Portal: each child gets unique local ZIndex (parent.ZIndex + 1, +2, +3, ...)
+			hm.buildFromLayoutBoxRecursive(child, box.ZIndex+1+i, effectiveLayer)
 		} else {
 			// Main tree: all children get same ZIndex (backward compatible)
-			hm.buildFromLayoutBoxRecursive(child, actualZIndex+1)
+			hm.buildFromLayoutBoxRecursive(child, zIndex+1, effectiveLayer)
 		}
 	}
 }

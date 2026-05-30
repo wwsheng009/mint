@@ -47,6 +47,16 @@ func ConfirmDialogSensitiveTarget(key, label, value string) confirmdialog.Target
 	return confirmdialog.SensitiveTarget(key, label, value)
 }
 
+// ConfirmDialogAPITarget creates a standard API route target summary item.
+func ConfirmDialogAPITarget(method, path string) confirmdialog.TargetItem {
+	return confirmdialog.APITarget(method, path)
+}
+
+// ConfirmDialogImpactTarget creates a standard operational impact target summary item.
+func ConfirmDialogImpactTarget(level, text string) confirmdialog.TargetItem {
+	return confirmdialog.ImpactTarget(level, text)
+}
+
 // ConfirmDialogDanger selects the danger confirm button variant.
 func ConfirmDialogDanger() button.Variant {
 	return button.VariantDanger

@@ -18,29 +18,29 @@ func TestHitMap_BuildFromLayoutBox(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	child2 := &LayoutBox{
-		ID:      "child2",
-		X:       10,
-		Y:       50,
-		Width:   50,
-		Height:  30,
+		ID:       "child2",
+		X:        10,
+		Y:        50,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1, child2},
 	}
 
@@ -83,20 +83,20 @@ func TestHitMap_HitTest(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1},
 	}
 
@@ -131,20 +131,20 @@ func TestHitMap_HitTestAll(t *testing.T) {
 
 	// Create overlapping nodes (child inside parent)
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1},
 	}
 
@@ -178,20 +178,20 @@ func TestHitMap_Get(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1},
 	}
 
@@ -214,29 +214,29 @@ func TestHitMap_GetAll(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	child2 := &LayoutBox{
-		ID:      "child2",
-		X:       10,
-		Y:       50,
-		Width:   50,
-		Height:  30,
+		ID:       "child2",
+		X:        10,
+		Y:        50,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1, child2},
 	}
 
@@ -262,20 +262,20 @@ func TestHitMap_Clear(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1},
 	}
 
@@ -301,20 +301,20 @@ func TestHitMap_Size(t *testing.T) {
 
 	// Create a simple layout tree
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1},
 	}
 
@@ -329,38 +329,38 @@ func TestHitMap_DeepNesting(t *testing.T) {
 
 	// Create a deeply nested tree
 	leaf1 := &LayoutBox{
-		ID:      "leaf1",
-		X:       0,
-		Y:       0,
-		Width:   10,
-		Height:  10,
+		ID:       "leaf1",
+		X:        0,
+		Y:        0,
+		Width:    10,
+		Height:   10,
 		Children: []*LayoutBox{},
 	}
 
 	leaf2 := &LayoutBox{
-		ID:      "leaf2",
-		X:       0,
-		Y:       10,
-		Width:   10,
-		Height:  10,
+		ID:       "leaf2",
+		X:        0,
+		Y:        10,
+		Width:    10,
+		Height:   10,
 		Children: []*LayoutBox{},
 	}
 
 	mid := &LayoutBox{
-		ID:      "mid",
-		X:       10,
-		Y:       10,
-		Width:   20,
-		Height:  20,
+		ID:       "mid",
+		X:        10,
+		Y:        10,
+		Width:    20,
+		Height:   20,
 		Children: []*LayoutBox{leaf1, leaf2},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{mid},
 	}
 
@@ -407,34 +407,100 @@ func TestHitMap_EngineIntegration(t *testing.T) {
 	assert.NotNil(t, entry)
 }
 
+func TestHitMap_LayeredModalBeatsDeeperBaseNode(t *testing.T) {
+	hm := NewHitMap()
+
+	baseInput := &LayoutBox{
+		ID:       "base-input",
+		X:        10,
+		Y:        10,
+		Width:    20,
+		Height:   3,
+		Layer:    LayerBase,
+		Children: []*LayoutBox{},
+	}
+	basePanel := &LayoutBox{
+		ID:     "base-panel",
+		X:      0,
+		Y:      0,
+		Width:  100,
+		Height: 30,
+		Layer:  LayerBase,
+		Children: []*LayoutBox{&LayoutBox{
+			ID:       "base-stack",
+			X:        0,
+			Y:        0,
+			Width:    100,
+			Height:   30,
+			Layer:    LayerBase,
+			Children: []*LayoutBox{baseInput},
+		}},
+	}
+	modalButton := &LayoutBox{
+		ID:       "modal-button",
+		X:        10,
+		Y:        10,
+		Width:    12,
+		Height:   1,
+		Layer:    LayerBase,
+		Children: []*LayoutBox{},
+	}
+	modal := &LayoutBox{
+		ID:       "modal",
+		X:        5,
+		Y:        5,
+		Width:    40,
+		Height:   12,
+		Layer:    LayerModal,
+		Children: []*LayoutBox{modalButton},
+	}
+	root := &LayoutBox{
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   30,
+		Layer:    LayerBase,
+		Children: []*LayoutBox{basePanel, modal},
+	}
+
+	hm.BuildFromLayoutBox(root)
+
+	entry := hm.HitTest(11, 10)
+	assert.NotNil(t, entry)
+	assert.Equal(t, "modal-button", entry.NodeID)
+	assert.Greater(t, hm.Get("modal").ZIndex, hm.Get("base-input").ZIndex)
+	assert.Greater(t, hm.Get("modal-button").ZIndex, hm.Get("base-input").ZIndex)
+}
+
 func TestHitMap_OverlappingNodes(t *testing.T) {
 	hm := NewHitMap()
 
 	// Create overlapping nodes (same position)
 	child1 := &LayoutBox{
-		ID:      "child1",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child1",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	child2 := &LayoutBox{
-		ID:      "child2",
-		X:       10,
-		Y:       10,
-		Width:   50,
-		Height:  30,
+		ID:       "child2",
+		X:        10,
+		Y:        10,
+		Width:    50,
+		Height:   30,
 		Children: []*LayoutBox{},
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  100,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   100,
 		Children: []*LayoutBox{child1, child2},
 	}
 
@@ -472,21 +538,21 @@ func BenchmarkHitMap_BuildFromLayoutBox(b *testing.B) {
 	children := make([]*LayoutBox, 100)
 	for i := 0; i < 100; i++ {
 		children[i] = &LayoutBox{
-			ID:      "child" + string(rune('0'+i%10)),
-			X:       0,
-			Y:       i * 10,
-			Width:   100,
-			Height:  10,
+			ID:       "child" + string(rune('0'+i%10)),
+			X:        0,
+			Y:        i * 10,
+			Width:    100,
+			Height:   10,
 			Children: []*LayoutBox{},
 		}
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  1000,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   1000,
 		Children: children,
 	}
 
@@ -502,21 +568,21 @@ func BenchmarkHitMap_HitTest(b *testing.B) {
 	children := make([]*LayoutBox, 100)
 	for i := 0; i < 100; i++ {
 		children[i] = &LayoutBox{
-			ID:      "child" + string(rune('0'+i%10)),
-			X:       0,
-			Y:       i * 10,
-			Width:   100,
-			Height:  10,
+			ID:       "child" + string(rune('0'+i%10)),
+			X:        0,
+			Y:        i * 10,
+			Width:    100,
+			Height:   10,
 			Children: []*LayoutBox{},
 		}
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  1000,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   1000,
 		Children: children,
 	}
 
@@ -534,21 +600,21 @@ func BenchmarkHitMap_HitTestAll(b *testing.B) {
 	children := make([]*LayoutBox, 100)
 	for i := 0; i < 100; i++ {
 		children[i] = &LayoutBox{
-			ID:      "child" + string(rune('0'+i%10)),
-			X:       0,
-			Y:       i * 10,
-			Width:   100,
-			Height:  10,
+			ID:       "child" + string(rune('0'+i%10)),
+			X:        0,
+			Y:        i * 10,
+			Width:    100,
+			Height:   10,
 			Children: []*LayoutBox{},
 		}
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  1000,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   1000,
 		Children: children,
 	}
 
@@ -566,21 +632,21 @@ func BenchmarkHitMap_Get(b *testing.B) {
 	children := make([]*LayoutBox, 100)
 	for i := 0; i < 100; i++ {
 		children[i] = &LayoutBox{
-			ID:      "child" + string(rune('0'+i%10)),
-			X:       0,
-			Y:       i * 10,
-			Width:   100,
-			Height:  10,
+			ID:       "child" + string(rune('0'+i%10)),
+			X:        0,
+			Y:        i * 10,
+			Width:    100,
+			Height:   10,
 			Children: []*LayoutBox{},
 		}
 	}
 
 	root := &LayoutBox{
-		ID:      "root",
-		X:       0,
-		Y:       0,
-		Width:   100,
-		Height:  1000,
+		ID:       "root",
+		X:        0,
+		Y:        0,
+		Width:    100,
+		Height:   1000,
 		Children: children,
 	}
 

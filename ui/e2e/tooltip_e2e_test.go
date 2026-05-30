@@ -139,6 +139,51 @@ func TestE2ETooltipHoverShowsAndHides(t *testing.T) {
 	}
 }
 
+func TestE2ETooltipTriggerUsesChildBounds(t *testing.T) {
+	appFn := func() ui.VNode {
+		return ui.NewHStack().
+			SetGap(1).
+			SetChildrenList([]ui.VNode{
+				ui.NewTooltipBuilder(
+					ui.NewButtonBuilder("A").SetID("tooltip-small-trigger").Build(),
+					"Long help text that should not widen the trigger hit area",
+				).
+					Key("tooltip-small-trigger-wrapper").
+					Bottom().
+					Delay(0).
+					Build(),
+				ui.NewButtonBuilder("B").SetID("tooltip-next-button").Build(),
+			}).
+			Build()
+	}
+
+	app, err := Run(appFn, ui.WithSize(72, 8))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	triggerBounds, err := app.BoundsOf(ByID("tooltip-small-trigger"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tooltipBounds, err := app.BoundsOf(ByKey("tooltip-small-trigger-wrapper"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tooltipBounds != triggerBounds {
+		t.Fatalf("tooltip trigger bounds = %+v, want child button bounds %+v", tooltipBounds, triggerBounds)
+	}
+
+	nextPoint, err := app.ResolvePoint(ByID("tooltip-next-button"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.AssertHit(nextPoint, ByID("tooltip-next-button")); err != nil {
+		t.Fatalf("next button should not be covered by tooltip wrapper: %v\n%s", err, app.RenderString())
+	}
+}
+
 func TestE2ETooltipTopPlacementFallsBackBelowViewportEdge(t *testing.T) {
 	appFn, meta := newTooltipFixture()
 

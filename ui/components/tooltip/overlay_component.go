@@ -13,14 +13,19 @@ const propViewportSize = "viewportSize"
 
 type overlayVNode struct {
 	*rtui.ElementVNode
+	layer rtui.Layer
 }
 
-func newOverlayVNode(text string, position Position, tooltipStyle style.Style, anchorBounds [4]int, viewportSize [2]int) *overlayVNode {
-	node := &overlayVNode{ElementVNode: rtui.NewElement("tooltip-overlay")}
+func newOverlayVNode(text string, position Position, tooltipStyle style.Style, layer rtui.Layer, anchorBounds [4]int, viewportSize [2]int) *overlayVNode {
+	if !layer.IsValid() {
+		layer = rtui.LayerTooltip
+	}
+	node := &overlayVNode{ElementVNode: rtui.NewElement("tooltip-overlay"), layer: layer}
 	node.SetStyle(tooltipStyle)
 	node.SetProp(propText, text)
 	node.SetProp(propPosition, position)
 	node.SetProp(propStyle, tooltipStyle)
+	node.SetProp(propLayer, layer)
 	node.SetProp(propAnchorBounds, anchorBounds)
 	node.SetProp(propViewportSize, viewportSize)
 	return node
@@ -33,10 +38,14 @@ func (v *overlayVNode) CreateInstance() rtui.ComponentInstance {
 }
 
 func (v *overlayVNode) GetLayer() rtui.Layer {
-	return rtui.LayerTooltip
+	return v.layer
 }
 
 func (v *overlayVNode) SetLayer(l rtui.Layer) rtui.VNode {
+	if l.IsValid() {
+		v.layer = l
+		v.SetProp(propLayer, l)
+	}
 	return v
 }
 

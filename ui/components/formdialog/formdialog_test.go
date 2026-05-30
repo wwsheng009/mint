@@ -109,8 +109,18 @@ func TestRuntimeChildrenBuildsModalFormAndFooter(t *testing.T) {
 		t.Fatalf("RuntimeChildren len = %d, want 1", len(children))
 	}
 	root := children[0]
-	if root.Tag() != "panel" {
-		t.Fatalf("root tag = %q, want panel", root.Tag())
+	if root.Tag() != "modal" {
+		t.Fatalf("root tag = %q, want modal", root.Tag())
+	}
+	if got := root.GetLayer(); got != rtui.LayerModal {
+		t.Fatalf("root layer = %v, want %v", got, rtui.LayerModal)
+	}
+	props := root.Props()
+	if got := props["isOpen"]; got != true {
+		t.Fatalf("modal isOpen = %v, want true", got)
+	}
+	if got := props["centered"]; got != true {
+		t.Fatalf("modal centered = %v, want true", got)
 	}
 	if findVNodeByKey(root, "runtime-reload-form") == nil {
 		t.Fatal("form not found")

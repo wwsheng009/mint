@@ -232,12 +232,51 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		}
 	}
 
+	// Form is both a stateful component and a visual container. Its runtime
+	// instance measures only its own chrome, so the adapter must measure the
+	// rendered field subtree to keep hit regions from extending over siblings
+	// such as modal footers.
+	if a.fiber.Tag == "form" && len(a.children) > 0 {
+		size := a.measureFlexChildren(constraints, border)
+		if constraints.MaxWidth > 0 && constraints.MaxWidth < layout.MaxInt && size.Width < constraints.MaxWidth {
+			size.Width = constraints.MaxWidth
+		}
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(size.Width),
+			Height: constraints.ConstrainHeight(size.Height),
+		}
+	}
+
+	// Tooltip is a transparent trigger wrapper. Its popup text is rendered as a
+	// runtime overlay child and must not determine the trigger's layout or hit
+	// region; otherwise long help text can cover neighboring controls.
+	if a.fiber.Tag == "tooltip" && len(a.children) > 0 {
+		size := a.measureChildContent(constraints)
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(size.Width),
+			Height: constraints.ConstrainHeight(size.Height),
+		}
+	}
+
 	// 1. 从 Instance 获取尺寸（优先，用于已迁移组件）
-	// Instance 的 Measure() 方法返回的是内容尺寸（不含容器边框）
 	// ✨ 辅助函数：测量 Instance（内容尺寸），然后加上边框
-	measureInstanceWithBorder := func(measurable interface {
+	measureInstance := func(measurable interface {
 		Measure(layout.Constraints) layout.Size
 	}) layout.Size {
+		if a.fiber.Tag == "modal" {
+			size := measurable.Measure(constraints)
+			if border.HasBorder() && border.Label != "" {
+				labelWidth := len(" " + border.Label + " ")
+				if labelWidth > size.Width {
+					size.Width = constraints.ConstrainWidth(labelWidth)
+				}
+			}
+			return layout.Size{
+				Width:  constraints.ConstrainWidth(size.Width),
+				Height: constraints.ConstrainHeight(size.Height),
+			}
+		}
+
 		// ✨ 调整约束：如果容器有边框， Instance 只能使用剩下空间
 		instanceConstraints := constraints
 		if border.HasBorder() {
@@ -275,7 +314,7 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 		if measurable, ok := a.fiber.Instance.(interface {
 			Measure(layout.Constraints) layout.Size
 		}); ok {
-			return measureInstanceWithBorder(measurable)
+			return measureInstance(measurable)
 		}
 
 		// 检查 Instance 是否实现 Sizable 接口
@@ -504,6 +543,60 @@ func (a *FiberToNodeAdapter) Measure(constraints layout.Constraints) layout.Size
 
 	// 6. 默认值
 	return layout.Size{Width: 0, Height: 0}
+}
+
+func (a *FiberToNodeAdapter) measureFlexChildren(constraints layout.Constraints, border layout.Border) layout.Size {
+	children := a.children
+	if len(children) == 0 {
+		return layout.Size{}
+	}
+
+	flexStyle := a.GetFlexStyle()
+	if flexStyle == nil {
+		flexStyle = layout.DefaultFlexStyle()
+	}
+
+	flex := layout.NewFlexLayout(a.ID(), children)
+	flex.SetDirection(flexStyle.Direction)
+	flex.SetMainAxis(flexStyle.MainAxis)
+	flex.SetCrossAxis(flexStyle.CrossAxis)
+	flex.SetGap(flexStyle.Gap)
+	flex.SetPadding(flexStyle.Padding.Left, flexStyle.Padding.Right, flexStyle.Padding.Top, flexStyle.Padding.Bottom)
+	for i, child := range children {
+		if flexChild, ok := child.(layout.FlexChildProvider); ok && flexChild.GetFlex() > 0 {
+			flex.SetFlex(i, flexChild.GetFlex(), 0, 0)
+		}
+	}
+
+	size := flex.Measure(constraints)
+	if border.HasBorder() {
+		if border.Label != "" {
+			labelWidth := len(" " + border.Label + " ")
+			if labelWidth > size.Width {
+				size.Width = labelWidth
+			}
+		}
+		return layout.Size{
+			Width:  constraints.ConstrainWidth(size.Width + border.TotalHorizontalPadding()),
+			Height: constraints.ConstrainHeight(size.Height + border.VerticalPadding()),
+		}
+	}
+	return size
+}
+
+func (a *FiberToNodeAdapter) measureChildContent(constraints layout.Constraints) layout.Size {
+	if len(a.children) == 0 {
+		return layout.Size{}
+	}
+	if len(a.children) == 1 {
+		child := a.children[0]
+		if measurable, ok := child.(layout.Measurable); ok {
+			return measurable.Measure(constraints)
+		}
+		width, height := child.GetSize()
+		return layout.Size{Width: width, Height: height}
+	}
+	return a.measureFlexChildren(constraints, layout.Border{})
 }
 
 // GetMargin returns the margin from Fiber fields

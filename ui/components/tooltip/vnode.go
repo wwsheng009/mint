@@ -63,7 +63,7 @@ type VNode struct {
 	delay    time.Duration
 
 	// === Rendering Layer ===
-	layer rtui.Layer // Layer for Z-order: Base, Overlay, Modal, Tooltip, Inspector
+	layer rtui.Layer // Runtime overlay layer; the wrapped trigger itself stays in base flow.
 
 	// === Content Props ===
 	content rtui.VNode // Child content that triggers tooltip
@@ -87,7 +87,7 @@ func New(content rtui.VNode, text string) *VNode {
 		text:         text,
 		position:     PositionAuto,
 		delay:        500 * time.Millisecond,
-		layer:        rtui.LayerTooltip, // Default to Tooltip layer
+		layer:        rtui.LayerTooltip,
 	}
 }
 
@@ -138,12 +138,16 @@ func (t *VNode) SetChildren(children []rtui.VNode) rtui.VNode {
 	return t
 }
 
-// GetLayer returns the rendering layer (tooltips appear above content).
+// GetLayer returns the rendering layer for the wrapper/trigger node.
+//
+// The wrapper must stay in the base layer so wrapping a button with a tooltip
+// does not lift that button above modals or other overlays. The runtime
+// tooltip bubble is emitted from Instance.RuntimeChildren using t.layer.
 func (t *VNode) GetLayer() rtui.Layer {
-	return t.layer
+	return rtui.LayerBase
 }
 
-// SetLayer sets the rendering layer - returns VNode for chaining.
+// SetLayer sets the runtime overlay layer - returns VNode for chaining.
 func (t *VNode) SetLayer(l rtui.Layer) rtui.VNode {
 	t.layer = l
 	return t
@@ -196,6 +200,7 @@ func (t *VNode) CreateInstance() rtui.ComponentInstance {
 		propPosition: t.position,
 		propDelay:    t.delay,
 		propStyle:    t.style,
+		propLayer:    t.layer,
 	}
 	return NewInstance(props)
 }
