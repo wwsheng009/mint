@@ -405,6 +405,15 @@ type PaintableInstance interface {
 	Paint(x, y int) []paint.DrawCmd
 }
 
+// PostPaintableInstance is implemented by native components that need to draw
+// lightweight overlays after their child subtree has painted. It is intended for
+// visual affordances such as scroll indicators; it must not affect layout,
+// focus, hit testing, or event routing.
+type PostPaintableInstance interface {
+	ComponentInstance
+	PostPaint(x, y int) []paint.DrawCmd
+}
+
 // ScenePaintableInstance is an optional extension for native instances that can
 // contribute raster image layers after the regular text paint has completed.
 //
@@ -471,6 +480,12 @@ type InstanceFactory interface {
 // AsPaintableInstance attempts to cast to PaintableInstance
 func AsPaintableInstance(inst ComponentInstance) (PaintableInstance, bool) {
 	p, ok := inst.(PaintableInstance)
+	return p, ok
+}
+
+// AsPostPaintableInstance attempts to cast to PostPaintableInstance.
+func AsPostPaintableInstance(inst ComponentInstance) (PostPaintableInstance, bool) {
+	p, ok := inst.(PostPaintableInstance)
 	return p, ok
 }
 

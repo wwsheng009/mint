@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	emptycomp "github.com/wwsheng009/mint/ui/components/empty"
+	panelcomp "github.com/wwsheng009/mint/ui/components/panel"
 	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
+
+const defaultDetailPanelEmptyHintScopeWidth = 96
 
 const (
 	propBordered     = "bordered"
@@ -81,9 +86,274 @@ func Value(label string, value interface{}) Item {
 	}
 }
 
+// FallbackValue creates a descriptions item and replaces nil or blank values with fallback.
+func FallbackValue(label string, value interface{}, fallback string) Item {
+	return Value(label, descriptionValueText(value, fallback))
+}
+
+// CompactValue creates a descriptions item with a compact display-width-bounded value.
+func CompactValue(label string, value interface{}, maxWidth int) Item {
+	return CompactFallbackValue(label, value, "-", maxWidth)
+}
+
+// CompactFallbackValue creates a descriptions item with fallback and display-width truncation.
+func CompactFallbackValue(label string, value interface{}, fallback string, maxWidth int) Item {
+	return Value(label, compactDescriptionText(descriptionValueText(value, fallback), maxWidth))
+}
+
+// CountValue creates a descriptions item for non-negative operational counts.
+func CountValue(label string, count int) Item {
+	return Value(label, textcomp.IntText(count))
+}
+
+// RatioValue creates a descriptions item for available/total operational counts.
+func RatioValue(label string, available, total int) Item {
+	return Value(label, textcomp.RatioText(available, total))
+}
+
+// MaskedValue creates a descriptions item with a partially masked value.
+func MaskedValue(label string, value interface{}, visiblePrefix, visibleSuffix int) Item {
+	return MaskedFallbackValue(label, value, "-", visiblePrefix, visibleSuffix)
+}
+
+// MaskedFallbackValue creates a partially masked descriptions item with fallback.
+func MaskedFallbackValue(label string, value interface{}, fallback string, visiblePrefix, visibleSuffix int) Item {
+	text := descriptionValueText(value, fallback)
+	if strings.TrimSpace(text) == strings.TrimSpace(fallback) {
+		return Value(label, text)
+	}
+	return Value(label, textcomp.MaskSensitive(text, visiblePrefix, visibleSuffix))
+}
+
+// StateValue creates a descriptions item with semantically colored operational state text.
+func StateValue(label string, value interface{}, state string) Item {
+	text := descriptionValueText(value, "-")
+	state = descriptionValueText(state, text)
+	return Entry(label, textcomp.State(text, state))
+}
+
+// BoolStateValue creates a descriptions item from a boolean with custom text and state semantics.
+func BoolStateValue(label string, value bool, trueText, falseText, trueState, falseState string) Item {
+	if value {
+		return StateValue(label, descriptionValueText(trueText, "yes"), descriptionValueText(trueState, trueText))
+	}
+	return StateValue(label, descriptionValueText(falseText, "no"), descriptionValueText(falseState, falseText))
+}
+
+// EnabledValue creates a descriptions item for enabled/disabled boolean state.
+func EnabledValue(label string, enabled bool) Item {
+	return BoolStateValue(label, enabled, "enabled", "disabled", "enabled", "disabled")
+}
+
 // SensitiveField creates a masked descriptions item for secrets and tokens.
 func SensitiveField(label string, value interface{}) Item {
 	return Value(label, value).WithSensitive(true)
+}
+
+// Panel creates a standard titled details panel with a Descriptions body and optional actions.
+func Panel(key, title string, width, labelWidth, contentWidth int, items []Item, actions ...rtui.VNode) rtui.VNode {
+	details := NewBuilder().
+		Key(descriptionsPanelDetailsKey(key)).
+		Column(1).
+		LabelWidth(labelWidth).
+		ContentWidth(contentWidth).
+		EmptyText("-").
+		Items(items).
+		Build()
+
+	content := details
+	if len(actions) > 0 {
+		children := make([]rtui.VNode, 0, len(actions)+1)
+		children = append(children, details)
+		children = append(children, actions...)
+		content = rtui.VStack(children...)
+	}
+
+	builder := panelcomp.NewBuilder().
+		Title(title).
+		Single().
+		Width(width).
+		Content(content)
+	if strings.TrimSpace(key) != "" {
+		builder.Key(key)
+	}
+	return builder.Build()
+}
+
+// ContextStripConfig describes a compact selected-object context row for details panels.
+type ContextStripConfig struct {
+	Key          string
+	Width        int
+	Column       int
+	LabelWidth   int
+	ContentWidth int
+	Items        []Item
+}
+
+// ContextStrip creates a compact descriptions node for selected-object identity and state.
+func ContextStrip(cfg ContextStripConfig) rtui.VNode {
+	column := cfg.Column
+	if column <= 0 {
+		column = len(cfg.Items)
+	}
+	if column <= 0 {
+		column = 1
+	}
+	if column > 4 {
+		column = 4
+	}
+	key := strings.TrimSpace(cfg.Key)
+	if key == "" {
+		key = "descriptions.context"
+	}
+	return NewBuilder().
+		Key(key).
+		Column(column).
+		Width(cfg.Width).
+		LabelWidth(cfg.LabelWidth).
+		ContentWidth(cfg.ContentWidth).
+		EmptyText("-").
+		Items(cfg.Items).
+		Build()
+}
+
+// PanelWithContext creates a details panel with a compact context strip before details and actions.
+func PanelWithContext(key, title string, width, labelWidth, contentWidth int, context ContextStripConfig, items []Item, actions ...rtui.VNode) rtui.VNode {
+	details := NewBuilder().
+		Key(descriptionsPanelDetailsKey(key)).
+		Column(1).
+		LabelWidth(labelWidth).
+		ContentWidth(contentWidth).
+		EmptyText("-").
+		Items(items).
+		Build()
+
+	if strings.TrimSpace(context.Key) == "" {
+		context.Key = descriptionsPanelContextKey(key)
+	}
+	if context.Width <= 0 {
+		context.Width = width
+	}
+
+	children := make([]rtui.VNode, 0, len(actions)+2)
+	children = append(children, ContextStrip(context), details)
+	children = append(children, actions...)
+
+	builder := panelcomp.NewBuilder().
+		Title(title).
+		Single().
+		Width(width).
+		Content(rtui.VStack(children...))
+	if strings.TrimSpace(key) != "" {
+		builder.Key(key)
+	}
+	return builder.Build()
+}
+
+// DetailPanelConfig describes a semantic selected-object detail panel.
+type DetailPanelConfig struct {
+	Key          string
+	Title        string
+	Width        int
+	LabelWidth   int
+	ContentWidth int
+	EmptyWhen    bool
+	EmptyText    string
+	EmptyHint    string
+	Context      ContextStripConfig
+	Items        []Item
+	Actions      []rtui.VNode
+}
+
+// DetailPanel creates a semantic details panel with a context strip, details, and actions.
+func DetailPanel(cfg DetailPanelConfig) rtui.VNode {
+	if cfg.EmptyWhen {
+		return detailPanelEmpty(cfg)
+	}
+	return PanelWithContext(cfg.Key, cfg.Title, cfg.Width, cfg.LabelWidth, cfg.ContentWidth, cfg.Context, cfg.Items, cfg.Actions...)
+}
+
+// DetailPanelEmptyHint creates a compact recovery hint for an empty detail
+// panel, appending a normalized "Scope: ..." summary when scope parts are
+// present.
+func DetailPanelEmptyHint(action string, parts ...textcomp.KeyValuePart) string {
+	return DetailPanelEmptyHintWithScopeWidth(action, defaultDetailPanelEmptyHintScopeWidth, parts...)
+}
+
+// DetailPanelEmptyHintWithScopeWidth creates a compact recovery hint and limits
+// the scope summary to scopeWidth display cells when scopeWidth is positive.
+func DetailPanelEmptyHintWithScopeWidth(action string, scopeWidth int, parts ...textcomp.KeyValuePart) string {
+	action = textcomp.FirstNonEmptyText(action)
+	scopeParts := make([]textcomp.KeyValuePart, 0, len(parts))
+	for _, part := range parts {
+		value := textcomp.FirstNonEmptyText(part.Value)
+		if value == "" {
+			continue
+		}
+		scopeParts = append(scopeParts, textcomp.KeyValuePart{
+			Label: part.Label,
+			Value: value,
+		})
+	}
+
+	scope := textcomp.KeyValueSummaryText(scopeParts...)
+	if scope == "-" {
+		scope = ""
+	}
+	if scope != "" && scopeWidth > 0 {
+		scope = textcomp.CompactText(scope, scopeWidth)
+	}
+	if scope == "" {
+		return action
+	}
+	if action == "" {
+		return "Scope: " + scope
+	}
+	return action + " Scope: " + scope
+}
+
+func detailPanelEmpty(cfg DetailPanelConfig) rtui.VNode {
+	emptyText := strings.TrimSpace(cfg.EmptyText)
+	if emptyText == "" {
+		emptyText = "No selection available."
+	}
+	children := make([]rtui.VNode, 0, len(cfg.Actions)+1)
+	children = append(children, emptycomp.NewBuilder().Description(emptyText).Build())
+	if hint := strings.TrimSpace(cfg.EmptyHint); hint != "" {
+		children = append(children, textcomp.Subtle(hint))
+	}
+	children = append(children, cfg.Actions...)
+
+	content := children[0]
+	if len(children) > 1 {
+		content = rtui.VStack(children...)
+	}
+
+	builder := panelcomp.NewBuilder().
+		Title(cfg.Title).
+		Single().
+		Width(cfg.Width).
+		Content(content)
+	if strings.TrimSpace(cfg.Key) != "" {
+		builder.Key(cfg.Key)
+	}
+	return builder.Build()
+}
+
+// EmptyPanel creates a standard titled details panel for unavailable diagnostics.
+func EmptyPanel(key, title string, width int, emptyText string) rtui.VNode {
+	if strings.TrimSpace(emptyText) == "" {
+		emptyText = "details unavailable"
+	}
+	builder := panelcomp.NewBuilder().
+		Title(title).
+		Single().
+		Width(width).
+		Content(emptycomp.NewBuilder().Description(emptyText).Build())
+	if strings.TrimSpace(key) != "" {
+		builder.Key(key)
+	}
+	return builder.Build()
 }
 
 // WithKey sets the item key.
@@ -427,4 +697,69 @@ func normalizeItems(items []Item) []Item {
 		}
 	}
 	return cloned
+}
+
+func descriptionsPanelDetailsKey(key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "descriptions-panel.details"
+	}
+	return key + ".details"
+}
+
+func descriptionsPanelContextKey(key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "descriptions-panel.context"
+	}
+	return key + ".context"
+}
+
+func descriptionValueText(value interface{}, fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	if fallback == "" {
+		fallback = "-"
+	}
+	if value == nil {
+		return fallback
+	}
+	text := strings.TrimSpace(fmt.Sprint(value))
+	if text == "" {
+		return fallback
+	}
+	return text
+}
+
+func compactDescriptionText(text string, maxWidth int) string {
+	if maxWidth <= 0 || paint.StringWidth(text) <= maxWidth {
+		return text
+	}
+	if maxWidth <= 3 {
+		return trimDescriptionText(text, maxWidth)
+	}
+	prefix := strings.TrimRight(trimDescriptionText(text, maxWidth-3), " ")
+	if prefix == "" {
+		return "..."
+	}
+	return prefix + "..."
+}
+
+func trimDescriptionText(text string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	var builder strings.Builder
+	width := 0
+	for _, r := range text {
+		runeWidth := paint.RuneWidth(r)
+		if runeWidth <= 0 {
+			continue
+		}
+		if width+runeWidth > maxWidth {
+			break
+		}
+		builder.WriteRune(r)
+		width += runeWidth
+	}
+	return builder.String()
 }

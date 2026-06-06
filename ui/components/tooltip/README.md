@@ -8,14 +8,14 @@
 - `auto` 与显式 placement 回退
 - 视口内 clamp，避免最终落点完全跑出可见区域
 - `delay`
-- layer 控制
+- overlay layer 控制
 - 前景 / 背景色样式
 
 ## 状态语义
 
 - 默认走组件内 hover 显隐逻辑，不需要额外安装中间件。
 - `Auto()` 与显式方位都会复用统一的 fallback / clamp 计算，边界场景不再各自走一套定位逻辑。
-- `Delay(...)` 控制显示延迟；layer 默认是 tooltip layer，也可以通过 `OverlayLayer()`、`ModalLayer()` 等切换。
+- `Delay(...)` 控制显示延迟；tooltip wrapper 和触发控件保持 base layer，只有运行时提示浮层默认进入 tooltip layer，也可以通过 `OverlayLayer()`、`ModalLayer()` 等切换浮层层级。
 - 组件版推荐使用 `ui.NewTooltipBuilder(...)`；`ui.Tooltip(...)` 仍保留为旧 layer helper。
 
 ## 示例

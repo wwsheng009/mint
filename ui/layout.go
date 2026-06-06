@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"strings"
+
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	alertcomp "github.com/wwsheng009/mint/ui/components/alert"
 	"github.com/wwsheng009/mint/ui/components/wrap"
 )
 
@@ -58,6 +61,55 @@ func NewHStack() *rtui.LayoutBuilder {
 // VStack creates a vertical layout container
 func VStack(children ...VNode) VNode {
 	return rtui.VStack(children...)
+}
+
+// SectionBreak creates an explicit blank row between sequential page sections.
+//
+// Use this when the visual gap is intentional. Use nil or OptionalSection for
+// content that should disappear from PageStack and panel stacks.
+func SectionBreak() VNode {
+	return Text("")
+}
+
+// OptionalSection returns node when show is true, otherwise nil.
+//
+// It is a small readability helper for page composition where a stage is
+// genuinely absent, not a visible blank row.
+func OptionalSection(show bool, node VNode) VNode {
+	if !show {
+		return nil
+	}
+	return node
+}
+
+// PageStack stacks page sections vertically and skips nil optional sections.
+func PageStack(children ...VNode) VNode {
+	nodes := make([]VNode, 0, len(children))
+	for _, child := range children {
+		if child != nil {
+			nodes = append(nodes, child)
+		}
+	}
+	return rtui.VStack(nodes...)
+}
+
+// PageStackWithAlert stacks page sections and optionally inserts an alert after a stage.
+func PageStackWithAlert(alertText string, alertAfter int, children ...VNode) VNode {
+	nodes := make([]VNode, 0, len(children)+1)
+	for _, child := range children {
+		if child != nil {
+			nodes = append(nodes, child)
+		}
+	}
+	alertText = strings.TrimSpace(alertText)
+	if alertText != "" {
+		if alertAfter < 0 || alertAfter > len(nodes) {
+			alertAfter = len(nodes)
+		}
+		alertNode := alertcomp.NewBuilder(alertText).Build()
+		nodes = append(nodes[:alertAfter], append([]VNode{alertNode}, nodes[alertAfter:]...)...)
+	}
+	return rtui.VStack(nodes...)
 }
 
 // VStackBuilder creates a vertical layout container builder for method chaining
@@ -143,8 +195,8 @@ func Cell(content VNode) VNode {
 type BorderStyle = rtui.BorderStyle
 
 const (
-	BorderSingle = rtui.BorderSingle
-	BorderDouble = rtui.BorderDouble
+	BorderSingle  = rtui.BorderSingle
+	BorderDouble  = rtui.BorderDouble
 	BorderRounded = rtui.BorderRounded
 	BorderDashed  = rtui.BorderDashed
 	BorderNone    = rtui.BorderNone

@@ -6,6 +6,7 @@ import (
 
 	"github.com/wwsheng009/mint/framework/theme"
 	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	"github.com/wwsheng009/mint/ui/components/button"
@@ -49,6 +50,9 @@ type Instance struct {
 var (
 	_ rtui.ComponentInstance       = (*Instance)(nil)
 	_ rtui.RuntimeChildrenProvider = (*Instance)(nil)
+	_ interface {
+		Measure(layout.Constraints) layout.Size
+	} = (*Instance)(nil)
 )
 
 // NewInstance creates a ConfirmDialog instance from props.
@@ -100,6 +104,13 @@ func (inst *Instance) IsDirty() bool {
 }
 func (inst *Instance) GetContext() *rtui.ComponentContext {
 	return nil
+}
+
+// Measure keeps the confirmdialog host out of the normal page flow. The visible
+// dialog is synthesized as a modal runtime child, so the host itself must not
+// reserve vertical space in dense TUI pages.
+func (inst *Instance) Measure(layout.Constraints) layout.Size {
+	return layout.Size{}
 }
 
 func (inst *Instance) SetProps(props rtui.Props) bool {
@@ -248,7 +259,7 @@ func (inst *Instance) buildTargetSummary() rtui.VNode {
 		ContentWidth(inst.targetContentWidth()).
 		EmptyText("-").
 		MaskText("masked")
-	for _, item := range inst.targetItems {
+	for _, item := range inst.visibleTargetItems() {
 		if item.Sensitive {
 			builder.Item(descriptions.SensitiveField(item.Label, item.Value))
 		} else {
@@ -431,6 +442,48 @@ func (inst *Instance) targetSummaryColumns() int {
 		return 2
 	}
 	return 1
+}
+
+func (inst *Instance) visibleTargetItems() []TargetItem {
+	if !inst.usesConstrainedTargetSummary() {
+		return inst.targetItems
+	}
+	preferred := []string{
+		"provider",
+		"key",
+		"key_state",
+		"key_route_state",
+		"impact",
+		"group",
+		"provider_state",
+		"group_state",
+	}
+	items := make([]TargetItem, 0, 4)
+	for _, key := range preferred {
+		for _, item := range inst.targetItems {
+			if item.Key != key {
+				continue
+			}
+			items = append(items, item)
+			break
+		}
+		if len(items) == 4 {
+			break
+		}
+	}
+	if len(items) > 0 {
+		return items
+	}
+	if len(inst.targetItems) <= 4 {
+		return inst.targetItems
+	}
+	return inst.targetItems[:4]
+}
+
+func (inst *Instance) usesConstrainedTargetSummary() bool {
+	return len(inst.targetItems) > 6 &&
+		strings.TrimSpace(inst.confirmPhrase) != "" &&
+		(inst.reasonField != "" || inst.reasonRequired || inst.reasonValue != "")
 }
 
 func (inst *Instance) reasonInputWidth() int {

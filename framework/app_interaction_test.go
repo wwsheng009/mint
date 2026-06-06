@@ -3,6 +3,7 @@ package framework
 import (
 	"testing"
 
+	frameworkevent "github.com/wwsheng009/mint/framework/event"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
 	runtimeplatform "github.com/wwsheng009/mint/runtime/platform"
 )
@@ -103,6 +104,33 @@ func TestApp_ResizeSameSizeDoesNotMarkDirty(t *testing.T) {
 	}
 	if app.terminalWidth != 80 || app.terminalHeight != 24 {
 		t.Fatalf("terminal size = %dx%d, want 80x24", app.terminalWidth, app.terminalHeight)
+	}
+}
+
+func TestApp_ProcessMsgResizeRoutesEvent(t *testing.T) {
+	app := NewApp()
+
+	var got *frameworkevent.ResizeEvent
+	app.OnEvent(frameworkevent.EventResize, frameworkevent.EventHandlerFunc(func(ev frameworkevent.Event) bool {
+		resizeEv, ok := ev.(*frameworkevent.ResizeEvent)
+		if !ok {
+			t.Fatalf("resize event type = %T, want *ResizeEvent", ev)
+		}
+		copy := *resizeEv
+		got = &copy
+		return false
+	}))
+
+	app.processMsg(runtimemsg.NewResizeMsg(80, 24, 120, 36))
+
+	if got == nil {
+		t.Fatal("expected resize event to be routed")
+	}
+	if got.OldWidth != 80 || got.OldHeight != 24 || got.NewWidth != 120 || got.NewHeight != 36 {
+		t.Fatalf("resize event = %+v, want old 80x24 and new 120x36", got)
+	}
+	if app.terminalWidth != 120 || app.terminalHeight != 36 {
+		t.Fatalf("terminal size = %dx%d, want 120x36", app.terminalWidth, app.terminalHeight)
 	}
 }
 

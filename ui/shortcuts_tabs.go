@@ -1,6 +1,11 @@
 package ui
 
-import "github.com/wwsheng009/mint/ui/components/tabs"
+import (
+	fwtheme "github.com/wwsheng009/mint/framework/theme"
+	"github.com/wwsheng009/mint/runtime/intent"
+	"github.com/wwsheng009/mint/runtime/style"
+	"github.com/wwsheng009/mint/ui/components/tabs"
+)
 
 // Tabs intent type re-exports.
 type (
@@ -38,4 +43,33 @@ func TabsSelect(componentID, tabID string) tabs.TabSelectIntent {
 // TabsSelectIndex creates an intent that selects a tab by index.
 func TabsSelectIndex(componentID string, tabIndex int) tabs.TabSelectIntent {
 	return tabs.TabSelectIndex(componentID, tabIndex)
+}
+
+// WorkspaceTabs creates card-style tabs for switching between dense page workspaces.
+//
+// The preset keeps the active tab visually distinct in terminal UIs with a muted
+// inactive palette, a stronger active rail, and a FieldChangeIntent binding so
+// application reducers can keep the active workspace in state.
+func WorkspaceTabs(key, componentID, field, activeTabID string, tabItems []tabs.TabItem, width int) VNode {
+	return NewTabsBuilder().
+		Key(key).
+		ComponentID(componentID).
+		Tabs(tabItems).
+		ActiveTabID(activeTabID).
+		FieldIntent(intent.BindField(field)).
+		Card().
+		WrapTabs(true).
+		Divider(" ").
+		Style(workspaceTabsInactiveStyle()).
+		ActiveTabStyle(style.NewStyle().Reverse(true).Bold(true)).
+		Width(width).
+		Build()
+}
+
+func workspaceTabsInactiveStyle() style.Style {
+	muted := fwtheme.Muted()
+	if muted == style.NoColor {
+		muted = style.BrightBlack
+	}
+	return style.NewStyle().Foreground(muted)
 }

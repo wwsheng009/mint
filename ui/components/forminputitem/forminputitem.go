@@ -8,6 +8,12 @@ import (
 	"github.com/wwsheng009/mint/ui/components/validation"
 )
 
+const (
+	defaultOperationReasonLabel       = "Reason"
+	defaultOperationReasonPlaceholder = "maintenance window, incident response, provider recovery"
+	defaultOperationReasonHelp        = "Required before preparing any operation; shown in the confirmation dialog and sent where the API supports it."
+)
+
 // Option configures a field-bound input wrapped in a FormItem.
 type Option func(*Config)
 
@@ -15,6 +21,7 @@ type Option func(*Config)
 type Config struct {
 	Placeholder string
 	Width       int
+	LabelWidth  int
 	Password    bool
 	Search      bool
 	InputType   input.Type
@@ -70,6 +77,9 @@ func New(field, label, value string, opts ...Option) rtui.VNode {
 	}
 
 	itemBuilder := formcomp.NewItem(field, inputBuilder.Build()).Label(label)
+	if cfg.LabelWidth > 0 {
+		itemBuilder.LabelWidth(cfg.LabelWidth)
+	}
 	if cfg.Help != "" {
 		itemBuilder.Help(cfg.Help)
 	}
@@ -101,6 +111,16 @@ func Search(field, label, value string, opts ...Option) rtui.VNode {
 	return New(field, label, value, all...)
 }
 
+// OperationReason builds a standard required audit reason input for operational actions.
+func OperationReason(field, value string, opts ...Option) rtui.VNode {
+	all := append([]Option{
+		Placeholder(defaultOperationReasonPlaceholder),
+		Required(),
+		Help(defaultOperationReasonHelp),
+	}, opts...)
+	return New(field, defaultOperationReasonLabel, value, all...)
+}
+
 // Placeholder sets the input placeholder.
 func Placeholder(text string) Option {
 	return func(cfg *Config) {
@@ -112,6 +132,23 @@ func Placeholder(text string) Option {
 func Width(width int) Option {
 	return func(cfg *Config) {
 		cfg.Width = width
+	}
+}
+
+// LabelWidth sets a fixed display width for the FormItem label.
+func LabelWidth(width int) Option {
+	return func(cfg *Config) {
+		cfg.LabelWidth = width
+	}
+}
+
+// Horizontal uses horizontal FormItem layout with an optional fixed label width.
+func Horizontal(labelWidth int) Option {
+	return func(cfg *Config) {
+		cfg.Layout = formcomp.LayoutHorizontal
+		if labelWidth > 0 {
+			cfg.LabelWidth = labelWidth
+		}
 	}
 }
 

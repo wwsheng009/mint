@@ -46,6 +46,42 @@ func TestChartShortcuts(t *testing.T) {
 	if vnode := ASCIIBarChart([]string{"A", "B"}, []float64{1, 2}); vnode.Tag() != "barchart" {
 		t.Fatalf("ASCIIBarChart().Tag() = %q, want barchart", vnode.Tag())
 	}
+	if vnode := HorizontalASCIIBarChart("logs.status", []string{"success", "failed"}, []float64{9, 3}, 96, 8); vnode.Tag() != "barchart" {
+		t.Fatalf("HorizontalASCIIBarChart().Tag() = %q, want barchart", vnode.Tag())
+	} else {
+		props := vnode.Props()
+		if vnode.Key() != "logs.status" {
+			t.Fatalf("HorizontalASCIIBarChart key = %q, want logs.status", vnode.Key())
+		}
+		if props["renderMode"] != BarChartRenderModeASCII || props["orientation"] != BarChartOrientationHorizontal || props["showValue"] != true {
+			t.Fatalf("HorizontalASCIIBarChart props = %+v", props)
+		}
+		if props["width"] != 96 || props["height"] != 8 {
+			t.Fatalf("HorizontalASCIIBarChart size = %v/%v, want 96/8", props["width"], props["height"])
+		}
+	}
+	if vnode := HorizontalASCIIBarChartPanel("Status Distribution", "logs.status", []string{"success", "failed"}, []float64{9, 3}, 126, 96, 8); vnode.Tag() != "panel" {
+		t.Fatalf("HorizontalASCIIBarChartPanel().Tag() = %q, want panel", vnode.Tag())
+	} else {
+		props := vnode.Props()
+		if props["title"] != "Status Distribution" || props["width"] != 126 {
+			t.Fatalf("HorizontalASCIIBarChartPanel props = %+v", props)
+		}
+		content, ok := props["content"].(VNode)
+		if !ok {
+			t.Fatalf("HorizontalASCIIBarChartPanel content = %T, want ui.VNode", props["content"])
+		}
+		if content.Tag() != "barchart" || content.Key() != "logs.status" {
+			t.Fatalf("HorizontalASCIIBarChartPanel content = %q/%q, want barchart/logs.status", content.Tag(), content.Key())
+		}
+		chartProps := content.Props()
+		if chartProps["renderMode"] != BarChartRenderModeASCII || chartProps["orientation"] != BarChartOrientationHorizontal || chartProps["showValue"] != true {
+			t.Fatalf("HorizontalASCIIBarChartPanel chart props = %+v", chartProps)
+		}
+		if chartProps["width"] != 96 || chartProps["height"] != 8 {
+			t.Fatalf("HorizontalASCIIBarChartPanel chart size = %v/%v, want 96/8", chartProps["width"], chartProps["height"])
+		}
+	}
 	if vnode := LineChart([]float64{1, 2, 3}); vnode.Tag() != "linechart" {
 		t.Fatalf("LineChart().Tag() = %q, want linechart", vnode.Tag())
 	}

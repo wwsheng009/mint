@@ -83,6 +83,7 @@ func (c *FiberToPaintableConverter) Convert(
 		Height:   lbox.Height,
 		Layer:    convertLayoutLayerToInt(lbox.Layer),
 		ZIndex:   lbox.ZIndex,
+		Clip:     convertLayoutClip(lbox.Clip),
 		Parent:   parent,
 		Children: make([]*paint.PaintableBox, 0, len(lbox.Children)),
 	}
@@ -298,6 +299,19 @@ func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
 	return nil
 }
 
+// PostPaint delegates to the Fiber's Instance.PostPaint() method when present.
+// It is used for visual overlays that should be drawn after descendants, such
+// as PageViewport scroll indicators.
+func (n *FiberPaintableNode) PostPaint(x, y int) []paint.DrawCmd {
+	if n.fiber == nil || n.fiber.Instance == nil {
+		return nil
+	}
+	if inst, ok := rtui.AsPostPaintableInstance(n.fiber.Instance); ok {
+		return inst.PostPaint(x, y)
+	}
+	return nil
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -306,6 +320,13 @@ func (n *FiberPaintableNode) Paint(x, y int) []paint.DrawCmd {
 // 由于 layout.Layer 现在是 runtime.Layer 的别名，直接返回 int 值即可。
 func convertLayoutLayerToInt(l layout.Layer) int {
 	return int(l)
+}
+
+func convertLayoutClip(r *layout.Rect) *paint.Rect {
+	if r == nil {
+		return nil
+	}
+	return &paint.Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}
 }
 
 func getBorderStyleFromProps(props rtui.Props) paint.BorderStyle {

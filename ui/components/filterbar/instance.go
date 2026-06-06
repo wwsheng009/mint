@@ -25,6 +25,7 @@ type Instance struct {
 	width      int
 	gap        int
 	rowGap     int
+	rootGap    int
 	wrap       bool
 	labelWidth int
 	rootStyle  style.Style
@@ -47,6 +48,7 @@ func NewInstance(props rtui.Props) *Instance {
 		width:      getIntProp(props, propWidth, 0),
 		gap:        getIntProp(props, propGap, 1),
 		rowGap:     getIntProp(props, propRowGap, 1),
+		rootGap:    getIntProp(props, propRootGap, 0),
 		wrap:       getBoolProp(props, propWrap, false),
 		labelWidth: getIntProp(props, propLabelWidth, 0),
 		rootStyle:  getStyleProp(props, propStyle, style.Style{}),
@@ -83,6 +85,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = getIntProp(props, propWidth, inst.width)
 	inst.gap = getIntProp(props, propGap, inst.gap)
 	inst.rowGap = getIntProp(props, propRowGap, inst.rowGap)
+	inst.rootGap = getIntProp(props, propRootGap, inst.rootGap)
 	inst.wrap = getBoolProp(props, propWrap, inst.wrap)
 	inst.labelWidth = getIntProp(props, propLabelWidth, inst.labelWidth)
 	inst.rootStyle = getStyleProp(props, propStyle, inst.rootStyle)
@@ -103,6 +106,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propKey:        inst.key,
 		propLabelWidth: inst.labelWidth,
 		propRowGap:     inst.rowGap,
+		propRootGap:    inst.rootGap,
 		propStyle:      inst.rootStyle,
 		propSummary:    inst.summary,
 		propTitle:      inst.title,
@@ -138,7 +142,7 @@ func (inst *Instance) RuntimeChildren() []rtui.VNode {
 		children = append(children, reasons)
 	}
 
-	root := rtui.VStackBuilder(children...).Gap(inst.rootGap()).AlignCross(rtui.AlignStart)
+	root := rtui.VStackBuilder(children...).Gap(inst.effectiveRootGap()).AlignCross(rtui.AlignStart)
 	if inst.width > 0 {
 		root.Width(inst.width)
 	}
@@ -216,6 +220,7 @@ func (inst *Instance) buildFieldControl(field Field) rtui.VNode {
 		builder := inputcomp.NewBuilder().
 			Key(inst.childKey("control-" + field.Key)).
 			Search().
+			NoBorder().
 			Value(field.Value).
 			Placeholder(inst.placeholder(field, "Search")).
 			Width(inst.effectiveFieldWidth(field, 22)).
@@ -242,6 +247,7 @@ func (inst *Instance) buildFieldControl(field Field) rtui.VNode {
 	default:
 		builder := inputcomp.NewBuilder().
 			Key(inst.childKey("control-" + field.Key)).
+			NoBorder().
 			Value(field.Value).
 			Placeholder(inst.placeholder(field, "Filter")).
 			Width(inst.effectiveFieldWidth(field, 18)).
@@ -334,11 +340,8 @@ func (inst *Instance) placeholder(field Field, def string) string {
 	return def
 }
 
-func (inst *Instance) rootGap() int {
-	if strings.TrimSpace(inst.title) == "" && strings.TrimSpace(inst.summary) == "" {
-		return 0
-	}
-	return 1
+func (inst *Instance) effectiveRootGap() int {
+	return inst.rootGap
 }
 
 func (inst *Instance) rootKey() string {
@@ -369,6 +372,9 @@ func (inst *Instance) normalize() {
 	if inst.rowGap < 0 {
 		inst.rowGap = 0
 	}
+	if inst.rootGap < 0 {
+		inst.rootGap = 0
+	}
 	if inst.labelWidth < 0 {
 		inst.labelWidth = 0
 	}
@@ -383,6 +389,7 @@ type instanceSnapshot struct {
 	width      int
 	gap        int
 	rowGap     int
+	rootGap    int
 	wrap       bool
 	labelWidth int
 	rootStyle  style.Style
@@ -398,6 +405,7 @@ func (inst *Instance) snapshot() instanceSnapshot {
 		width:      inst.width,
 		gap:        inst.gap,
 		rowGap:     inst.rowGap,
+		rootGap:    inst.rootGap,
 		wrap:       inst.wrap,
 		labelWidth: inst.labelWidth,
 		rootStyle:  inst.rootStyle,

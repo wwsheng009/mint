@@ -124,6 +124,9 @@ func (p *Pump) convertToMsg(raw platform.RawInput) runtimemsg.Msg {
 	case platform.InputKeyPress:
 		return p.convertToKeyMsg(raw)
 
+	case platform.InputPaste:
+		return p.convertToPasteMsg(raw)
+
 	case platform.InputResize:
 		return p.convertToResizeMsg(raw)
 
@@ -133,6 +136,14 @@ func (p *Pump) convertToMsg(raw platform.RawInput) runtimemsg.Msg {
 	default:
 		return nil
 	}
+}
+
+// convertToPasteMsg converts a raw paste input to a PasteMsg.
+func (p *Pump) convertToPasteMsg(raw platform.RawInput) runtimemsg.Msg {
+	if len(raw.Data) == 0 {
+		return nil
+	}
+	return runtimemsg.NewPasteMsg(string(raw.Data))
 }
 
 // convertToKeyMsg converts keyboard raw input to KeyMsg.

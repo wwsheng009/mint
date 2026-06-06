@@ -2,6 +2,7 @@ package selectcomp
 
 import (
 	"github.com/wwsheng009/mint/ui/components/internal/proputil"
+	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 	"strings"
 
 	"github.com/wwsheng009/mint/framework/theme"
@@ -315,11 +316,15 @@ func (inst *popupInstance) HandleAction(act *action.Action) bool {
 		}
 		return inst.commit(inst.highlightedIndex)
 	case action.ActionScroll:
-		delta, ok := scrollDeltaFromAction(act)
+		delta, ok := scrollutil.DeltaFromAction(act)
 		if !ok || delta == 0 {
 			return false
 		}
 		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, scrollDirection(delta)))
+	case action.ActionScrollUp:
+		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, -1))
+	case action.ActionScrollDown:
+		return inst.setHighlight(nextHighlightTarget(rows, inst.highlightedIndex, 1))
 	case action.ActionSelect, action.ActionEnter, action.ActionSubmit:
 		return inst.commit(inst.highlightedIndex)
 	}
@@ -750,23 +755,6 @@ func popupMousePayload(payload any) (*runtimemsg.MouseMsg, bool) {
 		return &copy, true
 	}
 	return nil, false
-}
-
-func scrollDeltaFromAction(act *action.Action) (int, bool) {
-	if act == nil {
-		return 0, false
-	}
-	switch value := act.Payload.(type) {
-	case *runtimemsg.MouseMsg:
-		if value != nil && value.Delta != 0 {
-			return value.Delta, true
-		}
-	case runtimemsg.MouseMsg:
-		if value.Delta != 0 {
-			return value.Delta, true
-		}
-	}
-	return 0, false
 }
 
 func scrollDirection(delta int) int {

@@ -106,7 +106,7 @@ func TestOperationalStatusPresets(t *testing.T) {
 		{"uptime hours", Uptime(3 * time.Hour), "uptime: 3h"},
 		{"hotkey", Hotkey("r", "reload"), "r reload"},
 		{"hotkey empty", Hotkey("", ""), "-"},
-		{"separator", Separator(), "|"},
+		{"separator", Separator(), " | "},
 		{"last sync never", LastSync(time.Time{}, now), "last sync: never"},
 		{"last sync seconds", LastSync(now.Add(-30*time.Second), now), "last sync: 30s ago"},
 		{"last sync minutes", LastSync(now.Add(-5*time.Minute), now), "last sync: 5m ago"},
@@ -118,5 +118,20 @@ func TestOperationalStatusPresets(t *testing.T) {
 		if tt.got.Text != tt.want {
 			t.Fatalf("%s text = %q, want %q", tt.name, tt.got.Text, tt.want)
 		}
+	}
+}
+
+func TestSelectionTargetPreset(t *testing.T) {
+	if got := SelectionTarget("job", "Sync", 12); got != "job Sync" {
+		t.Fatalf("selection target = %q, want job Sync", got)
+	}
+	if got := SelectionTarget("", "openai/default/key-openai-1", 18); got != "openai/default/..." {
+		t.Fatalf("selection target without kind = %q", got)
+	}
+	if got := SelectionTarget("key", "", 18); got != "-" {
+		t.Fatalf("empty selection target = %q, want -", got)
+	}
+	if got := SelectionTarget("trace", "abcdefghijklmnopqrstuvwxyz", 10); got != "trace abcdefg..." {
+		t.Fatalf("compact selection target = %q", got)
 	}
 }

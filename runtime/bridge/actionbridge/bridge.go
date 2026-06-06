@@ -79,7 +79,7 @@ func (b *Bridge) DispatchFromFiber(
 		// Mode 1: ScopeDispatcher mode (ActionTargetID → registered closure)
 		// This is the new unified mode where closures are converted to ActionIDs
 		// Reconstruct Action object with metadata for dispatch
-		if f.ActionTargetID != "" && b.scopeDispatcher != nil {
+		if f.ActionTargetID != "" && b.scopeDispatcher != nil && b.scopeDispatcher.HasHandler(f.ActionTargetID) {
 			a := action.NewAction(actionType).
 				WithTarget(f.ActionTargetID).
 				WithPayload(payload)
@@ -91,7 +91,7 @@ func (b *Bridge) DispatchFromFiber(
 
 		// Mode 2: Semantic Action (ActionTargetID → Router)
 		// Reconstruct Action object with metadata for dispatch
-		if f.ActionTargetID != "" {
+		if f.ActionTargetID != "" && b.routerHasTargetHandler(f.ActionTargetID) {
 			a := action.NewAction(actionType).
 				WithTarget(f.ActionTargetID).
 				WithPayload(payload)
@@ -103,6 +103,14 @@ func (b *Bridge) DispatchFromFiber(
 		}
 	}
 	return false
+}
+
+func (b *Bridge) routerHasTargetHandler(targetID string) bool {
+	if b == nil || b.router == nil || targetID == "" {
+		return false
+	}
+	_, ok := b.router.GetTargetHandlers()[targetID]
+	return ok
 }
 
 // DispatchToTarget dispatches an Action directly to a specific target ID.

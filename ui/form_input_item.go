@@ -29,6 +29,11 @@ func FormSearchItem(field, label, value string, opts ...FormInputItemOption) rtu
 	return forminputitem.Search(field, label, value, opts...)
 }
 
+// FormOperationReasonItem builds a standard required audit reason input for operational actions.
+func FormOperationReasonItem(field, value string, opts ...FormInputItemOption) rtui.VNode {
+	return forminputitem.OperationReason(field, value, opts...)
+}
+
 // FormInputPlaceholder sets the input placeholder.
 func FormInputPlaceholder(text string) FormInputItemOption {
 	return forminputitem.Placeholder(text)
@@ -37,6 +42,16 @@ func FormInputPlaceholder(text string) FormInputItemOption {
 // FormInputWidth sets the input width.
 func FormInputWidth(width int) FormInputItemOption {
 	return forminputitem.Width(width)
+}
+
+// FormInputLabelWidth sets a fixed display width for the field label.
+func FormInputLabelWidth(width int) FormInputItemOption {
+	return forminputitem.LabelWidth(width)
+}
+
+// FormInputHorizontal uses horizontal form item layout with an optional fixed label width.
+func FormInputHorizontal(labelWidth int) FormInputItemOption {
+	return forminputitem.Horizontal(labelWidth)
 }
 
 // FormInputPassword sets the input type to password.

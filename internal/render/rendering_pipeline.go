@@ -204,20 +204,9 @@ type PaintableConverter interface {
 func (p *RenderingPipeline) buildPaintablePlanes(root *paint.PaintableBox) *paint.PaintablePlanes {
 	pp := paint.NewPaintablePlanes()
 
-	var walk func(box *paint.PaintableBox)
-	walk = func(box *paint.PaintableBox) {
-		if box == nil {
-			return
-		}
-
-		pp.AddToLayer(paint.RenderLayer(box.Layer), box)
-
-		for _, child := range box.Children {
-			walk(child)
-		}
-	}
-
-	walk(root)
+	walkPaintableBoxesByEffectiveLayer(root, func(layer paint.RenderLayer, box *paint.PaintableBox) {
+		pp.AddToLayer(layer, box)
+	})
 	return pp
 }
 

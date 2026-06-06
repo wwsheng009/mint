@@ -304,6 +304,17 @@ func (fb *FieldBinder[T]) BindFieldMap(fieldMap FieldMap[T]) *FieldBinder[T] {
 	return fb
 }
 
+// UpdateStringFieldIfChanged applies update only when next differs from the
+// current string value. It is useful for filter/search fields where changing the
+// scope should reset page or selection state, while repeated identical
+// FieldChangeIntent values should be a no-op.
+func UpdateStringFieldIfChanged[T any](s T, current, next string, update func(T, string) T) T {
+	if current == next || update == nil {
+		return s
+	}
+	return update(s, next)
+}
+
 // BindFieldMapWithEntries binds multiple fields with advanced validation and error handling.
 //
 // FieldEntry allows for:

@@ -46,6 +46,68 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestOperational(t *testing.T) {
+	row := Operational([]Item{
+		{Title: "Runtime", Value: "healthy"},
+		{Title: "Alerts", Value: 2},
+	})
+	if row.Tag() != "hstack" {
+		t.Fatalf("Operational tag = %q, want hstack", row.Tag())
+	}
+	props := row.Props()
+	if got := props["gap"]; got != 1 {
+		t.Fatalf("gap = %v, want 1", got)
+	}
+	children := row.Children()
+	if len(children) != 2 {
+		t.Fatalf("children len = %d, want 2", len(children))
+	}
+	if got := children[0].Props()["width"]; got != 20 {
+		t.Fatalf("item width = %v, want 20", got)
+	}
+	if got := children[0].Props()["title"]; got != "Runtime" {
+		t.Fatalf("title = %v, want Runtime", got)
+	}
+}
+
+func TestItemWithWidthOverridesRowDefault(t *testing.T) {
+	row := Operational([]Item{
+		Value("Jobs", 12),
+		CompactValue("Filters", "search=cleanup / status=active / last=failed", 42).WithWidth(46),
+	})
+	children := row.Children()
+	if len(children) != 2 {
+		t.Fatalf("children len = %d, want 2", len(children))
+	}
+	if got := children[0].Props()["width"]; got != 20 {
+		t.Fatalf("default item width = %v, want 20", got)
+	}
+	if got := children[1].Props()["width"]; got != 46 {
+		t.Fatalf("custom item width = %v, want 46", got)
+	}
+}
+
+func TestMetricItemHelpersNormalizeOperationalValues(t *testing.T) {
+	items := []Item{
+		Value("Status", ""),
+		FallbackValue("Hint", nil, "open from logs"),
+		CompactValue("Trace", "trace-1234567890-extra", 12),
+		Count("Errors", -3),
+	}
+	if items[0].Value != "-" {
+		t.Fatalf("blank value = %v, want -", items[0].Value)
+	}
+	if items[1].Value != "open from logs" {
+		t.Fatalf("fallback value = %v, want open from logs", items[1].Value)
+	}
+	if items[2].Value != "trace-123..." {
+		t.Fatalf("compact value = %v, want trace-123...", items[2].Value)
+	}
+	if items[3].Value != 0 {
+		t.Fatalf("count value = %v, want 0", items[3].Value)
+	}
+}
+
 func TestFormatter(t *testing.T) {
 	row := New(
 		[]Item{{Title: "Rate", Value: 0.95}},

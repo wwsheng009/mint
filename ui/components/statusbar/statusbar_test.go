@@ -37,6 +37,28 @@ func TestBuilderBuildsThreeSlots(t *testing.T) {
 	}
 }
 
+func TestBuilderAppliesThemeBackgroundToLayoutGaps(t *testing.T) {
+	bar := NewBuilder().
+		DefaultTheme().
+		Left(Text("L")).
+		Center(Text("C")).
+		Right(Text("R")).
+		Build()
+
+	if got := bar.Style().BG; got != style.Blue {
+		t.Fatalf("root background = %q, want %q", got, style.Blue)
+	}
+	children := bar.Children()
+	if len(children) != 3 {
+		t.Fatalf("children len = %d, want 3", len(children))
+	}
+	for index, child := range children {
+		if got := child.Style().BG; got != style.Blue {
+			t.Fatalf("slot %d background = %q, want %q", index, got, style.Blue)
+		}
+	}
+}
+
 func TestBuildWithHelpAddsHelpLine(t *testing.T) {
 	bar := NewBuilder().
 		DefaultTheme().

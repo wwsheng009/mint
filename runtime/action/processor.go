@@ -50,6 +50,9 @@ func (p *InputProcessor) ProcessMsg(message runtimemsg.Msg) *Action {
 	case *runtimemsg.KeyMsg:
 		return p.processKeyMsg(m)
 
+	case *runtimemsg.PasteMsg:
+		return p.processPasteMsg(m)
+
 	case *runtimemsg.MouseMsg:
 		return p.processMouseMsg(m)
 
@@ -69,6 +72,16 @@ func (p *InputProcessor) processKeyMsg(keyMsg *runtimemsg.KeyMsg) *Action {
 
 	// 2. Default conversion rules
 	return p.applyDefaultKeyMapping(keyMsg)
+}
+
+// processPasteMsg handles paste messages with complete text payloads.
+func (p *InputProcessor) processPasteMsg(pasteMsg *runtimemsg.PasteMsg) *Action {
+	if pasteMsg == nil || pasteMsg.Text == "" {
+		return nil
+	}
+	return NewAction(ActionPaste).
+		WithSource("paste").
+		WithPayload(pasteMsg.Text)
 }
 
 // processMouseMsg handles mouse messages

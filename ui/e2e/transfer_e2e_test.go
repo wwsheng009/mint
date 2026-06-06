@@ -277,6 +277,57 @@ func newTransferPagedFixture() (ui.ComponentFunc, func(), func(), *store.Store[t
 	return appFn, initFn, cleanupFn, fixtureStore, meta
 }
 
+func newTransferOperationalPresetApp() ui.ComponentFunc {
+	return func() ui.VNode {
+		return ui.NewVStack().
+			SetGap(1).
+			SetChildrenList([]ui.VNode{
+				ui.NewTextBuilder("Transfer Operational Preset Fixture").Build(),
+				ui.TransferOperationalAssignment("fixture.transfer.ops", []ui.TransferItem{
+					ui.NewTransferItemWithDescription("group-default", "default", "Primary traffic group"),
+					ui.NewTransferItemWithDescription("group-canary", "canary", "Progressive rollout"),
+					ui.NewDisabledTransferItem("group-archive", "archive", "Read-only group"),
+					ui.NewTransferItemWithDescription("provider-openai", "openai", "Primary provider"),
+				}, []string{"provider-openai"}),
+			})
+	}
+}
+
+func TestE2ETransferOperationalPresetRender(t *testing.T) {
+	app, err := Run(newTransferOperationalPresetApp(), ui.WithSize(120, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, id := range []string{
+		"fixture.transfer.ops-source-search",
+		"fixture.transfer.ops-target-search",
+	} {
+		if err := app.AssertVisible(ByID(id)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, text := range []string{
+		"Transfer Operational Preset Fixture",
+		"Available (3)",
+		"Selected (1)",
+		"default - Primary traffic group",
+		"canary - Progressive rollout",
+		"archive - Read-only group",
+		"openai - Primar",
+		"Add",
+		"Remove",
+		"Add visible",
+		"Remove visible",
+	} {
+		if err := app.AssertVisible(ByText(text)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestE2ETransferSearchFiltersAndMovesVisibleItem(t *testing.T) {
 	appFn, initFn, cleanupFn, fixtureStore, meta := newTransferSearchFixture()
 	defer cleanupFn()

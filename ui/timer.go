@@ -46,6 +46,11 @@ func CountdownUntil(label string, deadline time.Time) rtui.VNode {
 		Build()
 }
 
+// CountdownUntilWithKey creates a keyed, fixed-width countdown timer ending at a deadline.
+func CountdownUntilWithKey(key, label string, deadline, now time.Time, width int) rtui.VNode {
+	return timer.CountdownUntilWithKey(key, label, deadline, now, width)
+}
+
 // AutoRefreshTimer creates a countdown timer for periodic refresh loops.
 func AutoRefreshTimer(label string, interval time.Duration) rtui.VNode {
 	return timer.AutoRefresh(label, interval)
@@ -59,4 +64,9 @@ func RetryAfterTimer(label string, deadline time.Time) rtui.VNode {
 // OperationElapsedTimer creates an elapsed timer for a running operation.
 func OperationElapsedTimer(label string, startedAt time.Time) rtui.VNode {
 	return timer.OperationElapsed(label, startedAt)
+}
+
+// OperationElapsedTimerWithKey creates a keyed, fixed-width elapsed timer for a running operation.
+func OperationElapsedTimerWithKey(key, label string, startedAt, now time.Time, width int) rtui.VNode {
+	return timer.OperationElapsedWithKey(key, label, startedAt, now, width)
 }

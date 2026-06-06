@@ -47,11 +47,11 @@ func (hm *HitMap) BuildFromLayoutBox(box *LayoutBox) {
 	// 递归构建条目。Hit testing must follow the same effective layer model as
 	// painting: children inherit their parent's layer, and non-base layers sort
 	// above deeper base-layer content.
-	hm.buildFromLayoutBoxRecursive(box, 0, LayerBase)
+	hm.buildFromLayoutBoxRecursive(box, 0, LayerBase, nil)
 }
 
 // buildFromLayoutBoxRecursive 递归构建命中映射条目
-func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int, inheritedLayer Layer) {
+func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int, inheritedLayer Layer, inheritedClip *Rect) {
 	if box == nil {
 		return
 	}
@@ -78,6 +78,24 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int, inheri
 		Width:  box.Width,
 		Height: box.Height,
 	}
+	effectiveClip := inheritedClip
+	if box.Clip != nil {
+		if effectiveClip == nil {
+			clip := *box.Clip
+			effectiveClip = &clip
+		} else if clipped, ok := intersectRects(*effectiveClip, *box.Clip); ok {
+			effectiveClip = &clipped
+		} else {
+			return
+		}
+	}
+	if effectiveClip != nil {
+		clipped, ok := intersectRects(rect, *effectiveClip)
+		if !ok {
+			return
+		}
+		rect = clipped
+	}
 
 	hm.entries[box.ID] = &HitMapEntry{
 		NodeID: box.ID,
@@ -91,10 +109,10 @@ func (hm *HitMap) buildFromLayoutBoxRecursive(box *LayoutBox, zIndex int, inheri
 	for i, child := range box.Children {
 		if box.ZIndex != 0 {
 			// Portal: each child gets unique local ZIndex (parent.ZIndex + 1, +2, +3, ...)
-			hm.buildFromLayoutBoxRecursive(child, box.ZIndex+1+i, effectiveLayer)
+			hm.buildFromLayoutBoxRecursive(child, box.ZIndex+1+i, effectiveLayer, effectiveClip)
 		} else {
 			// Main tree: all children get same ZIndex (backward compatible)
-			hm.buildFromLayoutBoxRecursive(child, zIndex+1, effectiveLayer)
+			hm.buildFromLayoutBoxRecursive(child, zIndex+1, effectiveLayer, effectiveClip)
 		}
 	}
 }

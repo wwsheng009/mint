@@ -142,6 +142,41 @@ func TestE2EConfirmDialogKeepsFooterVisibleWithTallTargets(t *testing.T) {
 	}
 }
 
+func TestE2EConfirmDialogKeepsEnableKeyControlsVisibleInNarrowViewport(t *testing.T) {
+	app, err := Run(newConfirmDialogTallTargetApp("maintenance"), ui.WithSize(80, 24))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	for _, text := range []string{"Enable Provider Key", "Reason *", "maintenance", "Confirmation *", "ENABLE", "Cancel", "Enable"} {
+		if err := app.AssertVisible(ByText(text)); err != nil {
+			t.Fatalf("expected %q to be visible in 80x24 viewport: %v\n%s", text, err, app.RenderString())
+		}
+	}
+	if err := app.AssertVisible(ByText("provider-key-demo")); err == nil {
+		t.Fatal("sensitive target value should stay masked in narrow enable-key dialog")
+	}
+
+	bounds, err := app.BoundsOf(ByKey("enable-key-confirm-root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bounds.X < 0 || bounds.X+bounds.Width > 80 || bounds.Y < 0 || bounds.Y+bounds.Height > 24 {
+		t.Fatalf("dialog bounds = %+v, want within 80x24 viewport\n%s", bounds, app.RenderString())
+	}
+
+	for _, key := range []string{"enable-key-confirm-cancel", "enable-key-confirm-confirm"} {
+		point, err := app.ResolvePoint(ByKey(key))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := app.AssertHit(point, ByKey(key)); err != nil {
+			t.Fatalf("%s should be the top hit target: %v\n%s", key, err, app.RenderString())
+		}
+	}
+}
+
 func TestE2EConfirmDialogConfirmDispatch(t *testing.T) {
 	unregisters := make([]func(), 0, 1)
 	initFn := func() {

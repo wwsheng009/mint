@@ -62,6 +62,23 @@ func TestFormItemHelpAndRequiredRender(t *testing.T) {
 	}
 }
 
+func TestFormItemLabelWidthPropagatesToLabelStyle(t *testing.T) {
+	child := rtui.NewElement("field").SetProps(rtui.Props{"key": "endpoint-field"})
+	item := NewItem("endpoint", child).
+		Label("Gateway URL").
+		LabelWidth(18).
+		Build()
+
+	rendered := renderFormItem(item.Props())
+	if len(rendered.Children()) == 0 {
+		t.Fatal("expected rendered form item children")
+	}
+	label := rendered.Children()[0]
+	if got := label.Style().Width; got != 18 {
+		t.Fatalf("label style width = %d, want 18", got)
+	}
+}
+
 func TestFormItemOwnerlessRenderDoesNotResolveRegisteredForm(t *testing.T) {
 	ResetRegistry()
 	defer ResetRegistry()

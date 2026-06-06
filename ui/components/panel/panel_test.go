@@ -225,6 +225,442 @@ func TestConvenienceFunctions(t *testing.T) {
 	}
 }
 
+func TestOperationsPanel(t *testing.T) {
+	node := OperationsPanel("Runtime Operations", []rtui.VNode{
+		newtext.New("Effective Sections"),
+		newtext.New("Pending Restart"),
+	}, "runtime diagnostics unavailable", 126)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Runtime Operations" {
+		t.Fatalf("title = %q, want Runtime Operations", panelNode.title)
+	}
+	if panelNode.width != 126 {
+		t.Fatalf("width = %d, want 126", panelNode.width)
+	}
+	if panelNode.borderStyle != layout.BorderSingle {
+		t.Fatalf("borderStyle = %v, want single", panelNode.borderStyle)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	if len(content.Children()) != 2 {
+		t.Fatalf("content children = %d, want 2", len(content.Children()))
+	}
+}
+
+func TestStackPanelWithScope(t *testing.T) {
+	node := StackPanelWithScope("Distribution", []rtui.VNode{
+		newtext.New("chart"),
+	}, "source=analytics 15m top 5", "distribution unavailable", 126)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Distribution" {
+		t.Fatalf("title = %q, want Distribution", panelNode.title)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("content children = %d, want content node and scope", len(children))
+	}
+	if got := children[1].Props()["content"]; got != "Scope: source=analytics 15m top 5" {
+		t.Fatalf("scope content = %v, want Scope line", got)
+	}
+}
+
+func TestTablePanelWithScope(t *testing.T) {
+	node := TablePanelWithScope("Provider Summary", newtext.New("table"), "provider=all / sort=rows tokens desc", "summary unavailable", 72)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Provider Summary" {
+		t.Fatalf("title = %q, want Provider Summary", panelNode.title)
+	}
+	if panelNode.width != 72 {
+		t.Fatalf("width = %d, want 72", panelNode.width)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("content children = %d, want table node and scope", len(children))
+	}
+	if got := children[1].Props()["content"]; got != "Scope: provider=all / sort=rows tokens desc" {
+		t.Fatalf("scope content = %v, want Scope line", got)
+	}
+}
+
+func TestTablePanelWithScopeKeepsEmptyStateWhenContentIsNil(t *testing.T) {
+	node := TablePanelWithScope("Provider Summary", nil, "provider=all", "summary unavailable", 72)
+	panelNode := node.(*VNode)
+	if panelNode.content == nil || panelNode.content.Tag() != "empty" {
+		t.Fatalf("content = %T/%q, want empty", panelNode.content, panelNode.content.Tag())
+	}
+	if got := panelNode.content.Props()["description"]; got != "summary unavailable" {
+		t.Fatalf("empty description = %v, want summary unavailable", got)
+	}
+}
+
+func TestStackPanelWithScopeKeepsEmptyStateWhenNodesAreEmpty(t *testing.T) {
+	node := StackPanelWithScope("Distribution", nil, "source=analytics", "distribution unavailable", 126)
+	panelNode := node.(*VNode)
+	children := panelNode.content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want empty state only", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("empty child tag = %q, want empty", children[0].Tag())
+	}
+	if got := children[0].Props()["description"]; got != "distribution unavailable" {
+		t.Fatalf("empty description = %v, want distribution unavailable", got)
+	}
+}
+
+func TestOperationsPanelEmptyState(t *testing.T) {
+	node := OperationsPanel("Runtime Operations", nil, "runtime diagnostics unavailable", 126)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want empty state", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("empty child tag = %q, want empty", children[0].Tag())
+	}
+	if got := children[0].Props()["description"]; got != "runtime diagnostics unavailable" {
+		t.Fatalf("empty description = %v, want runtime diagnostics unavailable", got)
+	}
+}
+
+func TestOperationsPanelWithScope(t *testing.T) {
+	node := OperationsPanelWithScope("Runtime Operations", []rtui.VNode{
+		newtext.New("Effective Sections"),
+	}, "runtime=available / concurrency=unavailable", "runtime diagnostics unavailable", 126)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("content children = %d, want progress node and scope", len(children))
+	}
+	if got := children[1].Props()["content"]; got != "Scope: runtime=available / concurrency=unavailable" {
+		t.Fatalf("scope content = %v, want Scope line", got)
+	}
+}
+
+func TestOperationsPanelWithScopeSkipsBlankScope(t *testing.T) {
+	node := OperationsPanelWithScope("Runtime Operations", []rtui.VNode{
+		newtext.New("Effective Sections"),
+	}, "  ", "runtime diagnostics unavailable", 126)
+	panelNode := node.(*VNode)
+	children := panelNode.content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want original nodes only", len(children))
+	}
+}
+
+func TestOperationsPanelWithScopeKeepsEmptyStateWhenNodesAreEmpty(t *testing.T) {
+	node := OperationsPanelWithScope("Runtime Operations", nil, "runtime=available", "runtime diagnostics unavailable", 126)
+	panelNode := node.(*VNode)
+	children := panelNode.content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want empty state only", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("empty child tag = %q, want empty", children[0].Tag())
+	}
+}
+
+func TestContentPanel(t *testing.T) {
+	node := ContentPanel("Actions", newtext.New("buttons"), "actions unavailable", 126)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Actions" {
+		t.Fatalf("title = %q, want Actions", panelNode.title)
+	}
+	if panelNode.width != 126 {
+		t.Fatalf("width = %d, want 126", panelNode.width)
+	}
+	if panelNode.borderStyle != layout.BorderSingle {
+		t.Fatalf("borderStyle = %v, want single", panelNode.borderStyle)
+	}
+	if panelNode.content == nil || panelNode.content.Tag() != "text" {
+		t.Fatalf("content = %T, want text", panelNode.content)
+	}
+}
+
+func TestContentPanelEmptyState(t *testing.T) {
+	node := ContentPanel("Actions", nil, "actions unavailable", 126)
+	panelNode := node.(*VNode)
+	if panelNode.content == nil || panelNode.content.Tag() != "empty" {
+		t.Fatalf("content = %T, want empty", panelNode.content)
+	}
+	if got := panelNode.content.Props()["description"]; got != "actions unavailable" {
+		t.Fatalf("empty description = %v, want actions unavailable", got)
+	}
+}
+
+func TestStackPanel(t *testing.T) {
+	node := StackPanel("Alert History", []rtui.VNode{
+		newtext.New("Table"),
+		newtext.New("Pagination"),
+		newtext.New("Selection"),
+	}, "history unavailable", 62)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Alert History" {
+		t.Fatalf("title = %q, want Alert History", panelNode.title)
+	}
+	if panelNode.width != 62 {
+		t.Fatalf("width = %d, want 62", panelNode.width)
+	}
+	if panelNode.borderStyle != layout.BorderSingle {
+		t.Fatalf("borderStyle = %v, want single", panelNode.borderStyle)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	if len(content.Children()) != 3 {
+		t.Fatalf("content children = %d, want 3", len(content.Children()))
+	}
+}
+
+func TestStackPanelSkipsNilOptionalNodes(t *testing.T) {
+	node := StackPanel("Alert History", []rtui.VNode{
+		newtext.New("Table"),
+		nil,
+		newtext.New("Selection"),
+	}, "history unavailable", 62)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("content children = %d, want nil optional node skipped", len(children))
+	}
+	if children[0].Tag() != "text" || children[1].Tag() != "text" {
+		t.Fatalf("children tags = %q/%q, want text/text", children[0].Tag(), children[1].Tag())
+	}
+}
+
+func TestStackPanelEmptyState(t *testing.T) {
+	node := StackPanel("Alert Rules", nil, "rules unavailable", 62)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want empty state", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("empty child tag = %q, want empty", children[0].Tag())
+	}
+	if got := children[0].Props()["description"]; got != "rules unavailable" {
+		t.Fatalf("empty description = %v, want rules unavailable", got)
+	}
+}
+
+func TestStackPanelAllNilUsesEmptyState(t *testing.T) {
+	node := StackPanel("Alert Rules", []rtui.VNode{nil, nil}, "rules unavailable", 62)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 1 || children[0].Tag() != "empty" {
+		t.Fatalf("children = %d first tag = %q, want empty state", len(children), children[0].Tag())
+	}
+}
+
+func TestPaddedStackPanel(t *testing.T) {
+	node := PaddedStackPanel("Login", []rtui.VNode{
+		newtext.New("Gateway Base URL"),
+		newtext.New("Captcha"),
+		newtext.New("Login"),
+	}, "login form unavailable", 92, 1)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Login" {
+		t.Fatalf("title = %q, want Login", panelNode.title)
+	}
+	if panelNode.width != 92 {
+		t.Fatalf("width = %d, want 92", panelNode.width)
+	}
+	if panelNode.padding != 1 {
+		t.Fatalf("padding = %d, want 1", panelNode.padding)
+	}
+	if panelNode.borderStyle != layout.BorderSingle {
+		t.Fatalf("borderStyle = %v, want single", panelNode.borderStyle)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	if len(content.Children()) != 3 {
+		t.Fatalf("content children = %d, want 3", len(content.Children()))
+	}
+}
+
+func TestPaddedStackPanelEmptyState(t *testing.T) {
+	node := PaddedStackPanel("Login", nil, "login form unavailable", 92, 1)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want empty state", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("empty child tag = %q, want empty", children[0].Tag())
+	}
+	if got := children[0].Props()["description"]; got != "login form unavailable" {
+		t.Fatalf("empty description = %v, want login form unavailable", got)
+	}
+}
+
+func TestPanelRow(t *testing.T) {
+	node := PanelRow(
+		TablePanel("Left", newtext.New("left"), 40),
+		nil,
+		TablePanel("Right", newtext.New("right"), 60),
+	)
+	if node.Tag() != "hstack" {
+		t.Fatalf("tag = %q, want hstack", node.Tag())
+	}
+	layoutNode, ok := node.(*rtui.LayoutNode)
+	if !ok {
+		t.Fatalf("node = %T, want *ui.LayoutNode", node)
+	}
+	if layoutNode.Direction() != rtui.DirectionRow {
+		t.Fatalf("direction = %v, want row", layoutNode.Direction())
+	}
+	if layoutNode.Gap() != 1 {
+		t.Fatalf("gap = %d, want 1", layoutNode.Gap())
+	}
+	if len(layoutNode.Children()) != 2 {
+		t.Fatalf("children = %d, want 2 non-nil panels", len(layoutNode.Children()))
+	}
+	for index, child := range layoutNode.Children() {
+		if child.Tag() != "panel" {
+			t.Fatalf("child %d tag = %q, want panel", index, child.Tag())
+		}
+	}
+}
+
+func TestLinesPanel(t *testing.T) {
+	node := LinesPanel("Capabilities", []Line{
+		SuccessLine("ops-monitor/overview: available"),
+		MutedLine("applied filters: group=default"),
+		WarningLine("unsupported filters: provider"),
+		TextLine("", "red"),
+	}, "No capabilities.", 126)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Capabilities" {
+		t.Fatalf("title = %q, want Capabilities", panelNode.title)
+	}
+	if panelNode.width != 126 {
+		t.Fatalf("width = %d, want 126", panelNode.width)
+	}
+	if panelNode.borderStyle != layout.BorderSingle {
+		t.Fatalf("borderStyle = %v, want single", panelNode.borderStyle)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 3 {
+		t.Fatalf("content children = %d, want 3 non-empty lines", len(children))
+	}
+	wantColors := []style.Color{"green", "gray", "yellow"}
+	for i, want := range wantColors {
+		lineStyle, ok := children[i].Props()["style"].(style.Style)
+		if !ok {
+			t.Fatalf("line %d style = %T, want style.Style", i, children[i].Props()["style"])
+		}
+		if lineStyle.FG != want {
+			t.Fatalf("line %d fg = %q, want %q", i, lineStyle.FG, want)
+		}
+	}
+}
+
+func TestLinesPanelFallback(t *testing.T) {
+	node := LinesPanel("Recommended Drilldown", []Line{
+		TextLine("  ", "green"),
+	}, "No drilldown links returned.", 126)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	children := content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want fallback line", len(children))
+	}
+	if got := children[0].Props()["content"]; got != "No drilldown links returned." {
+		t.Fatalf("fallback line = %v, want No drilldown links returned.", got)
+	}
+	lineStyle, ok := children[0].Props()["style"].(style.Style)
+	if !ok {
+		t.Fatalf("fallback style = %T, want style.Style", children[0].Props()["style"])
+	}
+	if lineStyle.FG != "gray" {
+		t.Fatalf("fallback fg = %q, want gray", lineStyle.FG)
+	}
+}
+
+func TestNoticePanel(t *testing.T) {
+	node := NoticePanel("Boundary", []string{
+		"This page is read-only in this phase.",
+		"",
+		"Follow-up write flows require reason and confirmation.",
+	}, 62)
+	panelNode := node.(*VNode)
+	if panelNode.title != "Boundary" {
+		t.Fatalf("title = %q, want Boundary", panelNode.title)
+	}
+	if panelNode.width != 62 {
+		t.Fatalf("width = %d, want 62", panelNode.width)
+	}
+	content := panelNode.content
+	if content == nil || content.Tag() != "vstack" {
+		t.Fatalf("content = %T, want vstack", content)
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("content children = %d, want 2 non-empty notice lines", len(children))
+	}
+	lineStyle, ok := children[0].Props()["style"].(style.Style)
+	if !ok {
+		t.Fatalf("first notice line style = %T, want style.Style", children[0].Props()["style"])
+	}
+	if children[0].Tag() != "text" || lineStyle.FG != "bright-black" {
+		t.Fatalf("first notice line = %s %+v, want muted text", children[0].Tag(), children[0].Props())
+	}
+}
+
+func TestNoticePanelFallback(t *testing.T) {
+	node := NoticePanel("Boundary", nil, 62)
+	panelNode := node.(*VNode)
+	content := panelNode.content
+	children := content.Children()
+	if len(children) != 1 {
+		t.Fatalf("content children = %d, want fallback notice", len(children))
+	}
+	if got := children[0].Props()["content"]; got != "No notice." {
+		t.Fatalf("fallback notice = %v, want No notice.", got)
+	}
+}
+
 // =============================================================================
 // Border Info Tests
 // =============================================================================

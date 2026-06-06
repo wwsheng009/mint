@@ -66,6 +66,12 @@ type Instance struct {
 	bounds      [4]int // x, y, w, h
 	dirty       bool
 
+	// Controlled value synchronization.
+	// While focused, local edits can run ahead of store-driven value props.
+	// Track emitted values so stale props cannot overwrite newer local input.
+	lastPropValue       string
+	pendingEmittedValue []string
+
 	// === Intent Emitter ===
 	intentEmitter func(intent.Intent)
 
@@ -127,6 +133,7 @@ func NewInstance(props rtui.Props) *Instance {
 		submitIntent:  proputil.GetIntent(props, "submitIntent", nil),
 		formID:        proputil.GetString(props, "formID", ""),
 		value:         value,
+		lastPropValue: value,
 		maxLen:        proputil.GetInt(props, "maxLen", 0),
 		searchVariant: proputil.GetBool(props, propSearchVariant, false),
 		cursorConfig:  cursorCfg,
@@ -254,9 +261,18 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		newValue = sanitizeEditableNumberValue(newValue, inst.allowNegative, inst.allowDecimal)
 	}
 	if newValue != inst.value {
-		inst.value = newValue
-		inst.cursorPos = utf8.RuneCountInString(inst.value)
-		inst.cursorModel.ResetBlink()
+		if inst.shouldIgnoreStalePropValue(newValue) {
+			inst.ackPendingValue(newValue)
+		} else {
+			inst.value = newValue
+			inst.lastPropValue = newValue
+			inst.pendingEmittedValue = nil
+			inst.cursorPos = utf8.RuneCountInString(inst.value)
+			inst.cursorModel.ResetBlink()
+		}
+	} else {
+		inst.lastPropValue = newValue
+		inst.ackPendingValue(newValue)
 	}
 	inst.maxLen = proputil.GetInt(props, "maxLen", inst.maxLen)
 	inst.searchVariant = proputil.GetBool(props, propSearchVariant, inst.searchVariant)
@@ -373,12 +389,15 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 		}
 	}
 
-	// Calculate border offset
-	borderWidth := 0
+	// Calculate content offsets. Full borders reserve one row/column around
+	// the content; bracket-style BorderNone only reserves horizontal space.
+	horizontalInset := 0
+	verticalInset := 0
 	if useFullBorder {
-		borderWidth = 1
+		horizontalInset = 1
+		verticalInset = 1
 	} else if useBrackets {
-		borderWidth = 1 // Brackets also take 1 char on each side
+		horizontalInset = 1
 	}
 
 	addonBeforeWidth := paint.StringWidth(inst.addonBefore)
@@ -407,9 +426,9 @@ func (inst *Instance) Paint(x, y int) []paint.DrawCmd {
 	}
 
 	// Calculate content position (inside border/brackets)
-	contentX := borderX + borderWidth
-	contentY := y + borderWidth
-	contentWidth := boxWidth - borderWidth*2
+	contentX := borderX + horizontalInset
+	contentY := y + verticalInset
+	contentWidth := boxWidth - horizontalInset*2
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
@@ -796,6 +815,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 			return inst.InsertText(text)
 		}
 		return false
+	case action.ActionPaste:
+		if text, ok := act.GetPayloadString(); ok {
+			return inst.InsertPastedText(text)
+		}
+		return false
 	case action.ActionBackspace:
 		return inst.DeleteText(-1)
 	case action.ActionDeleteChar:
@@ -833,6 +857,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 
 // InsertText inserts text at the current cursor position.
 func (inst *Instance) InsertText(text string) bool {
+	return inst.insertText(text, true)
+}
+
+// InsertPastedText inserts pasted text without limiting the stored value to the
+// currently visible input width.
+func (inst *Instance) InsertPastedText(text string) bool {
+	return inst.insertText(text, false)
+}
+
+func (inst *Instance) insertText(text string, clampByWidth bool) bool {
 	if inst.state.Disabled || inst.state.Active {
 		return false
 	}
@@ -869,10 +903,12 @@ func (inst *Instance) InsertText(text string) bool {
 		}
 	}
 
-	// Enforce input width (content area width), allowing partial insert when needed.
-	textRunes = inst.clampInsertRunesByWidth(runes, textRunes)
-	if len(textRunes) == 0 {
-		return false
+	if clampByWidth {
+		// Enforce input width (content area width), allowing partial insert when needed.
+		textRunes = inst.clampInsertRunesByWidth(runes, textRunes)
+		if len(textRunes) == 0 {
+			return false
+		}
 	}
 
 	// Create new slice with enough capacity to avoid shared array issues
@@ -993,10 +1029,50 @@ func (inst *Instance) SetValue(value string) {
 	}
 	if inst.value != value {
 		inst.value = value
+		inst.lastPropValue = value
+		inst.pendingEmittedValue = nil
 		inst.cursorPos = utf8.RuneCountInString(value)
 		inst.cursorModel.ResetBlink()
 		inst.dirty = true
 	}
+}
+
+func (inst *Instance) shouldIgnoreStalePropValue(value string) bool {
+	if !inst.state.Focused || len(inst.pendingEmittedValue) == 0 {
+		return false
+	}
+	if value == inst.lastPropValue {
+		return true
+	}
+	return inst.pendingValueIndex(value) >= 0
+}
+
+func (inst *Instance) notePendingEmittedValue(value string) {
+	if len(inst.pendingEmittedValue) > 0 && inst.pendingEmittedValue[len(inst.pendingEmittedValue)-1] == value {
+		return
+	}
+	inst.pendingEmittedValue = append(inst.pendingEmittedValue, value)
+	const maxPendingControlledValues = 64
+	if len(inst.pendingEmittedValue) > maxPendingControlledValues {
+		inst.pendingEmittedValue = append([]string(nil), inst.pendingEmittedValue[len(inst.pendingEmittedValue)-maxPendingControlledValues:]...)
+	}
+}
+
+func (inst *Instance) ackPendingValue(value string) {
+	index := inst.pendingValueIndex(value)
+	if index < 0 {
+		return
+	}
+	inst.pendingEmittedValue = append([]string(nil), inst.pendingEmittedValue[index+1:]...)
+}
+
+func (inst *Instance) pendingValueIndex(value string) int {
+	for i, pending := range inst.pendingEmittedValue {
+		if pending == value {
+			return i
+		}
+	}
+	return -1
 }
 
 // GetValue returns the current value.
@@ -1358,6 +1434,7 @@ func (inst *Instance) emitFieldValueChanged() {
 	if inst.intentEmitter == nil {
 		return
 	}
+	inst.notePendingEmittedValue(inst.value)
 
 	// Phase 6: If formID is set, use FormFieldChangeIntent
 	if inst.formID != "" {

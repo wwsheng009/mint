@@ -2,11 +2,11 @@ package table
 
 import (
 	"fmt"
-	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wwsheng009/mint/runtime/action"
 	"github.com/wwsheng009/mint/runtime/intent"
@@ -15,6 +15,7 @@ import (
 	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	"github.com/wwsheng009/mint/ui/components/internal/proputil"
 	scrollutil "github.com/wwsheng009/mint/ui/components/internal/scroll"
 )
 
@@ -2820,9 +2821,22 @@ func compareCellValues(left, right string) int {
 	left = strings.TrimSpace(left)
 	right = strings.TrimSpace(right)
 
-	leftNumber, leftErr := strconv.ParseFloat(left, 64)
-	rightNumber, rightErr := strconv.ParseFloat(right, 64)
-	if leftErr == nil && rightErr == nil {
+	leftTime, leftTimeOK := parseSortableTime(left)
+	rightTime, rightTimeOK := parseSortableTime(right)
+	if leftTimeOK && rightTimeOK {
+		switch {
+		case leftTime.Before(rightTime):
+			return -1
+		case leftTime.After(rightTime):
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	leftNumber, leftOK := parseSortableNumber(left)
+	rightNumber, rightOK := parseSortableNumber(right)
+	if leftOK && rightOK {
 		switch {
 		case leftNumber < rightNumber:
 			return -1
@@ -2843,6 +2857,98 @@ func compareCellValues(left, right string) int {
 	default:
 		return 0
 	}
+}
+
+func parseSortableTime(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05",
+	}
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func parseSortableNumber(value string) (float64, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+
+	if strings.HasSuffix(value, "%") {
+		return parseFloatText(strings.TrimSpace(strings.TrimSuffix(value, "%")))
+	}
+
+	if strings.Count(value, "/") == 1 {
+		parts := strings.Split(value, "/")
+		left, leftOK := parseFloatText(parts[0])
+		right, rightOK := parseFloatText(parts[1])
+		if leftOK && rightOK {
+			if right == 0 {
+				if left == 0 {
+					return 0, true
+				}
+				return left, true
+			}
+			return left / right, true
+		}
+	}
+
+	units := []struct {
+		suffix string
+		factor float64
+	}{
+		{"ms", 0.001},
+		{"us", 0.000001},
+		{"ns", 0.000000001},
+		{"s", 1},
+		{"m", 60},
+		{"h", 3600},
+	}
+	lower := strings.ToLower(value)
+	for _, unit := range units {
+		if strings.HasSuffix(lower, unit.suffix) {
+			numberText := strings.TrimSpace(value[:len(value)-len(unit.suffix)])
+			number, ok := parseFloatText(numberText)
+			if ok {
+				return number * unit.factor, true
+			}
+		}
+	}
+
+	return parseFloatText(value)
+}
+
+func parseFloatText(value string) (float64, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	number, err := strconv.ParseFloat(value, 64)
+	if err == nil {
+		return number, true
+	}
+	if !strings.Contains(value, ",") {
+		return 0, false
+	}
+	number, err = strconv.ParseFloat(strings.ReplaceAll(value, ",", ""), 64)
+	if err != nil {
+		return 0, false
+	}
+	return number, true
 }
 
 func pageCountFor(totalRows, pageSize int) int {

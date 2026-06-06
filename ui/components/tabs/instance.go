@@ -35,6 +35,7 @@ type Instance struct {
 	tabGap            int
 	loopNavigation    bool
 	showHotkeys       bool
+	activeTabMarker   string
 	divider           string
 	tabVariant        TabVariant
 	reorderable       bool
@@ -156,6 +157,7 @@ func NewInstance(props rtui.Props) *Instance {
 		tabGap:               proputil.GetInt(props, "tabGap", 1),
 		loopNavigation:       proputil.GetBool(props, "loopNavigation", false),
 		showHotkeys:          proputil.GetBool(props, "showHotkeys", false),
+		activeTabMarker:      proputil.GetString(props, propActiveTabMarker, ""),
 		divider:              proputil.GetString(props, "divider", " | "),
 		tabVariant:           getTabVariantProp(props, TabVariantLine),
 		reorderable:          proputil.GetBool(props, propReorderable, false),
@@ -203,6 +205,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldTabGap := inst.tabGap
 	oldLoopNavigation := inst.loopNavigation
 	oldShowHotkeys := inst.showHotkeys
+	oldActiveTabMarker := inst.activeTabMarker
 	oldDivider := inst.divider
 	oldTabVariant := inst.tabVariant
 	oldReorderable := inst.reorderable
@@ -224,6 +227,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.tabGap = proputil.GetInt(props, "tabGap", inst.tabGap)
 	inst.loopNavigation = proputil.GetBool(props, "loopNavigation", inst.loopNavigation)
 	inst.showHotkeys = proputil.GetBool(props, "showHotkeys", inst.showHotkeys)
+	inst.activeTabMarker = proputil.GetString(props, propActiveTabMarker, inst.activeTabMarker)
 	inst.divider = proputil.GetString(props, "divider", inst.divider)
 	inst.tabVariant = getTabVariantProp(props, inst.tabVariant)
 	inst.reorderable = proputil.GetBool(props, propReorderable, inst.reorderable)
@@ -249,6 +253,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldTabGap != inst.tabGap ||
 		oldLoopNavigation != inst.loopNavigation ||
 		oldShowHotkeys != inst.showHotkeys ||
+		oldActiveTabMarker != inst.activeTabMarker ||
 		oldDivider != inst.divider ||
 		oldTabVariant != inst.tabVariant ||
 		oldReorderable != inst.reorderable ||
@@ -269,14 +274,15 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propKey:           inst.key,
-		propTabs:          inst.tabs,
-		propPosition:      inst.position,
-		propActiveTab:     inst.activeTab,
-		propTabVariant:    inst.tabVariant,
-		propReorderable:   inst.reorderable,
-		propCloseIntent:   inst.closeIntent,
-		propReorderIntent: inst.reorderIntent,
+		propKey:             inst.key,
+		propTabs:            inst.tabs,
+		propPosition:        inst.position,
+		propActiveTab:       inst.activeTab,
+		propActiveTabMarker: inst.activeTabMarker,
+		propTabVariant:      inst.tabVariant,
+		propReorderable:     inst.reorderable,
+		propCloseIntent:     inst.closeIntent,
+		propReorderIntent:   inst.reorderIntent,
 	}
 }
 
@@ -312,12 +318,13 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 	layoutWidthHint := 0
 	if inst.wrapTabs && (inst.position == TabPositionTop || inst.position == TabPositionBottom) {
 		layoutWidthHint = inst.width
-		if layoutWidthHint == 0 && constraints.MaxWidth > 0 {
+		if constraints.MaxWidth > 0 && (layoutWidthHint == 0 || layoutWidthHint > constraints.MaxWidth) {
 			layoutWidthHint = constraints.MaxWidth
 		}
 	}
 
 	tabLayout := inst.computeTabLayout(layoutWidthHint)
+	tabHeight := tabLayout.height + inst.tabChromeHeight()
 
 	width := inst.width
 	height := inst.height
@@ -326,7 +333,7 @@ func (inst *Instance) Measure(constraints layout.Constraints) layout.Size {
 		width = tabLayout.width
 	}
 	if height == 0 {
-		height = tabLayout.height
+		height = tabHeight
 	}
 
 	if width < constraints.MinWidth {
@@ -374,13 +381,23 @@ func (inst *Instance) paintTabBar(x, y int) []paint.DrawCmd {
 		return nil
 	}
 
-	renderWidth, renderHeight := inst.resolveRenderSpace(tabLayout.width, tabLayout.height)
-	offsetX, offsetY := inst.layoutOrigin(tabLayout, renderWidth, renderHeight)
+	chromeHeight := inst.tabChromeHeight()
+	paintLayout := tabLayout
+	paintLayout.height += chromeHeight
 
-	cmds := make([]paint.DrawCmd, 0, len(tabLayout.items))
+	renderWidth, renderHeight := inst.resolveRenderSpace(tabLayout.width, paintLayout.height)
+	offsetX, offsetY := inst.layoutOrigin(paintLayout, renderWidth, renderHeight)
+
+	cmds := make([]paint.DrawCmd, 0, len(tabLayout.items)+chromeHeight)
+	if chromeHeight > 0 {
+		borderWidth := tabLayout.width
+		if borderWidth > 0 {
+			cmds = append(cmds, paint.NewTextCmd(x+offsetX, y+offsetY, strings.Repeat("─", borderWidth), inst.resolveDividerStyle()))
+		}
+	}
 	for _, item := range tabLayout.items {
 		localX := offsetX + item.x
-		localY := offsetY + item.y
+		localY := offsetY + chromeHeight + item.y
 		cmds = append(cmds, paint.NewTextCmd(x+localX, y+localY, item.text, item.style))
 		if item.clickable {
 			inst.tabBarBounds = append(inst.tabBarBounds, tabBounds{
@@ -1126,6 +1143,13 @@ func (inst *Instance) computeVerticalLayout(visible []int) tabLayout {
 	return layout
 }
 
+func (inst *Instance) tabChromeHeight() int {
+	if inst.tabVariant == TabVariantCard && (inst.position == TabPositionTop || inst.position == TabPositionBottom) {
+		return 1
+	}
+	return 0
+}
+
 func (inst *Instance) resolveDividerStyle() style.Style {
 	return style.NewStyle().Foreground(style.BrightBlack).Merge(inst.tabStyle)
 }
@@ -1242,6 +1266,9 @@ func (inst *Instance) renderTabText(index int) (string, int, int) {
 	if tab.Icon != "" {
 		parts = append(parts, tab.Icon)
 	}
+	if index == inst.activeTab && strings.TrimSpace(inst.activeTabMarker) != "" {
+		parts = append(parts, strings.TrimSpace(inst.activeTabMarker))
+	}
 
 	label := tab.Label
 	if label == "" {
@@ -1263,8 +1290,8 @@ func (inst *Instance) renderTabText(index int) (string, int, int) {
 	suffix := ""
 	if inst.tabVariant == TabVariantCard {
 		if index == inst.activeTab {
-			prefix = "╭ "
-			suffix = " ╮"
+			prefix = "▌ "
+			suffix = " ▐"
 		} else {
 			prefix = "│ "
 			suffix = " │"

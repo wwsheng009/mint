@@ -398,6 +398,11 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 			return inst.InsertText(text)
 		}
 		return false
+	case action.ActionPaste:
+		if text, ok := act.GetPayloadString(); ok {
+			return inst.InsertText(text)
+		}
+		return false
 	case action.ActionBackspace:
 		return inst.DeleteText(-1)
 	case action.ActionDeleteChar:

@@ -517,13 +517,16 @@ func (b *Builder) BuildWithHelp() rtui.VNode {
 }
 
 func (b *Builder) buildBar(left, center, right []Section) rtui.VNode {
-	return rtui.HStackBuilder(
+	root := rtui.HStackBuilder(
 		buildSlot(left, rtui.AlignStart, b.gap, b.theme, b.useTheme),
 		buildSlot(center, rtui.AlignCenter, b.gap, b.theme, b.useTheme),
 		buildSlot(right, rtui.AlignEnd, b.gap, b.theme, b.useTheme),
 	).Gap(0).
-		Padding(b.padding[0], b.padding[1], b.padding[2], b.padding[3]).
-		Build()
+		Padding(b.padding[0], b.padding[1], b.padding[2], b.padding[3])
+	if bg, ok := themedLayoutBackground(b.theme, b.useTheme); ok {
+		root.BgColor(bg)
+	}
+	return root.Build()
 }
 
 func (b *Builder) prepareHelpSections() (left, center, right []Section, model *helpModel, hasHelp bool) {
@@ -625,7 +628,23 @@ func buildSlot(sections []Section, slotAlign rtui.Align, gap int, theme Theme, u
 	for _, section := range sections {
 		children = append(children, renderSection(section, slotAlign, theme, useTheme))
 	}
-	return rtui.HStackBuilder(children...).Gap(gap).Align(slotAlign).Flex(1).Build()
+	slot := rtui.HStackBuilder(children...).Gap(gap).Align(slotAlign).Flex(1)
+	if bg, ok := themedLayoutBackground(theme, useTheme); ok {
+		slot.BgColor(bg)
+	}
+	return slot.Build()
+}
+
+func themedLayoutBackground(theme Theme, useTheme bool) (string, bool) {
+	if !useTheme {
+		return "", false
+	}
+	resolved := resolveThemeDefaults(theme)
+	bg := strings.TrimSpace(resolved.BgColor)
+	if bg == "" || style.Color(bg) == style.NoColor {
+		return "", false
+	}
+	return bg, true
 }
 
 func renderSection(section Section, slotAlign rtui.Align, theme Theme, useTheme bool) rtui.VNode {

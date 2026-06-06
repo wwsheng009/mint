@@ -22,6 +22,52 @@ func TestNewDefaults(t *testing.T) {
 	}
 }
 
+func TestOperationalItemPresets(t *testing.T) {
+	item := NewItemWithDescription(" group-a ", " Group A ", "Primary\ntraffic\tgroup")
+	if item.Key != " group-a " || item.Title != " Group A " || item.Description != "Primary traffic group" {
+		t.Fatalf("item = %+v, want description normalized without changing key/title", item)
+	}
+
+	disabled := DisabledItem("archive", "Archive", "Read-only")
+	if !disabled.Disabled || disabled.Description != "Read-only" {
+		t.Fatalf("disabled item = %+v, want disabled with description", disabled)
+	}
+
+	enabled := disabled.WithDisabled(false)
+	if enabled.Disabled {
+		t.Fatalf("WithDisabled(false) = %+v, want enabled copy", enabled)
+	}
+}
+
+func TestOperationalAssignmentPreset(t *testing.T) {
+	node := OperationalAssignment("ops.scope", []Item{
+		NewItemWithDescription("default", "Default", "Primary group"),
+		DisabledItem("archive", "Archive", "Read-only"),
+	}, []string{"default"}).BuildVNode()
+
+	if node.Key() != "ops.scope" || node.componentID != "ops.scope" {
+		t.Fatalf("key/componentID = %q/%q, want ops.scope", node.Key(), node.componentID)
+	}
+	if node.titles != [2]string{"Available", "Selected"} {
+		t.Fatalf("titles = %#v, want operational defaults", node.titles)
+	}
+	if node.operations != [2]string{"Add", "Remove"} {
+		t.Fatalf("operations = %#v, want Add/Remove", node.operations)
+	}
+	if !node.bulkOperations || node.bulkOperationLabels != [2]string{"Add visible", "Remove visible"} {
+		t.Fatalf("bulk config = enabled:%v labels:%#v", node.bulkOperations, node.bulkOperationLabels)
+	}
+	if !node.searchable || node.searchPlaceholders != [2]string{"Search available", "Search selected"} {
+		t.Fatalf("search config = searchable:%v placeholders:%#v", node.searchable, node.searchPlaceholders)
+	}
+	if node.pageSize != defaultOperationalPageSize || node.listWidth != defaultOperationalListWidth || node.listHeight != defaultOperationalListHeight {
+		t.Fatalf("sizing = page:%d width:%d height:%d", node.pageSize, node.listWidth, node.listHeight)
+	}
+	if !node.targetKeysControlled || !reflect.DeepEqual(node.targetKeys, []string{"default"}) {
+		t.Fatalf("targetKeys = %#v controlled:%v, want controlled default", node.targetKeys, node.targetKeysControlled)
+	}
+}
+
 func TestBuilderFluentAPI(t *testing.T) {
 	node := NewBuilder().
 		Key("members").

@@ -1106,6 +1106,8 @@ func (a *App) Run() error {
 								hasUserInput = true
 							}
 						}
+					case runtimemsg.MsgTypePaste:
+						hasUserInput = true
 					case runtimemsg.MsgTypeMouse:
 						// Mouse events (except Move) are user input
 						if mouseMsg, ok := msg.(*runtimemsg.MouseMsg); ok {
@@ -1312,20 +1314,6 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		}
 	}()
 
-	// Global key shortcuts (OnKeyCombo/OnKey) must work in Action path too.
-	if a.handleGlobalKeyShortcut(msg) {
-		a.dirty = true
-		return
-	}
-
-	// AppSelection mode: selection system gets first chance to consume input.
-	if a.interactionMode == InteractionModeAppSelection {
-		if a.dispatchSelectionEvent(msg) {
-			a.dirty = true
-			return
-		}
-	}
-
 	// ========================================================================
 	// Phase 1-3: Pressed State 解决方案
 	// ========================================================================
@@ -1349,9 +1337,14 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 2. 处理无法转换的消息（系统消息）
 	if act == nil {
+		if a.handleGlobalKeyShortcut(msg) {
+			a.dirty = true
+			return
+		}
 		a.handleSystemMsg(msg)
 		return
 	}
+	act = a.materializePasteAction(act)
 
 	// Focus-aware remapping: in text editors, arrow/home/end should move caret,
 	// not trigger global focus navigation.
@@ -1397,6 +1390,33 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 		actionHandled = true
 		actionStage = "middleware_stop"
 		return
+	}
+
+	// Global key shortcuts (OnKeyCombo/OnKey) run after middleware so open
+	// overlays can consume keys like up/down before page-level shortcuts do.
+	if a.handleGlobalKeyShortcut(msg) {
+		a.applyActionMiddlewareAfter(act, &action.RouterResult{
+			Handled: true,
+			Phase:   action.ActionPhaseNone,
+		})
+		a.dirty = true
+		actionHandled = true
+		actionStage = "global_shortcut"
+		return
+	}
+
+	// AppSelection mode: selection system gets the first non-shortcut chance to consume input.
+	if a.interactionMode == InteractionModeAppSelection {
+		if a.dispatchSelectionEvent(msg) {
+			a.applyActionMiddlewareAfter(act, &action.RouterResult{
+				Handled: true,
+				Phase:   action.ActionPhaseNone,
+			})
+			a.dirty = true
+			actionHandled = true
+			actionStage = "app_selection"
+			return
+		}
 	}
 
 	// 3. 导航 Action 由焦点管理器直接处理
@@ -1473,7 +1493,7 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 
 	// 4.2 键盘事件：使用焦点 Fiber
 	// 非 MouseMsg 的都是键盘事件（包括特殊键和可打印字符）
-	if _, ok := msg.(*runtimemsg.KeyMsg); ok {
+	if _, ok := msg.(*runtimemsg.KeyMsg); ok || isTextInputMessage(msg, act) {
 		// 对于 ESC 键（ActionCancel），优先尝试通过 ActionRouter 的全局处理器处理
 		// 这样 Modal 的 GlobalActionHandler 可以拦截并关闭 modal
 		if act.Type == action.ActionCancel || act.Type == action.ActionQuit {
@@ -1515,6 +1535,33 @@ func (a *App) processMsg(msg runtimemsg.Msg) {
 	} else {
 		actionStage = "unhandled"
 	}
+}
+
+func (a *App) materializePasteAction(act *action.Action) *action.Action {
+	if act == nil || act.Type != action.ActionPaste {
+		return act
+	}
+	if text, ok := act.GetPayloadString(); ok && text != "" {
+		return act
+	}
+	text, err := runtimepkg.NewClipboard().Paste()
+	if err != nil || text == "" {
+		return act
+	}
+	act.Payload = text
+	return act
+}
+
+func isTextInputMessage(msg runtimemsg.Msg, act *action.Action) bool {
+	if act == nil {
+		return false
+	}
+	switch act.Type {
+	case action.ActionInputText, action.ActionPaste:
+		return true
+	}
+	_, isPaste := msg.(*runtimemsg.PasteMsg)
+	return isPaste
 }
 
 func (a *App) applyActionMiddlewareBefore(act *action.Action) *action.Action {
@@ -1886,6 +1933,14 @@ func (a *App) handleSystemMsg(msg runtimemsg.Msg) {
 	// 处理 Resize 事件
 	if resizeMsg, ok := msg.(*runtimemsg.ResizeMsg); ok {
 		a.Resize(resizeMsg.NewWidth, resizeMsg.NewHeight)
+		if a.router != nil {
+			a.router.Route(frameworkevent.NewResizeEvent(
+				resizeMsg.OldWidth,
+				resizeMsg.OldHeight,
+				resizeMsg.NewWidth,
+				resizeMsg.NewHeight,
+			))
+		}
 		return
 	}
 

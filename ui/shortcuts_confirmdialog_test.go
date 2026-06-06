@@ -49,6 +49,8 @@ func TestConfirmDialogDangerOperationShortcut(t *testing.T) {
 		"maintenance",
 		testConfirmDialogIntent{},
 		testConfirmDialogIntent{},
+		ConfirmDialogAPITarget("post", "/admin/loadbalancer/providers/{provider}/keys/{key}/disable"),
+		ConfirmDialogImpactTarget("high", "Traffic may fail over."),
 		ConfirmDialogTargetItem("provider", "Provider", "openai"),
 		ConfirmDialogSensitiveTarget("key", "Key", "provider-key-demo"),
 	)
@@ -67,5 +69,12 @@ func TestConfirmDialogDangerOperationShortcut(t *testing.T) {
 	}
 	if got := props["confirmText"]; got != "Disable" {
 		t.Fatalf("confirmText = %v, want Disable", got)
+	}
+	targets := props["targetItems"].([]ConfirmDialogTarget)
+	if targets[0].Key != "api" || targets[0].Value != "POST /admin/loadbalancer/providers/{provider}/keys/{key}/disable" {
+		t.Fatalf("api target = %+v", targets[0])
+	}
+	if targets[1].Key != "impact" || targets[1].Value != "high: Traffic may fail over." {
+		t.Fatalf("impact target = %+v", targets[1])
 	}
 }

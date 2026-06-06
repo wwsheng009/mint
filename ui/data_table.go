@@ -14,6 +14,10 @@ func DataTable(columns []TableColumn, rows [][]string, opts ...DataTableOption) 
 	return datatable.New(columns, rows, opts...)
 }
 
+func OperationalDataTable(columns []TableColumn, rows [][]string, selectedIndex, pageSize int, selectedField string, opts ...DataTableOption) rtui.VNode {
+	return datatable.Operational(columns, rows, selectedIndex, pageSize, selectedField, opts...)
+}
+
 func DataTableKey(key string) DataTableOption {
 	return datatable.Key(key)
 }
@@ -28,6 +32,10 @@ func DataTableRowKeys(keys []string) DataTableOption {
 
 func DataTablePageSize(pageSize int) DataTableOption {
 	return datatable.PageSize(pageSize)
+}
+
+func DataTableCurrentPage(page int) DataTableOption {
+	return datatable.CurrentPage(page)
 }
 
 func DataTableSelectedIndex(index int) DataTableOption {
@@ -46,8 +54,20 @@ func DataTableSelectedKeyField(field string) DataTableOption {
 	return datatable.SelectedKeyField(field)
 }
 
+func DataTablePageField(field string) DataTableOption {
+	return datatable.PageField(field)
+}
+
 func DataTableSearch(query string) DataTableOption {
 	return datatable.Search(query)
+}
+
+func DataTableSortBy(columnIndex int, descending bool) DataTableOption {
+	return datatable.SortBy(columnIndex, descending)
+}
+
+func DataTableSortState(columnIndex int, descending bool) DataTableOption {
+	return datatable.SortState(columnIndex, descending)
 }
 
 func DataTableEmptyText(text string) DataTableOption {
@@ -92,6 +112,10 @@ func DataTableSelectedStyle(selectedStyle style.Style) DataTableOption {
 
 func DataTableStyle(tableStyle style.Style) DataTableOption {
 	return datatable.TableStyle(tableStyle)
+}
+
+func DataTableOnChange(changeIntent intent.Intent) DataTableOption {
+	return datatable.OnChange(changeIntent)
 }
 
 func DataTableOnActivate(activateIntent intent.Intent) DataTableOption {

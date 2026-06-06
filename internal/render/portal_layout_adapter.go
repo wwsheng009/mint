@@ -420,6 +420,20 @@ func (a *PortalAwareFiberToNodeAdapter) GetZIndex() int {
 	return a.base.GetZIndex()
 }
 
+func (a *PortalAwareFiberToNodeAdapter) GetScrollViewport() layout.ScrollViewport {
+	if a.base == nil {
+		return layout.ScrollViewport{}
+	}
+	return a.base.GetScrollViewport()
+}
+
+func (a *PortalAwareFiberToNodeAdapter) SetScrollViewportMetrics(contentWidth, contentHeight, viewportWidth, viewportHeight int) {
+	if a.base == nil {
+		return
+	}
+	a.base.SetScrollViewportMetrics(contentWidth, contentHeight, viewportWidth, viewportHeight)
+}
+
 // =============================================================================
 // PortalAwareLayoutEngine - Two-phase layout engine for Portals
 // =============================================================================

@@ -1,6 +1,9 @@
 package list
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // RowItem is the structured row model for List.
 // It can be flattened into the legacy string row format for compatibility.
@@ -100,6 +103,58 @@ func normalizeItemsAndRows(items []RowItem, rows []string) ([]RowItem, []string)
 	default:
 		return nil, nil
 	}
+}
+
+func sortListItemsAndRows(items []RowItem, rows []string, enabled bool, descending bool) ([]RowItem, []string) {
+	if !enabled || len(rows) < 2 {
+		return cloneItems(items), append([]string(nil), rows...)
+	}
+	type sortableRow struct {
+		item RowItem
+		row  string
+		key  string
+	}
+	sortable := make([]sortableRow, len(rows))
+	for index, row := range rows {
+		item := RowItem{}
+		if index < len(items) {
+			item = items[index]
+		}
+		sortable[index] = sortableRow{
+			item: item,
+			row:  row,
+			key:  listSortKey(item, row),
+		}
+	}
+	sort.SliceStable(sortable, func(i, j int) bool {
+		left := sortable[i]
+		right := sortable[j]
+		if left.key == right.key {
+			if descending {
+				return left.row > right.row
+			}
+			return left.row < right.row
+		}
+		if descending {
+			return left.key > right.key
+		}
+		return left.key < right.key
+	})
+	sortedItems := make([]RowItem, len(sortable))
+	sortedRows := make([]string, len(sortable))
+	for index, row := range sortable {
+		sortedItems[index] = row.item
+		sortedRows[index] = row.row
+	}
+	return sortedItems, sortedRows
+}
+
+func listSortKey(item RowItem, row string) string {
+	key := item.Title
+	if key == "" {
+		key = row
+	}
+	return strings.ToLower(strings.TrimSpace(key))
 }
 
 func equalItems(left, right []RowItem) bool {

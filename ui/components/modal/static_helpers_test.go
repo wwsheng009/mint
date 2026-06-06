@@ -54,6 +54,34 @@ func TestConfirmHelper_DefaultFooterAndOpenState(t *testing.T) {
 	}
 }
 
+func TestOpenedContainerHelpersSetOpenState(t *testing.T) {
+	content := newtext.Text("Body")
+
+	plain, ok := OpenedOf(content).(*VNode)
+	if !ok {
+		t.Fatalf("OpenedOf type = %T, want *VNode", OpenedOf(content))
+	}
+	if !plain.IsOpen() {
+		t.Fatal("OpenedOf should set the modal open")
+	}
+
+	sized, ok := OpenedOfSize(content, 48, 12).(*VNode)
+	if !ok {
+		t.Fatalf("OpenedOfSize type = %T, want *VNode", OpenedOfSize(content, 48, 12))
+	}
+	if !sized.IsOpen() || sized.Width() != 48 || sized.Height() != 12 {
+		t.Fatalf("OpenedOfSize open/size = %v/%d/%d, want true/48/12", sized.IsOpen(), sized.Width(), sized.Height())
+	}
+
+	titled, ok := OpenedTitled("Provider Picker", content).(*VNode)
+	if !ok {
+		t.Fatalf("OpenedTitled type = %T, want *VNode", OpenedTitled("Provider Picker", content))
+	}
+	if !titled.IsOpen() || titled.Title() != "Provider Picker" || titled.BorderStyle() != "rounded" {
+		t.Fatalf("OpenedTitled open/title/border = %v/%q/%q", titled.IsOpen(), titled.Title(), titled.BorderStyle())
+	}
+}
+
 func TestStatusHelpers_DefaultTitleStyleAndFooter(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -677,6 +677,16 @@ func (inst *Instance) HandleAction(act *action.Action) bool {
 		return inst.handleClick(act)
 	case action.ActionScroll:
 		return inst.handleScroll(act)
+	case action.ActionScrollUp:
+		if !inst.open {
+			return false
+		}
+		return inst.moveHighlight(-1)
+	case action.ActionScrollDown:
+		if !inst.open {
+			return false
+		}
+		return inst.moveHighlight(1)
 	case action.ActionNavigateDown:
 		if inst.open {
 			return inst.moveHighlight(1)

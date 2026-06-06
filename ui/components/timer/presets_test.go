@@ -29,10 +29,21 @@ func TestTimerOperationalPresets(t *testing.T) {
 		t.Fatalf("RetryAfter expired/progress = %q/%v, want ready/true", retry.ExpiredText(), retry.ShowProgress())
 	}
 
+	now := time.Date(2026, 5, 25, 9, 59, 0, 0, time.UTC)
+	keyedCountdown := CountdownUntilWithKey("jobs.next", "Next run", deadline, now, 34)
+	if keyedCountdown.Key() != "jobs.next" || keyedCountdown.Label() != "Next run" || keyedCountdown.Deadline() != deadline || keyedCountdown.Now() != now || keyedCountdown.Width() != 34 || !keyedCountdown.ShowProgress() {
+		t.Fatalf("CountdownUntilWithKey = key:%q label:%q deadline:%s now:%s width:%d progress:%v", keyedCountdown.Key(), keyedCountdown.Label(), keyedCountdown.Deadline(), keyedCountdown.Now(), keyedCountdown.Width(), keyedCountdown.ShowProgress())
+	}
+
 	startedAt := time.Date(2026, 5, 25, 9, 0, 0, 0, time.UTC)
 	elapsed := OperationElapsed("\n", startedAt)
 	if elapsed.Label() != "Elapsed" || elapsed.Mode() != ModeElapsed || elapsed.StartedAt() != startedAt {
 		t.Fatalf("OperationElapsed = label:%q mode:%v started:%s", elapsed.Label(), elapsed.Mode(), elapsed.StartedAt())
+	}
+
+	keyedElapsed := OperationElapsedWithKey("reload.elapsed", "Reload Running", startedAt, now, 36)
+	if keyedElapsed.Key() != "reload.elapsed" || keyedElapsed.Label() != "Reload Running" || keyedElapsed.StartedAt() != startedAt || keyedElapsed.Now() != now || keyedElapsed.Width() != 36 {
+		t.Fatalf("OperationElapsedWithKey = key:%q label:%q started:%s now:%s width:%d", keyedElapsed.Key(), keyedElapsed.Label(), keyedElapsed.StartedAt(), keyedElapsed.Now(), keyedElapsed.Width())
 	}
 }
 

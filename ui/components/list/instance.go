@@ -55,6 +55,8 @@ type Instance struct {
 	searchFn                 func(string, string) bool
 	showSearchStats          bool
 	searchStatsStyle         style.Style
+	sortRows                 bool
+	sortDescending           bool
 	scrollOffset             int
 	scrollOffsetControlled   bool
 	selectedIndex            int
@@ -132,6 +134,8 @@ func NewInstance(props rtui.Props) *Instance {
 		searchFn:                 getSearchFn(props),
 		showSearchStats:          proputil.GetBool(props, "showSearchStats", false),
 		searchStatsStyle:         proputil.GetStyle(props, "searchStatsStyle", style.Style{}),
+		sortRows:                 proputil.GetBool(props, "sortRows", false),
+		sortDescending:           proputil.GetBool(props, "sortDescending", false),
 		scrollOffset:             proputil.GetInt(props, "scrollOffset", 0),
 		scrollOffsetControlled:   proputil.GetBool(props, "scrollOffsetControlled", false),
 		selectedIndex:            proputil.GetInt(props, "selectedIndex", -1),
@@ -147,6 +151,7 @@ func NewInstance(props rtui.Props) *Instance {
 		dirty:                    true,
 	}
 	inst.items, inst.rows = getListRowsAndItems(props, []RowItem{}, []string{})
+	inst.items, inst.rows = sortListItemsAndRows(inst.items, inst.rows, inst.sortRows, inst.sortDescending)
 
 	// Extract rowStyleFn if provided in props
 	if fn, ok := props[propRowStyleFn].(func(int, string) style.Style); ok {
@@ -209,6 +214,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldSearchFn := inst.searchFn
 	oldShowSearchStats := inst.showSearchStats
 	oldSearchStatsStyle := inst.searchStatsStyle
+	oldSortRows := inst.sortRows
+	oldSortDescending := inst.sortDescending
 	oldCheckedIndices := append([]int(nil), inst.checkedIndices...)
 	oldCheckedIndicesControlled := inst.checkedIndicesControlled
 	oldFormID := inst.formID
@@ -240,6 +247,9 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.searchFn = getSearchFnOrCurrent(props, inst.searchFn)
 	inst.showSearchStats = proputil.GetBool(props, "showSearchStats", inst.showSearchStats)
 	inst.searchStatsStyle = proputil.GetStyle(props, "searchStatsStyle", style.Style{})
+	inst.sortRows = proputil.GetBool(props, "sortRows", inst.sortRows)
+	inst.sortDescending = proputil.GetBool(props, "sortDescending", inst.sortDescending)
+	inst.items, inst.rows = sortListItemsAndRows(inst.items, inst.rows, inst.sortRows, inst.sortDescending)
 	if controlled, ok := props[propScrollOffsetControlled].(bool); ok {
 		inst.scrollOffsetControlled = controlled
 	}
@@ -373,6 +383,8 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		!sameSearchFn(oldSearchFn, inst.searchFn) ||
 		oldShowSearchStats != inst.showSearchStats ||
 		oldSearchStatsStyle != inst.searchStatsStyle ||
+		oldSortRows != inst.sortRows ||
+		oldSortDescending != inst.sortDescending ||
 		oldCheckedIndicesControlled != inst.checkedIndicesControlled ||
 		!equalInts(oldCheckedIndices, inst.checkedIndices) ||
 		oldFormID != inst.formID ||
@@ -402,6 +414,8 @@ func (inst *Instance) GetProps() rtui.Props {
 		propSearchQuery:              inst.searchQuery,
 		propShowSearchStats:          inst.showSearchStats,
 		propSearchStatsStyle:         inst.searchStatsStyle,
+		propSortRows:                 inst.sortRows,
+		propSortDescending:           inst.sortDescending,
 		propScrollOffsetControlled:   inst.scrollOffsetControlled,
 		propScrollOffset:             inst.scrollOffset,
 		propSelectedIndex:            inst.selectedIndex,

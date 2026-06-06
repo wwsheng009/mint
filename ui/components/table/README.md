@@ -21,6 +21,7 @@
 - 需要外部受控时，可显式传入 `CurrentPage(...)`、`SortBy(...)`、`SelectedIndex(...)`、`SelectedRowKey(...)`、`CheckedIndices(...)`、`ExpandedIndices(...)`。
 - 需要监听完整交互快照时，给表格设置 `ComponentID(...)` 并订阅 `table.StateChangeIntent`。
 - 字段联动可按职责拆开：`ForField(...)` 绑定当前选中 source index，`SelectedKeyForField(...)` 绑定当前选中 row key，`SelectionForField(...)` 绑定勾选集合，`PageForField(...)` 绑定页码，`ActivateKeyForField(...)` 绑定显式激活的 row key，`OnExpand(...)` 处理展开态变化。
+- 客户端排序会优先识别常见运维显示格式：RFC3339/API 时间文本、纯数字、带千分位数字、百分比、`ms/s/m/h` 时长和 `x/y` 比例会按语义排序；无法识别为同类格式时退回大小写不敏感文本比较。
 
 ## 示例
 
@@ -58,15 +59,21 @@ tableView := ui.DataTable(
     },
     ui.DataTablePageSize(10),
     ui.DataTableRowKeys(state.ProviderKeys),
+    ui.DataTableCurrentPage(state.Page),
+    ui.DataTablePageField("providerPage"),
     ui.DataTableSelectedKey(state.SelectedProviderKey),
     ui.DataTableSelectedKeyField("selectedProviderKey"),
     ui.DataTableActivateKeyField("activatedProviderKey"),
     ui.DataTableSearch(state.Search),
+    ui.DataTableSortBy(state.SortColumn, state.SortDescending),
+    ui.DataTableOnChange(providerTableChangeIntent{}),
     ui.DataTableEmptyText("No providers"),
     ui.DataTableServerPagination(state.Page, state.PageSize, state.Total),
     ui.DataTableOperationalStyle(),
 )
 ```
+
+对于服务端分页或服务端排序表，推荐给 DataTable 同时设置 `DataTableComponentID(...)`、`DataTableCurrentPage(...)`、`DataTableSortBy(...)` 和 `DataTableOnChange(...)`，然后在业务 reducer 中处理底层 `table.StateChangeIntent` 的 `CurrentPage`、`SortColumn`、`SortDescending` 字段。服务端不支持的排序列只适合当前已加载 rows 的本地扫描，不应在业务文案中暗示全量数据已排序。
 
 如需扩展内置选项，可以实现 `ui.DataTableOption` 并修改公开的 `ui.DataTableConfig`。
 

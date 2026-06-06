@@ -252,6 +252,83 @@ func TestE2EInputTextTypingBackspaceAndReadOnlyIgnore(t *testing.T) {
 	}
 }
 
+func TestE2EInputFastTypingKeepsFullText(t *testing.T) {
+	appFn, initFn, cleanupFn, fixtureStore, meta := newInputFixture()
+	defer cleanupFn()
+
+	app, err := Run(appFn, ui.WithSize(96, 20), ui.WithInit(initFn))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if err := app.AssertFocus(ByID("input-name")); err != nil {
+		t.Fatal(err)
+	}
+
+	app.ClearIntentLogs()
+	app.ClearRawInputs()
+	typed := "http://12.0"
+	if err := app.Driver().Type(typed); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Eventually(500*time.Millisecond, 20*time.Millisecond, func(app *App) error {
+		return app.AssertVisible(ByText("NameValue: " + typed))
+	}); err != nil {
+		t.Logf("raw inputs: %v", rawInputNames(app.RawInputs()))
+		t.Logf("messages: %v", messageNames(app.MessageEvents()))
+		t.Logf("actions: %v", actionSummaries(app.ActionEvents()))
+		t.Logf("intent values: %v", fieldChangeValues(app.IntentLogs(), meta.NameField))
+		t.Fatal(err)
+	}
+	if err := app.AssertIntentHandled(meta.FieldChangeIntentType); err != nil {
+		t.Fatal(err)
+	}
+
+	state := fixtureStore.Get()
+	if state.NameValue != typed {
+		t.Fatalf("name value = %q, want %q", state.NameValue, typed)
+	}
+}
+
+func rawInputNames(events []RawInputEvent) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		names = append(names, event.Name())
+	}
+	return names
+}
+
+func messageNames(events []MessageEvent) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		names = append(names, event.Name)
+	}
+	return names
+}
+
+func actionSummaries(events []ActionEvent) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		handled := "unhandled"
+		if event.Handled {
+			handled = "handled:" + event.Stage
+		}
+		names = append(names, event.Name+"("+handled+")")
+	}
+	return names
+}
+
+func fieldChangeValues(logs []runtimeintent.DispatchLog, field string) []string {
+	values := make([]string, 0, len(logs))
+	for _, logEntry := range logs {
+		if fieldIntent, ok := logEntry.Intent.(runtimeintent.FieldChangeIntent); ok && fieldIntent.Field == field {
+			values = append(values, fieldIntent.Value)
+		}
+	}
+	return values
+}
+
 func TestE2EInputNumberStepAndBlurNormalization(t *testing.T) {
 	appFn, initFn, cleanupFn, fixtureStore, meta := newInputFixture()
 	defer cleanupFn()

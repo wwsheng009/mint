@@ -15,6 +15,7 @@ import (
 const (
 	propActiveTab         = "activeTab"
 	propActiveTabID       = "activeTabID"
+	propActiveTabMarker   = "activeTabMarker"
 	propActiveTabStyle    = "activeTabStyle"
 	propChangeIntent      = "changeIntent"
 	propChangeIntentField = "changeIntentField"
@@ -127,17 +128,18 @@ type VNode struct {
 	componentID string // Phase 7: Component ID for Intent routing
 
 	// === Tab Props ===
-	tabs           []TabItem
-	position       TabPosition
-	activeTab      int
-	activeTabID    string
-	wrapTabs       bool
-	tabGap         int
-	loopNavigation bool
-	showHotkeys    bool
-	divider        string
-	tabVariant     TabVariant
-	reorderable    bool
+	tabs            []TabItem
+	position        TabPosition
+	activeTab       int
+	activeTabID     string
+	wrapTabs        bool
+	tabGap          int
+	loopNavigation  bool
+	showHotkeys     bool
+	activeTabMarker string
+	divider         string
+	tabVariant      TabVariant
+	reorderable     bool
 
 	// === Layout Props ===
 	width  int
@@ -178,6 +180,7 @@ func New() *VNode {
 		tabGap:            1,
 		loopNavigation:    false,
 		showHotkeys:       false,
+		activeTabMarker:   "",
 		divider:           " | ",
 		tabVariant:        TabVariantLine,
 		reorderable:       false,
@@ -228,6 +231,7 @@ func (v *VNode) Props() rtui.Props {
 		propTabGap:            v.tabGap,
 		propLoopNavigation:    v.loopNavigation,
 		propShowHotkeys:       v.showHotkeys,
+		propActiveTabMarker:   v.activeTabMarker,
 		propDivider:           v.divider,
 		propTabVariant:        v.tabVariant,
 		propReorderable:       v.reorderable,
@@ -274,6 +278,9 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	}
 	if val, ok := p[propShowHotkeys].(bool); ok {
 		v.showHotkeys = val
+	}
+	if val, ok := p[propActiveTabMarker].(string); ok {
+		v.activeTabMarker = val
 	}
 	if val, ok := p[propDivider].(string); ok {
 		v.divider = val
@@ -333,6 +340,7 @@ func (v *VNode) CreateInstance() rtui.ComponentInstance {
 		propTabGap:            v.tabGap,
 		propLoopNavigation:    v.loopNavigation,
 		propShowHotkeys:       v.showHotkeys,
+		propActiveTabMarker:   v.activeTabMarker,
 		propDivider:           v.divider,
 		propTabVariant:        v.tabVariant,
 		propReorderable:       v.reorderable,
@@ -364,7 +372,11 @@ func (v *VNode) SetWrapTabs(wrap bool) *VNode       { v.wrapTabs = wrap; return 
 func (v *VNode) SetTabGap(gap int) *VNode           { v.tabGap = gap; return v }
 func (v *VNode) SetLoopNavigation(loop bool) *VNode { v.loopNavigation = loop; return v }
 func (v *VNode) SetShowHotkeys(show bool) *VNode    { v.showHotkeys = show; return v }
-func (v *VNode) SetDivider(divider string) *VNode   { v.divider = divider; return v }
+func (v *VNode) SetActiveTabMarker(marker string) *VNode {
+	v.activeTabMarker = marker
+	return v
+}
+func (v *VNode) SetDivider(divider string) *VNode { v.divider = divider; return v }
 func (v *VNode) SetReorderable(reorderable bool) *VNode {
 	v.reorderable = reorderable
 	return v
@@ -413,6 +425,7 @@ func (v *VNode) WrapTabs() bool                { return v.wrapTabs }
 func (v *VNode) TabGap() int                   { return v.tabGap }
 func (v *VNode) LoopNavigation() bool          { return v.loopNavigation }
 func (v *VNode) ShowHotkeys() bool             { return v.showHotkeys }
+func (v *VNode) ActiveTabMarker() string       { return v.activeTabMarker }
 func (v *VNode) Divider() string               { return v.divider }
 func (v *VNode) Reorderable() bool             { return v.reorderable }
 func (v *VNode) TabVariant() TabVariant        { return v.tabVariant }

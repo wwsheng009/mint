@@ -1,12 +1,12 @@
 # FormDialog
 
-`formdialog` is a Fiber-first framed form dialog for bounded operational tasks:
+`formdialog` is a Fiber-first modal form dialog for bounded operational tasks:
 create/edit settings, collect an audit reason, run a scoped action, or submit a
 short configuration form without leaving the current table or page context.
 
 ## Capabilities
 
-- Framed form wrapper built from `Form + Button`.
+- Modal form wrapper built from `Modal + Form + Button`, rendered on `LayerModal`.
 - Controlled open state through `Open(...)` / `Opened()` / `Closed()`.
 - Form identity through `FormID(...)`, with normal field binding support.
 - `Target(...)` / `SensitiveTarget(...)` show a compact operation target summary before fields.

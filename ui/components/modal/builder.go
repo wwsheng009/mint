@@ -210,6 +210,21 @@ func Titled(title string, content rtui.VNode) rtui.VNode {
 	return NewBuilder().Title(title).Content(content).Rounded().Build()
 }
 
+// OpenedOf creates an opened Modal with the given content.
+func OpenedOf(content rtui.VNode) rtui.VNode {
+	return NewBuilder().Content(content).Opened().Build()
+}
+
+// OpenedOfSize creates an opened Modal with explicit dimensions.
+func OpenedOfSize(content rtui.VNode, width, height int) rtui.VNode {
+	return NewBuilder().Content(content).Size(width, height).Opened().Build()
+}
+
+// OpenedTitled creates an opened Modal with a title and content.
+func OpenedTitled(title string, content rtui.VNode) rtui.VNode {
+	return NewBuilder().Title(title).Content(content).Rounded().Opened().Build()
+}
+
 // WithHeader creates a full-featured Modal with header (title), content, and footer.
 func WithHeader(title, content, footer rtui.VNode) rtui.VNode {
 	return NewBuilder().Title("").Content(content).Footer(footer).Rounded().Build()

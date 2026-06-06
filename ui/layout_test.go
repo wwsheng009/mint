@@ -112,6 +112,83 @@ func TestLayoutWithEmptyChildren(t *testing.T) {
 	}
 }
 
+func TestSectionBreakCreatesExplicitBlankTextNode(t *testing.T) {
+	node := SectionBreak()
+	if node == nil {
+		t.Fatal("SectionBreak returned nil")
+	}
+	if node.Tag() != "text" {
+		t.Fatalf("SectionBreak tag = %q, want text", node.Tag())
+	}
+	if got := node.Props()["content"]; got != "" {
+		t.Fatalf("SectionBreak content = %v, want empty string", got)
+	}
+}
+
+func TestOptionalSection(t *testing.T) {
+	node := Text("details")
+	if got := OptionalSection(true, node); got != node {
+		t.Fatalf("OptionalSection(true) = %v, want original node", got)
+	}
+	if got := OptionalSection(false, node); got != nil {
+		t.Fatalf("OptionalSection(false) = %v, want nil", got)
+	}
+}
+
+func TestPageStackSkipsNilChildren(t *testing.T) {
+	stack := PageStack(Text("toolbar"), nil, Text("summary"))
+	if stack.Tag() != "vstack" {
+		t.Fatalf("PageStack tag = %q, want vstack", stack.Tag())
+	}
+	children := stack.Children()
+	if len(children) != 2 {
+		t.Fatalf("children len = %d, want non-nil children only", len(children))
+	}
+	if children[0].Tag() != "text" || children[1].Tag() != "text" {
+		t.Fatalf("children tags = %q/%q, want text/text", children[0].Tag(), children[1].Tag())
+	}
+}
+
+func TestPageStackWithAlert(t *testing.T) {
+	stack := PageStackWithAlert("diagnostics unavailable", 2,
+		Text("toolbar"),
+		Text("filters"),
+		Text("summary"),
+	)
+	if stack.Tag() != "vstack" {
+		t.Fatalf("PageStackWithAlert tag = %q, want vstack", stack.Tag())
+	}
+	children := stack.Children()
+	if len(children) != 4 {
+		t.Fatalf("children len = %d, want 4", len(children))
+	}
+	if children[2].Tag() != "alert" {
+		t.Fatalf("inserted child tag = %q, want alert", children[2].Tag())
+	}
+	if got := children[2].Props()["message"]; got != "diagnostics unavailable" {
+		t.Fatalf("alert message = %v, want diagnostics unavailable", got)
+	}
+}
+
+func TestPageStackWithAlertSkipsEmptyTextAndNilChildren(t *testing.T) {
+	stack := PageStackWithAlert("   ", 1, Text("toolbar"), nil, Text("summary"))
+	children := stack.Children()
+	if len(children) != 2 {
+		t.Fatalf("children len = %d, want non-nil children only", len(children))
+	}
+	if children[0].Tag() != "text" || children[1].Tag() != "text" {
+		t.Fatalf("children tags = %q/%q, want text/text", children[0].Tag(), children[1].Tag())
+	}
+}
+
+func TestPageStackWithAlertClampsInsertIndex(t *testing.T) {
+	stack := PageStackWithAlert("late note", 99, Text("toolbar"))
+	children := stack.Children()
+	if len(children) != 2 || children[1].Tag() != "alert" {
+		t.Fatalf("children = %d last tag = %q, want trailing alert", len(children), children[len(children)-1].Tag())
+	}
+}
+
 // BenchmarkVStack benchmarks VStack creation
 func BenchmarkVStack(b *testing.B) {
 	child1 := Text("Child 1")
@@ -305,4 +382,3 @@ func TestVStackWidthConstraints(t *testing.T) {
 		t.Errorf("VStack width = %d, want 20", size.Width)
 	}
 }
-

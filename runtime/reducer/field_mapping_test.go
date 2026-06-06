@@ -192,6 +192,36 @@ func TestBindFieldMap(t *testing.T) {
 	}
 }
 
+func TestUpdateStringFieldIfChangedSkipsSameValue(t *testing.T) {
+	state := TestState{Username: "john", Email: "old@example.com"}
+	calls := 0
+
+	same := UpdateStringFieldIfChanged(state, state.Username, "john", func(s TestState, val string) TestState {
+		calls++
+		s.Username = val
+		s.Email = "changed@example.com"
+		return s
+	})
+	if calls != 0 || same.Username != "john" || same.Email != "old@example.com" {
+		t.Fatalf("same value update = %+v calls=%d, want unchanged no-op", same, calls)
+	}
+
+	changed := UpdateStringFieldIfChanged(state, state.Username, "jane", func(s TestState, val string) TestState {
+		calls++
+		s.Username = val
+		s.Email = "changed@example.com"
+		return s
+	})
+	if calls != 1 || changed.Username != "jane" || changed.Email != "changed@example.com" {
+		t.Fatalf("changed value update = %+v calls=%d, want updater applied once", changed, calls)
+	}
+
+	nilUpdate := UpdateStringFieldIfChanged(state, state.Username, "jane", nil)
+	if nilUpdate != state {
+		t.Fatalf("nil updater = %+v, want unchanged state", nilUpdate)
+	}
+}
+
 func TestBindFieldMapWithEntries(t *testing.T) {
 	builder := NewBuilder[TestState]()
 	fb := BindField(builder)

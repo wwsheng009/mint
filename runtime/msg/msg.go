@@ -40,6 +40,9 @@ const (
 	// MsgTypeMouse 鼠标输入消息
 	MsgTypeMouse MsgType = "mouse"
 
+	// MsgTypePaste 粘贴输入消息，携带完整粘贴文本
+	MsgTypePaste MsgType = "paste"
+
 	// ============================================================================
 	// 系统类消息
 	// ============================================================================
@@ -74,7 +77,7 @@ const (
 // BaseMsg 提供了 Msg 接口的基础实现
 // 其他 Msg 类型可以嵌入 BaseMsg 来自动实现通用方法
 type BaseMsg struct {
-	TypeValue     MsgType
+	TypeValue      MsgType
 	TimestampValue time.Time
 }
 
@@ -109,7 +112,7 @@ func NewBaseMsg(msgType MsgType) *BaseMsg {
 // IsInputMsg 检查消息是否为输入类消息（键盘或鼠标）
 func IsInputMsg(m Msg) bool {
 	switch m.Type() {
-	case MsgTypeKey, MsgTypeMouse:
+	case MsgTypeKey, MsgTypeMouse, MsgTypePaste:
 		return true
 	default:
 		return false

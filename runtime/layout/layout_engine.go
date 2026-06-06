@@ -118,6 +118,69 @@ func (e *Engine) layoutNode(node Node, constraints Constraints, x, y int) *Layou
 	return e.layoutNodeWithDepth(node, constraints, x, y, 0, make(map[string]bool))
 }
 
+func constrainFixedSizeToViewport(width, height, viewportWidth, viewportHeight int) (int, int) {
+	if viewportWidth > 0 && width > viewportWidth {
+		width = viewportWidth
+	}
+	if viewportHeight > 0 && height > viewportHeight {
+		height = viewportHeight
+	}
+	if width < 0 {
+		width = 0
+	}
+	if height < 0 {
+		height = 0
+	}
+	return width, height
+}
+
+func fixedPositionForAnchor(anchor Anchor, width, height, viewportWidth, viewportHeight int) (int, int) {
+	x, y := 0, 0
+	switch anchor {
+	case AnchorTopLeft:
+		x, y = 0, 0
+	case AnchorTop:
+		x = (viewportWidth - width) / 2
+		y = 0
+	case AnchorTopRight:
+		x = viewportWidth - width
+		y = 0
+	case AnchorLeft:
+		x = 0
+		y = (viewportHeight - height) / 2
+	case AnchorCenter:
+		x = (viewportWidth - width) / 2
+		y = (viewportHeight - height) / 2
+	case AnchorRight:
+		x = viewportWidth - width
+		y = (viewportHeight - height) / 2
+	case AnchorBottomLeft:
+		x = 0
+		y = viewportHeight - height
+	case AnchorBottom:
+		x = (viewportWidth - width) / 2
+		y = viewportHeight - height
+	case AnchorBottomRight:
+		x = viewportWidth - width
+		y = viewportHeight - height
+	}
+	return clampToViewportStart(x, width, viewportWidth), clampToViewportStart(y, height, viewportHeight)
+}
+
+func clampToViewportStart(value, size, viewportSize int) int {
+	if viewportSize <= 0 || size >= viewportSize {
+		return 0
+	}
+	maxStart := viewportSize - size
+	if value < 0 {
+		return 0
+	}
+	if value > maxStart {
+		return maxStart
+	}
+	return value
+}
+
 // layoutNodeWithDepth 递归布局单个节点，带深度限制和循环检测
 func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y int, depth int, visited map[string]bool) *LayoutBox {
 	if node == nil {
@@ -167,6 +230,19 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		size := measurable.Measure(constraints)
 		width, height = size.Width, size.Height
 	}
+	scrollViewport, isScrollViewport := getScrollViewport(node)
+	if isScrollViewport {
+		if scrollViewport.Width > 0 {
+			width = constraints.ConstrainWidth(scrollViewport.Width)
+		} else if width <= 0 && constraints.MaxWidth > 0 && constraints.MaxWidth < MaxInt {
+			width = constraints.ConstrainWidth(constraints.MaxWidth)
+		}
+		if scrollViewport.Height > 0 {
+			height = constraints.ConstrainHeight(scrollViewport.Height)
+		} else if height <= 0 && constraints.MaxHeight > 0 && constraints.MaxHeight < MaxInt {
+			height = constraints.ConstrainHeight(constraints.MaxHeight)
+		}
+	}
 
 	// Get Layer and ZIndex from node if it implements Layered interface
 	layer := GetLayerFromNode(node)
@@ -194,39 +270,9 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		// 而不是受父布局限制后的约束
 		rootW := e.viewportConstraints.MaxWidth
 		rootH := e.viewportConstraints.MaxHeight
-
-		// 根据 Anchor 计算固定定位坐标
-		switch anchor {
-		case AnchorTopLeft:
-			x, y = 0, 0
-		case AnchorTop:
-			x = (rootW - width) / 2
-			y = 0
-		case AnchorTopRight:
-			x = rootW - width
-			y = 0
-		case AnchorLeft:
-			x = 0
-			y = (rootH - height) / 2
-		case AnchorCenter:
-			x = (rootW - width) / 2
-			y = (rootH - height) / 2
-			shouldCenter = true // ✨ 居中定位时设置标志
-		case AnchorRight:
-			x = rootW - width
-			y = (rootH - height) / 2
-		case AnchorBottomLeft:
-			x = 0
-			y = rootH - height
-		case AnchorBottom:
-			x = (rootW - width) / 2
-			y = rootH - height
-		case AnchorBottomRight:
-			x = rootW - width
-			y = rootH - height
-		default:
-			x, y = 0, 0
-		}
+		width, height = constrainFixedSizeToViewport(width, height, rootW, rootH)
+		x, y = fixedPositionForAnchor(anchor, width, height, rootW, rootH)
+		shouldCenter = anchor == AnchorCenter
 	}
 
 	// ✨ Phase 1.3: 设置全局坐标
@@ -257,6 +303,10 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 		},
 		Children: make([]*LayoutBox, 0),
 	}
+	if isScrollViewport {
+		clip := Rect{X: x, Y: y, Width: width, Height: height}
+		box.Clip = &clip
+	}
 
 	// 设置节点位置和尺寸
 	node.SetPosition(x, y)
@@ -280,261 +330,340 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 	// 检查节点是否实现了 FlexStyleProvider 接口
 	// 如果是，使用 FlexLayout 进行子节点布局
-	if flexProvider, ok := node.(FlexStyleProvider); ok {
-		flexStyle := flexProvider.GetFlexStyle()
-		// 检查是否有非 nil 的子节点
-		hasValidChildren := false
-		for _, child := range node.Children() {
-			if child != nil {
-				hasValidChildren = true
-				break
-			}
-		}
-		if flexStyle != nil && hasValidChildren {
-			// 使用 FlexLayout 进行布局
-			flex := NewFlexLayout(node.ID(), node.Children())
-			flex.SetDirection(flexStyle.Direction)
-			flex.SetMainAxis(flexStyle.MainAxis)
-			flex.SetCrossAxis(flexStyle.CrossAxis)
-			flex.SetGap(flexStyle.Gap)
-			flex.SetPadding(flexStyle.Padding.Left, flexStyle.Padding.Right, flexStyle.Padding.Top, flexStyle.Padding.Bottom)
-
-			// 设置子节点的 flex 属性
-			children := node.Children()
-			for i, child := range children {
-				if flexChild, ok := child.(FlexChildProvider); ok {
-					childFlex := flexChild.GetFlex()
-					if childFlex > 0 {
-						flex.SetFlex(i, childFlex, 0, 0)
-					}
-				}
-			}
-
-			// 计算子节点可用的内部空间（减去 padding/border）
-			// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
-			var innerWidth, innerHeight int
-			if !box.BoxModel.IsEmpty() {
-				// BoxModel 已经在前面保存过
-				innerWidth = box.BoxModel.InnerWidth(width)
-				innerHeight = box.BoxModel.InnerHeight(height)
-			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
-				boxModel := boxModelProvider.GetBoxModel()
-				box.BoxModel = boxModel // 保存 BoxModel
-				innerWidth = boxModel.InnerWidth(width)
-				innerHeight = boxModel.InnerHeight(height)
-			} else {
-				innerWidth = width - nodeBorder.HorizontalPadding()
-				innerHeight = height - nodeBorder.VerticalPadding()
-				if innerWidth < 0 {
-					innerWidth = 0
-				}
-				if innerHeight < 0 {
-					innerHeight = 0
-				}
-			}
-
-			// FlexLayout 的 padding 是内部配置，用于控制子节点布局区域
-			// 这与 BoxModel 的 padding（外部边距）不同，需要手动扣除
-			// TODO: 未来考虑将 FlexLayout 的 padding 迁移到 BoxModel 语义
-			innerWidth = max(0, innerWidth-flexStyle.Padding.Horizontal())
-			innerHeight = max(0, innerHeight-flexStyle.Padding.Vertical())
-
-			// 布局子节点
-			childBoxes := flex.LayoutChildren(innerWidth, innerHeight)
-
-			// ✨ 重新计算子节点位置以考虑主轴方向上的 margin
-			// FlexLayout 不考虑 margin，所以我们需要手动调整主轴位置
-			// 思路：childBox.Y/X 已经包含了 gap，但需要在主轴方向上额外添加前面的兄弟节点的 margin
-			isFlexRow := flexStyle.Direction == FlexRow || flexStyle.Direction == FlexRowReverse
-			mainAxisMarginOffset := 0 // 累积前面所有兄弟节点的主轴边距
-
-			for i, childBox := range childBoxes {
-				// 递归布局子节点的子节点
-				child := node.Children()[i]
+	if !isScrollViewport {
+		if flexProvider, ok := node.(FlexStyleProvider); ok {
+			flexStyle := flexProvider.GetFlexStyle()
+			// 检查是否有非 nil 的子节点
+			hasValidChildren := false
+			for _, child := range node.Children() {
 				if child != nil {
-					// 获取子节点的 margin（如果实现了 Marginal 接口）
-					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
-					if marginal, ok := child.(Marginal); ok {
-						m := marginal.GetMargin()
-						marginTop = m.Top
-						marginBottom = m.Bottom
-						marginLeft = m.Left
-						marginRight = m.Right
-					}
-
-					// 主轴方向：childBox.X/Y 是不含 margin 的位置
-					// 需要加上：前面所有兄弟节点的累积 margin + 当前节点的起始侧 margin
-					var childX, childY int
-					if isFlexRow {
-						// Row: X 是主轴，Y 是跨轴
-						childX = x + childBox.X + borderOffsetX + mainAxisMarginOffset + marginLeft
-						childY = y + childBox.Y + borderOffsetY + marginTop // ✅ 添加跨轴垂直 margin
-						// 为下一个节点累积：currentRightMargin + nextLeftMargin
-						mainAxisMarginOffset += marginLeft + marginRight
-					} else {
-						// Column: Y 是主轴，X 是跨轴
-						childY = y + childBox.Y + borderOffsetY + mainAxisMarginOffset + marginTop
-						childX = x + childBox.X + borderOffsetX + marginLeft // ✅ 添加跨轴水平 margin
-						// 为下一个节点累积：currentBottomMargin + nextTopMargin
-						mainAxisMarginOffset += marginTop + marginBottom
-					}
-
-					// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸并扣除 margin
-					// 这样嵌套布局（如 VStack 内嵌 HStack）可以使用正确的约束
-					childConstraints := Constraints{
-						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
-						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
-					}
-
-					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
-					if subBox != nil {
-						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
-						// Modal 等 Fixed 定位节点已经使用 viewportConstraints 计算了正确位置
-						// 只对非 Fixed 子节点使用 FlexLayout 计算的位置
-						childPosition := PositionRelative
-						if posProvider, ok := child.(PositionProvider); ok {
-							childPosition = posProvider.GetPositionType()
-						}
-
-						if !isOutOfFlowPosition(childPosition) {
-							// 使用 FlexLayout 计算的位置和尺寸
-							subBox.X = childX
-							subBox.Y = childY
-						}
-						// Fixed 定位节点：subBox.X 和 subBox.Y 保持不变（已在 layoutNodeWithDepth 中计算）
-
-						box.Children = append(box.Children, subBox)
-					}
+					hasValidChildren = true
+					break
 				}
 			}
-			return box
+			if flexStyle != nil && hasValidChildren {
+				// 使用 FlexLayout 进行布局
+				flex := NewFlexLayout(node.ID(), node.Children())
+				flex.SetDirection(flexStyle.Direction)
+				flex.SetMainAxis(flexStyle.MainAxis)
+				flex.SetCrossAxis(flexStyle.CrossAxis)
+				flex.SetGap(flexStyle.Gap)
+				flex.SetPadding(flexStyle.Padding.Left, flexStyle.Padding.Right, flexStyle.Padding.Top, flexStyle.Padding.Bottom)
+
+				// 设置子节点的 flex 属性
+				children := node.Children()
+				for i, child := range children {
+					if flexChild, ok := child.(FlexChildProvider); ok {
+						childFlex := flexChild.GetFlex()
+						if childFlex > 0 {
+							flex.SetFlex(i, childFlex, 0, 0)
+						}
+					}
+				}
+
+				// 计算子节点可用的内部空间（减去 padding/border）
+				// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
+				var innerWidth, innerHeight int
+				if !box.BoxModel.IsEmpty() {
+					// BoxModel 已经在前面保存过
+					innerWidth = box.BoxModel.InnerWidth(width)
+					innerHeight = box.BoxModel.InnerHeight(height)
+				} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
+					boxModel := boxModelProvider.GetBoxModel()
+					box.BoxModel = boxModel // 保存 BoxModel
+					innerWidth = boxModel.InnerWidth(width)
+					innerHeight = boxModel.InnerHeight(height)
+				} else {
+					innerWidth = width - nodeBorder.HorizontalPadding()
+					innerHeight = height - nodeBorder.VerticalPadding()
+					if innerWidth < 0 {
+						innerWidth = 0
+					}
+					if innerHeight < 0 {
+						innerHeight = 0
+					}
+				}
+
+				// FlexLayout 的 padding 是内部配置，用于控制子节点布局区域
+				// 这与 BoxModel 的 padding（外部边距）不同，需要手动扣除
+				// TODO: 未来考虑将 FlexLayout 的 padding 迁移到 BoxModel 语义
+				innerWidth = max(0, innerWidth-flexStyle.Padding.Horizontal())
+				innerHeight = max(0, innerHeight-flexStyle.Padding.Vertical())
+
+				// 布局子节点
+				childBoxes := flex.LayoutChildren(innerWidth, innerHeight)
+
+				// ✨ 重新计算子节点位置以考虑主轴方向上的 margin
+				// FlexLayout 不考虑 margin，所以我们需要手动调整主轴位置
+				// 思路：childBox.Y/X 已经包含了 gap，但需要在主轴方向上额外添加前面的兄弟节点的 margin
+				isFlexRow := flexStyle.Direction == FlexRow || flexStyle.Direction == FlexRowReverse
+				mainAxisMarginOffset := 0 // 累积前面所有兄弟节点的主轴边距
+
+				for i, childBox := range childBoxes {
+					// 递归布局子节点的子节点
+					child := node.Children()[i]
+					if child != nil {
+						// 获取子节点的 margin（如果实现了 Marginal 接口）
+						marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+						if marginal, ok := child.(Marginal); ok {
+							m := marginal.GetMargin()
+							marginTop = m.Top
+							marginBottom = m.Bottom
+							marginLeft = m.Left
+							marginRight = m.Right
+						}
+
+						// 主轴方向：childBox.X/Y 是不含 margin 的位置
+						// 需要加上：前面所有兄弟节点的累积 margin + 当前节点的起始侧 margin
+						var childX, childY int
+						if isFlexRow {
+							// Row: X 是主轴，Y 是跨轴
+							childX = x + childBox.X + borderOffsetX + mainAxisMarginOffset + marginLeft
+							childY = y + childBox.Y + borderOffsetY + marginTop // ✅ 添加跨轴垂直 margin
+							// 为下一个节点累积：currentRightMargin + nextLeftMargin
+							mainAxisMarginOffset += marginLeft + marginRight
+						} else {
+							// Column: Y 是主轴，X 是跨轴
+							childY = y + childBox.Y + borderOffsetY + mainAxisMarginOffset + marginTop
+							childX = x + childBox.X + borderOffsetX + marginLeft // ✅ 添加跨轴水平 margin
+							// 为下一个节点累积：currentBottomMargin + nextTopMargin
+							mainAxisMarginOffset += marginTop + marginBottom
+						}
+
+						// ✨ FIX: 为子节点创建正确的约束，基于 Flex 分配的尺寸并扣除 margin
+						// 这样嵌套布局（如 VStack 内嵌 HStack）可以使用正确的约束
+						childConstraints := Constraints{
+							MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+							MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
+						}
+
+						subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
+						if subBox != nil {
+							// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+							// Modal 等 Fixed 定位节点已经使用 viewportConstraints 计算了正确位置
+							// 只对非 Fixed 子节点使用 FlexLayout 计算的位置
+							childPosition := PositionRelative
+							if posProvider, ok := child.(PositionProvider); ok {
+								childPosition = posProvider.GetPositionType()
+							}
+
+							if !isOutOfFlowPosition(childPosition) {
+								// 使用 FlexLayout 计算的位置和尺寸
+								subBox.X = childX
+								subBox.Y = childY
+							}
+							// Fixed 定位节点：subBox.X 和 subBox.Y 保持不变（已在 layoutNodeWithDepth 中计算）
+
+							box.Children = append(box.Children, subBox)
+						}
+					}
+				}
+				return box
+			}
 		}
 	}
 
 	// 检查节点是否实现了 GridStyleProvider 接口
 	// 如果是，使用 GridLayout 进行子节点布局
-	if gridProvider, ok := node.(GridStyleProvider); ok {
-		gridStyle := gridProvider.GetGridStyle()
-		if gridStyle != nil && (len(gridStyle.Cells) > 0 || len(node.Children()) > 0) {
-			// 使用 GridLayout 进行布局
-			grid := NewGridLayout(node.ID(), gridStyle)
-			grid.SetChildren(node.Children())
+	if !isScrollViewport {
+		if gridProvider, ok := node.(GridStyleProvider); ok {
+			gridStyle := gridProvider.GetGridStyle()
+			if gridStyle != nil && (len(gridStyle.Cells) > 0 || len(node.Children()) > 0) {
+				// 使用 GridLayout 进行布局
+				grid := NewGridLayout(node.ID(), gridStyle)
+				grid.SetChildren(node.Children())
 
-			// 计算子节点可用的内部空间（减去 padding/border）
-			// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
-			var innerWidth, innerHeight int
-			if !box.BoxModel.IsEmpty() {
-				// BoxModel 已经在前面保存过
-				innerWidth = box.BoxModel.InnerWidth(width)
-				innerHeight = box.BoxModel.InnerHeight(height)
-			} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
-				boxModel := boxModelProvider.GetBoxModel()
-				box.BoxModel = boxModel // 保存 BoxModel
-				innerWidth = boxModel.InnerWidth(width)
-				innerHeight = boxModel.InnerHeight(height)
-			} else {
-				innerWidth = width - nodeBorder.HorizontalPadding()
-				innerHeight = height - nodeBorder.VerticalPadding()
-				if innerWidth < 0 {
-					innerWidth = 0
-				}
-				if innerHeight < 0 {
-					innerHeight = 0
-				}
-			}
-
-			// 布局子节点
-			childBoxes := grid.LayoutChildren(innerWidth, innerHeight)
-			for i, childBox := range childBoxes {
-				// 递归布局子节点的子节点
-				// 需要找到对应的 child 节点
-				var child Node
-				if len(gridStyle.Cells) > 0 && i < len(gridStyle.Cells) {
-					child = gridStyle.Cells[i].Child
-				} else if i < len(node.Children()) {
-					child = node.Children()[i]
-				}
-				if child != nil {
-					// 获取子节点的 margin（如果实现了 Marginal 接口）
-					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
-					if marginal, ok := child.(Marginal); ok {
-						m := marginal.GetMargin()
-						marginTop = m.Top
-						marginBottom = m.Bottom
-						marginLeft = m.Left
-						marginRight = m.Right
+				// 计算子节点可用的内部空间（减去 padding/border）
+				// 优先使用已保存的 box.BoxModel，否则从 BoxModelProvider 获取
+				var innerWidth, innerHeight int
+				if !box.BoxModel.IsEmpty() {
+					// BoxModel 已经在前面保存过
+					innerWidth = box.BoxModel.InnerWidth(width)
+					innerHeight = box.BoxModel.InnerHeight(height)
+				} else if boxModelProvider, ok := node.(BoxModelProvider); ok {
+					boxModel := boxModelProvider.GetBoxModel()
+					box.BoxModel = boxModel // 保存 BoxModel
+					innerWidth = boxModel.InnerWidth(width)
+					innerHeight = boxModel.InnerHeight(height)
+				} else {
+					innerWidth = width - nodeBorder.HorizontalPadding()
+					innerHeight = height - nodeBorder.VerticalPadding()
+					if innerWidth < 0 {
+						innerWidth = 0
 					}
-
-					childX := x + childBox.X + borderOffsetX + marginLeft
-					childY := y + childBox.Y + borderOffsetY + marginTop
-
-					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
-					childConstraints := Constraints{
-						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
-						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
+					if innerHeight < 0 {
+						innerHeight = 0
 					}
+				}
 
-					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
-					if subBox != nil {
-						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
-						childPosition := PositionRelative
-						if posProvider, ok := child.(PositionProvider); ok {
-							childPosition = posProvider.GetPositionType()
+				// 布局子节点
+				childBoxes := grid.LayoutChildren(innerWidth, innerHeight)
+				for i, childBox := range childBoxes {
+					// 递归布局子节点的子节点
+					// 需要找到对应的 child 节点
+					var child Node
+					if len(gridStyle.Cells) > 0 && i < len(gridStyle.Cells) {
+						child = gridStyle.Cells[i].Child
+					} else if i < len(node.Children()) {
+						child = node.Children()[i]
+					}
+					if child != nil {
+						// 获取子节点的 margin（如果实现了 Marginal 接口）
+						marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+						if marginal, ok := child.(Marginal); ok {
+							m := marginal.GetMargin()
+							marginTop = m.Top
+							marginBottom = m.Bottom
+							marginLeft = m.Left
+							marginRight = m.Right
 						}
 
-						if !isOutOfFlowPosition(childPosition) {
-							subBox.X = childX
-							subBox.Y = childY
+						childX := x + childBox.X + borderOffsetX + marginLeft
+						childY := y + childBox.Y + borderOffsetY + marginTop
+
+						// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
+						childConstraints := Constraints{
+							MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+							MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
 						}
 
-						box.Children = append(box.Children, subBox)
+						subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
+						if subBox != nil {
+							// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+							childPosition := PositionRelative
+							if posProvider, ok := child.(PositionProvider); ok {
+								childPosition = posProvider.GetPositionType()
+							}
+
+							if !isOutOfFlowPosition(childPosition) {
+								subBox.X = childX
+								subBox.Y = childY
+							}
+
+							box.Children = append(box.Children, subBox)
+						}
 					}
 				}
+				return box
 			}
-			return box
 		}
 	}
 
 	// 检查节点是否实现了 WrapStyleProvider 接口
 	// 如果是，使用 WrapLayout 进行子节点布局（换行布局）
-	if wrapProvider, ok := node.(WrapStyleProvider); ok {
-		wrapStyle := wrapProvider.GetWrapStyle()
-		if wrapStyle != nil && len(node.Children()) > 0 {
-			// 使用 WrapLayout 进行布局
-			wrap := NewWrapLayout(node.ID(), wrapStyle)
-			wrap.SetChildren(node.Children())
+	if !isScrollViewport {
+		if wrapProvider, ok := node.(WrapStyleProvider); ok {
+			wrapStyle := wrapProvider.GetWrapStyle()
+			if wrapStyle != nil && len(node.Children()) > 0 {
+				// 使用 WrapLayout 进行布局
+				wrap := NewWrapLayout(node.ID(), wrapStyle)
+				wrap.SetChildren(node.Children())
 
-			// 布局子节点
-			childBoxes := wrap.LayoutChildren(width, height)
-			for i, childBox := range childBoxes {
-				child := node.Children()[i]
-				if child != nil {
+				// 布局子节点
+				childBoxes := wrap.LayoutChildren(width, height)
+				for i, childBox := range childBoxes {
+					child := node.Children()[i]
+					if child != nil {
+						// 获取子节点的 margin（如果实现了 Marginal 接口）
+						marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+						if marginal, ok := child.(Marginal); ok {
+							m := marginal.GetMargin()
+							marginTop = m.Top
+							marginBottom = m.Bottom
+							marginLeft = m.Left
+							marginRight = m.Right
+						}
+
+						childX := x + childBox.X + borderOffsetX + marginLeft
+						childY := y + childBox.Y + borderOffsetY + marginTop
+
+						// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
+						childConstraints := Constraints{
+							MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
+							MinHeight: max(0, childBox.Height-marginTop-marginBottom),
+							MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
+						}
+
+						subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
+						if subBox != nil {
+							// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
+							childPosition := PositionRelative
+							if posProvider, ok := child.(PositionProvider); ok {
+								childPosition = posProvider.GetPositionType()
+							}
+
+							if !isOutOfFlowPosition(childPosition) {
+								subBox.X = childX
+								subBox.Y = childY
+							}
+
+							box.Children = append(box.Children, subBox)
+						}
+					}
+				}
+				return box
+			}
+		}
+	}
+
+	// 检查节点是否实现了 AbsoluteStyleProvider 接口
+	// 如果是，使用绝对定位进行子节点布局
+	if !isScrollViewport {
+		if absProvider, ok := node.(AbsoluteStyleProvider); ok {
+			absStyle := absProvider.GetAbsoluteStyle()
+			if absStyle != nil {
+				// 绝对定位容器：子元素相对于容器定位
+				// 使用 absolute 节点的尺寸作为容器尺寸
+				// 如果尺寸为 0，使用约束的最大值
+				containerWidth := width
+				containerHeight := height
+				if containerWidth <= 0 {
+					containerWidth = constraints.MaxWidth
+				}
+				if containerHeight <= 0 {
+					containerHeight = constraints.MaxHeight
+				}
+				for _, child := range node.Children() {
 					// 获取子节点的 margin（如果实现了 Marginal 接口）
-					marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
+					// 注意：绝对定位只应用 margin 的位置偏移，不影响约束
+					marginTop, marginLeft := 0, 0
 					if marginal, ok := child.(Marginal); ok {
 						m := marginal.GetMargin()
 						marginTop = m.Top
-						marginBottom = m.Bottom
 						marginLeft = m.Left
-						marginRight = m.Right
 					}
 
-					childX := x + childBox.X + borderOffsetX + marginLeft
-					childY := y + childBox.Y + borderOffsetY + marginTop
+					// 获取子元素尺寸
+					childWidth, childHeight := child.GetSize()
 
-					// ✨ FIX: 为子节点创建正确的约束，基于分配的尺寸并扣除 margin
-					childConstraints := Constraints{
-						MinWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MaxWidth:  max(0, childBox.Width-marginLeft-marginRight),
-						MinHeight: max(0, childBox.Height-marginTop-marginBottom),
-						MaxHeight: max(0, childBox.Height-marginTop-marginBottom),
+					// 如果子元素实现了 Measurable，测量其尺寸
+					// 注意：绝对定位的约束不受 margin 影响
+					if measurable, ok := child.(Measurable); ok {
+						childConstraints := Constraints{
+							MinWidth:  0,
+							MaxWidth:  containerWidth,
+							MinHeight: 0,
+							MaxHeight: containerHeight,
+						}
+						size := measurable.Measure(childConstraints)
+						childWidth = size.Width
+						childHeight = size.Height
 					}
 
-					subBox := e.layoutNodeWithDepth(child, childConstraints, childX, childY, depth+1, visited)
+					// 使用 AbsoluteStyle 计算子元素位置
+					childX, childY := absStyle.CalculatePosition(containerWidth, containerHeight, childWidth, childHeight)
+
+					// 应用 margin 偏移
+					childX += marginLeft
+					childY += marginTop
+
+					// 递归布局子节点
+					subBox := e.layoutNodeWithDepth(child, constraints, x+childX+borderOffsetX, y+childY+borderOffsetY, depth+1, visited)
 					if subBox != nil {
 						// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
 						childPosition := PositionRelative
@@ -543,91 +672,25 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 						}
 
 						if !isOutOfFlowPosition(childPosition) {
-							subBox.X = childX
-							subBox.Y = childY
+							subBox.X = x + childX + borderOffsetX
+							subBox.Y = y + childY + borderOffsetY
 						}
-
 						box.Children = append(box.Children, subBox)
 					}
 				}
+				return box
 			}
-			return box
-		}
-	}
-
-	// 检查节点是否实现了 AbsoluteStyleProvider 接口
-	// 如果是，使用绝对定位进行子节点布局
-	if absProvider, ok := node.(AbsoluteStyleProvider); ok {
-		absStyle := absProvider.GetAbsoluteStyle()
-		if absStyle != nil {
-			// 绝对定位容器：子元素相对于容器定位
-			// 使用 absolute 节点的尺寸作为容器尺寸
-			// 如果尺寸为 0，使用约束的最大值
-			containerWidth := width
-			containerHeight := height
-			if containerWidth <= 0 {
-				containerWidth = constraints.MaxWidth
-			}
-			if containerHeight <= 0 {
-				containerHeight = constraints.MaxHeight
-			}
-			for _, child := range node.Children() {
-				// 获取子节点的 margin（如果实现了 Marginal 接口）
-				// 注意：绝对定位只应用 margin 的位置偏移，不影响约束
-				marginTop, marginLeft := 0, 0
-				if marginal, ok := child.(Marginal); ok {
-					m := marginal.GetMargin()
-					marginTop = m.Top
-					marginLeft = m.Left
-				}
-
-				// 获取子元素尺寸
-				childWidth, childHeight := child.GetSize()
-
-				// 如果子元素实现了 Measurable，测量其尺寸
-				// 注意：绝对定位的约束不受 margin 影响
-				if measurable, ok := child.(Measurable); ok {
-					childConstraints := Constraints{
-						MinWidth:  0,
-						MaxWidth:  containerWidth,
-						MinHeight: 0,
-						MaxHeight: containerHeight,
-					}
-					size := measurable.Measure(childConstraints)
-					childWidth = size.Width
-					childHeight = size.Height
-				}
-
-				// 使用 AbsoluteStyle 计算子元素位置
-				childX, childY := absStyle.CalculatePosition(containerWidth, containerHeight, childWidth, childHeight)
-
-				// 应用 margin 偏移
-				childX += marginLeft
-				childY += marginTop
-
-				// 递归布局子节点
-				subBox := e.layoutNodeWithDepth(child, constraints, x+childX+borderOffsetX, y+childY+borderOffsetY, depth+1, visited)
-				if subBox != nil {
-					// 🔴 BUG FIX: Fixed 定位的子节点不能被父容器覆盖位置
-					childPosition := PositionRelative
-					if posProvider, ok := child.(PositionProvider); ok {
-						childPosition = posProvider.GetPositionType()
-					}
-
-					if !isOutOfFlowPosition(childPosition) {
-						subBox.X = x + childX + borderOffsetX
-						subBox.Y = y + childY + borderOffsetY
-					}
-					box.Children = append(box.Children, subBox)
-				}
-			}
-			return box
 		}
 	}
 
 	// 默认布局：递归布局子节点（垂直方向），考虑内容区域偏移
 	childX := x + contentOffsetX
 	childY := y + contentOffsetY
+	effectiveScrollOffset := 0
+	if isScrollViewport {
+		effectiveScrollOffset = clampNonNegative(scrollViewport.ScrollOffset)
+		childY -= effectiveScrollOffset
+	}
 	// 为子节点创建新的约束，使用节点的实际尺寸减去内容偏移
 	// 这样 absolute 子节点可以使用正确的内容区域尺寸
 	childConstraints := constraints
@@ -654,8 +717,13 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 				MinHeight: 0,
 				MaxHeight: min(constraints.MaxHeight, contentHeight),
 			}
+			if isScrollViewport {
+				childConstraints.MaxHeight = MaxInt
+			}
 		}
 	}
+	contentWidthMeasured := 0
+	contentHeightMeasured := 0
 	for _, child := range node.Children() {
 		// 获取子节点的 margin（如果实现了 Marginal 接口）
 		marginTop, marginBottom, marginLeft, marginRight := 0, 0, 0, 0
@@ -679,6 +747,17 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 
 		childBox := e.layoutNodeWithDepth(child, adjustedConstraints, actualChildX, actualChildY, depth+1, visited)
 		if childBox != nil {
+			if isScrollViewport {
+				contentRight := childBox.X + childBox.Width - (x + contentOffsetX)
+				contentBottom := childBox.Y + childBox.Height - (y + contentOffsetY - effectiveScrollOffset)
+				if contentRight > contentWidthMeasured {
+					contentWidthMeasured = contentRight
+				}
+				if contentBottom > contentHeightMeasured {
+					contentHeightMeasured = contentBottom
+				}
+				clipLayoutSubtree(childBox, *box.Clip)
+			}
 			box.Children = append(box.Children, childBox)
 			childPosition := PositionRelative
 			if posProvider, ok := child.(PositionProvider); ok {
@@ -690,8 +769,50 @@ func (e *Engine) layoutNodeWithDepth(node Node, constraints Constraints, x, y in
 			}
 		}
 	}
+	if isScrollViewport {
+		if receiver, ok := node.(ScrollViewportMetricsReceiver); ok {
+			receiver.SetScrollViewportMetrics(contentWidthMeasured, contentHeightMeasured, width, height)
+		}
+	}
 
 	return box
+}
+
+func getScrollViewport(node Node) (ScrollViewport, bool) {
+	if provider, ok := node.(ScrollViewportProvider); ok {
+		viewport := provider.GetScrollViewport()
+		if !viewport.Enabled {
+			return ScrollViewport{}, false
+		}
+		if viewport.Width < 0 {
+			viewport.Width = 0
+		}
+		if viewport.Height < 0 {
+			viewport.Height = 0
+		}
+		if viewport.ScrollOffset < 0 {
+			viewport.ScrollOffset = 0
+		}
+		return viewport, true
+	}
+	return ScrollViewport{}, false
+}
+
+func clampNonNegative(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
+func clipLayoutSubtree(box *LayoutBox, clip Rect) {
+	if box == nil {
+		return
+	}
+	box.Clip = &clip
+	for _, child := range box.Children {
+		clipLayoutSubtree(child, clip)
+	}
 }
 
 // collectBoxes 收集所有布局盒子
@@ -779,38 +900,8 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 			// 使用保存的 viewport 约束
 			rootW := e.viewportConstraints.MaxWidth
 			rootH := e.viewportConstraints.MaxHeight
-
-			// 根据 Anchor 计算固定定位坐标
-			switch anchor {
-			case AnchorTopLeft:
-				curX, curY = 0, 0
-			case AnchorTop:
-				curX = (rootW - width) / 2
-				curY = 0
-			case AnchorTopRight:
-				curX = rootW - width
-				curY = 0
-			case AnchorLeft:
-				curX = 0
-				curY = (rootH - height) / 2
-			case AnchorCenter:
-				curX = (rootW - width) / 2
-				curY = (rootH - height) / 2
-			case AnchorRight:
-				curX = rootW - width
-				curY = (rootH - height) / 2
-			case AnchorBottomLeft:
-				curX = 0
-				curY = rootH - height
-			case AnchorBottom:
-				curX = (rootW - width) / 2
-				curY = rootH - height
-			case AnchorBottomRight:
-				curX = rootW - width
-				curY = rootH - height
-			default:
-				curX, curY = 0, 0
-			}
+			width, height = constrainFixedSizeToViewport(width, height, rootW, rootH)
+			curX, curY = fixedPositionForAnchor(anchor, width, height, rootW, rootH)
 		}
 
 		// ✨ Phase 1.3: 设置全局坐标
@@ -880,39 +971,9 @@ func (e *Engine) layoutNodeIncrementalWithDepth(node Node, constraints Constrain
 		// 而不是受父布局限制后的约束
 		rootW := e.viewportConstraints.MaxWidth
 		rootH := e.viewportConstraints.MaxHeight
-
-		// 根据 Anchor 计算固定定位坐标
-		switch anchor {
-		case AnchorTopLeft:
-			x, y = 0, 0
-		case AnchorTop:
-			x = (rootW - width) / 2
-			y = 0
-		case AnchorTopRight:
-			x = rootW - width
-			y = 0
-		case AnchorLeft:
-			x = 0
-			y = (rootH - height) / 2
-		case AnchorCenter:
-			x = (rootW - width) / 2
-			y = (rootH - height) / 2
-			shouldCenter = true // ✨ 居中定位时设置标志
-		case AnchorRight:
-			x = rootW - width
-			y = (rootH - height) / 2
-		case AnchorBottomLeft:
-			x = 0
-			y = rootH - height
-		case AnchorBottom:
-			x = (rootW - width) / 2
-			y = rootH - height
-		case AnchorBottomRight:
-			x = rootW - width
-			y = rootH - height
-		default:
-			x, y = 0, 0
-		}
+		width, height = constrainFixedSizeToViewport(width, height, rootW, rootH)
+		x, y = fixedPositionForAnchor(anchor, width, height, rootW, rootH)
+		shouldCenter = anchor == AnchorCenter
 	}
 
 	// ✨ Phase 1.1: Modal 居中逻辑 (incremental path)

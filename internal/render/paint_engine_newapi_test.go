@@ -13,6 +13,7 @@ type mockCustomPaintNode struct {
 	tag   string
 	style style.Style
 	paint func(x, y int) []paint.DrawCmd
+	post  func(x, y int) []paint.DrawCmd
 }
 
 func (m *mockCustomPaintNode) ID() string               { return m.id }
@@ -26,6 +27,12 @@ func (m *mockCustomPaintNode) Paint(x, y int) []paint.DrawCmd {
 		return nil
 	}
 	return m.paint(x, y)
+}
+func (m *mockCustomPaintNode) PostPaint(x, y int) []paint.DrawCmd {
+	if m.post == nil {
+		return nil
+	}
+	return m.post(x, y)
 }
 
 func newPortalRootPaintableNode(rootID string) *FiberPaintableNode {
@@ -125,6 +132,47 @@ func TestPaintEngine_PaintPaintablePlanes_RepaintsZeroSizedTooltipLayerNode(t *t
 	got := buffer.GetContent(8, 2).Cluster
 	if got != "T" {
 		t.Fatalf("tooltip cell = %q, want %q (tooltip layer should repaint above base text)", got, "T")
+	}
+}
+
+func TestPaintEngine_PostPaintablePlanesDrawsAfterDescendants(t *testing.T) {
+	engine := NewPaintEngine()
+	buffer := paint.NewBuffer(20, 6)
+
+	rootNode := &mockCustomPaintNode{id: "root", tag: "root"}
+	viewportNode := &mockCustomPaintNode{
+		id:  "viewport",
+		tag: "pageviewport",
+		post: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{X: x + 4, Y: y + 1, Text: "#", Style: style.NewStyle().Foreground(style.Cyan)}}
+		},
+	}
+	childNode := &mockCustomPaintNode{
+		id:  "child",
+		tag: "text",
+		paint: func(x, y int) []paint.DrawCmd {
+			return []paint.DrawCmd{{X: x, Y: y, Text: "abcde", Style: style.Style{}}}
+		},
+	}
+
+	rootBox := paint.NewPaintableBoxWithBounds(rootNode, 0, 0, 20, 6)
+	viewportBox := paint.NewPaintableBoxWithBounds(viewportNode, 1, 1, 5, 2)
+	childBox := paint.NewPaintableBoxWithBounds(childNode, 1, 2, 5, 1)
+	rootBox.Children = []*paint.PaintableBox{viewportBox}
+	viewportBox.Parent = rootBox
+	viewportBox.Children = []*paint.PaintableBox{childBox}
+	childBox.Parent = viewportBox
+
+	planes := paint.NewPaintablePlanes()
+	planes.AddToLayer(paint.RenderLayerBase, rootBox)
+	planes.AddToLayer(paint.RenderLayerBase, viewportBox)
+	planes.AddToLayer(paint.RenderLayerBase, childBox)
+
+	if err := engine.PaintPaintablePlanes(planes, buffer); err != nil {
+		t.Fatalf("PaintPaintablePlanes() error = %v", err)
+	}
+	if got := buffer.GetContent(5, 2).Cluster; got != "#" {
+		t.Fatalf("post-painted cell = %q, want # over child content", got)
 	}
 }
 
@@ -326,6 +374,29 @@ func TestPaintEngine_PaintPaintablePlanes_UsesVisibleModalBoxForBackdrop(t *test
 	if outsideCell.Style.FG != style.BrightBlack {
 		t.Fatalf("outside cell FG = %q, want %q (background should be dimmed outside modal bounds)", outsideCell.Style.FG, style.BrightBlack)
 	}
+}
+
+func TestRenderingPipelineBuildPaintablePlanesInheritsModalLayer(t *testing.T) {
+	modalNode := &mockCustomPaintNode{id: "modal", tag: "modal"}
+	modalBox := paint.NewPaintableBoxWithBounds(modalNode, 4, 2, 20, 6)
+	modalBox.Layer = int(paint.RenderLayerModal)
+
+	contentNode := &mockCustomPaintNode{id: "content", tag: "button"}
+	contentBox := paint.NewPaintableBoxWithBounds(contentNode, 6, 4, 8, 1)
+	contentBox.Layer = int(paint.RenderLayerBase)
+	modalBox.AddChild(contentBox)
+
+	planes := NewRenderingPipeline().buildPaintablePlanes(modalBox)
+	modalLayer := planes.GetLayer(paint.RenderLayerModal)
+	if len(modalLayer) != 2 {
+		t.Fatalf("modal layer boxes = %d, want 2", len(modalLayer))
+	}
+	for _, box := range modalLayer {
+		if box == contentBox {
+			return
+		}
+	}
+	t.Fatalf("modal content box not promoted to modal layer")
 }
 
 func TestPaintEngine_PaintPaintableLayouts_UsesVisibleModalChildForBackdrop(t *testing.T) {

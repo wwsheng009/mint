@@ -474,6 +474,41 @@ func TestInstance_PaintAppliesSearchFilterAndFooter(t *testing.T) {
 	}
 }
 
+func TestCompareCellValuesUsesOperationalNumberFormats(t *testing.T) {
+	tests := []struct {
+		name  string
+		left  string
+		right string
+		want  int
+	}{
+		{name: "plain numbers", left: "2", right: "10", want: -1},
+		{name: "thousands separators", left: "1,200", right: "999", want: 1},
+		{name: "percent values", left: "9.5%", right: "10.0%", want: -1},
+		{name: "duration units", left: "900ms", right: "1s", want: -1},
+		{name: "duration unit scale", left: "2m", right: "90s", want: 1},
+		{name: "ratio pressure", left: "4/10", right: "3/6", want: -1},
+		{name: "zero ratio", left: "0/0", right: "1/10", want: -1},
+		{name: "rfc3339 times", left: "2026-05-29T08:30:00Z", right: "2026-05-29T09:00:00Z", want: -1},
+		{name: "rfc3339 nano times", left: "2026-05-29T08:30:00.500Z", right: "2026-05-29T08:30:00.400Z", want: 1},
+		{name: "space separated api times", left: "2026-05-29 08:30:00", right: "2026-05-29 09:00:00", want: -1},
+		{name: "offset api times", left: "2026-05-29 16:30:00+08:00", right: "2026-05-29T09:00:00Z", want: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := compareCellValues(tt.left, tt.right)
+			switch {
+			case tt.want < 0 && got >= 0:
+				t.Fatalf("compareCellValues(%q, %q) = %d, want < 0", tt.left, tt.right, got)
+			case tt.want > 0 && got <= 0:
+				t.Fatalf("compareCellValues(%q, %q) = %d, want > 0", tt.left, tt.right, got)
+			case tt.want == 0 && got != 0:
+				t.Fatalf("compareCellValues(%q, %q) = %d, want 0", tt.left, tt.right, got)
+			}
+		})
+	}
+}
+
 func TestInstance_HandleAction_ClickSortableHeaderTogglesSort(t *testing.T) {
 	cols := []TableColumn{
 		{Title: "ID", Width: 4},

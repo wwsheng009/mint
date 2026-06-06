@@ -748,6 +748,139 @@ func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight(t *testing.T) {
 	}
 }
 
+func TestInstance_HandleAction_OpenDropdownArrowKeysMoveHighlightAndScroll(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+			{Value: "c", Label: "C"},
+			{Value: "d", Label: "D"},
+		},
+		"selectedIndex":  2,
+		"maxVisibleRows": 3,
+	})
+
+	if !inst.openDropdown() {
+		t.Fatal("dropdown should open")
+	}
+	if inst.highlightedIndex != 2 || inst.scrollOffset != 0 {
+		t.Fatalf("initial highlight/scroll = %d/%d, want 2/0", inst.highlightedIndex, inst.scrollOffset)
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("down should move highlight")
+	}
+	if inst.highlightedIndex != 3 || inst.scrollOffset != 1 {
+		t.Fatalf("after down highlight/scroll = %d/%d, want 3/1", inst.highlightedIndex, inst.scrollOffset)
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionNavigateUp)) {
+		t.Fatal("up should move highlight")
+	}
+	if inst.highlightedIndex != 2 || inst.scrollOffset != 1 {
+		t.Fatalf("after up highlight/scroll = %d/%d, want 2/1", inst.highlightedIndex, inst.scrollOffset)
+	}
+}
+
+func TestInstance_HandleAction_ScrollActionsMoveOpenDropdownHighlight(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"options": []Option{
+			{Value: "a", Label: "A"},
+			{Value: "b", Label: "B"},
+			{Value: "c", Label: "C"},
+		},
+		"selectedIndex": 1,
+	})
+
+	if inst.HandleAction(action.NewAction(action.ActionScrollDown)) {
+		t.Fatal("closed dropdown should not handle scroll down")
+	}
+	inst.openDropdown()
+
+	if !inst.HandleAction(action.NewAction(action.ActionScrollDown)) {
+		t.Fatal("scroll down should move highlight")
+	}
+	if inst.highlightedIndex != 2 {
+		t.Fatalf("after scroll down highlight = %d, want 2", inst.highlightedIndex)
+	}
+	if !inst.HandleAction(action.NewAction(action.ActionScrollUp)) {
+		t.Fatal("scroll up should move highlight")
+	}
+	if inst.highlightedIndex != 1 {
+		t.Fatalf("after scroll up highlight = %d, want 1", inst.highlightedIndex)
+	}
+}
+
+func TestPopupInstance_HandleAction_NavigateDownScrollsVisibleWindow(t *testing.T) {
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"options":          []Option{{Value: "a", Label: "A"}, {Value: "b", Label: "B"}, {Value: "c", Label: "C"}, {Value: "d", Label: "D"}},
+		"selectedIndex":    -1,
+		"highlightedIndex": 2,
+		"maxVisibleRows":   3,
+		"minWidth":         20,
+	})
+
+	if popup.highlightedIndex != 2 || popup.scrollOffset != 0 {
+		t.Fatalf("initial highlight/scroll = %d/%d, want 2/0", popup.highlightedIndex, popup.scrollOffset)
+	}
+	if !popup.HandleAction(action.NewAction(action.ActionNavigateDown)) {
+		t.Fatal("popup down should be handled")
+	}
+	if popup.highlightedIndex != 3 || popup.scrollOffset != 1 {
+		t.Fatalf("highlight/scroll = %d/%d, want 3/1", popup.highlightedIndex, popup.scrollOffset)
+	}
+}
+
+func TestPopupInstance_HandleAction_MouseWheelUsesTerminalDirection(t *testing.T) {
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"options":          []Option{{Value: "a", Label: "A"}, {Value: "b", Label: "B"}, {Value: "c", Label: "C"}},
+		"selectedIndex":    -1,
+		"highlightedIndex": 1,
+		"maxVisibleRows":   3,
+		"minWidth":         20,
+	})
+
+	wheelDown := runtimemsg.NewMouseMsgWithDelta(0, 0, -1, runtimemsg.MouseActionWheel)
+	if !popup.HandleAction(action.NewActionWithPayload(action.ActionScroll, wheelDown)) {
+		t.Fatal("mouse wheel down should be handled")
+	}
+	if popup.highlightedIndex != 2 {
+		t.Fatalf("after wheel down highlight = %d, want 2", popup.highlightedIndex)
+	}
+
+	wheelUp := runtimemsg.NewMouseMsgWithDelta(0, 0, 1, runtimemsg.MouseActionWheel)
+	if !popup.HandleAction(action.NewActionWithPayload(action.ActionScroll, wheelUp)) {
+		t.Fatal("mouse wheel up should be handled")
+	}
+	if popup.highlightedIndex != 1 {
+		t.Fatalf("after wheel up highlight = %d, want 1", popup.highlightedIndex)
+	}
+}
+
+func TestPopupInstance_HandleAction_ScrollUpDownActionsMoveHighlight(t *testing.T) {
+	popup := newPopupInstance(rtui.Props{
+		"selectID":         "country-select",
+		"options":          []Option{{Value: "a", Label: "A"}, {Value: "b", Label: "B"}, {Value: "c", Label: "C"}},
+		"selectedIndex":    -1,
+		"highlightedIndex": 1,
+		"maxVisibleRows":   3,
+		"minWidth":         20,
+	})
+
+	if !popup.HandleAction(action.NewAction(action.ActionScrollDown)) {
+		t.Fatal("scroll down should be handled")
+	}
+	if popup.highlightedIndex != 2 {
+		t.Fatalf("after scroll down highlight = %d, want 2", popup.highlightedIndex)
+	}
+	if !popup.HandleAction(action.NewAction(action.ActionScrollUp)) {
+		t.Fatal("scroll up should be handled")
+	}
+	if popup.highlightedIndex != 1 {
+		t.Fatalf("after scroll up highlight = %d, want 1", popup.highlightedIndex)
+	}
+}
+
 func TestPopupInstance_HandleAction_NavigateDownUpdatesHighlight_EmptyComponentID(t *testing.T) {
 	state := overlayControllerState{
 		selectedIndex:    -1,
@@ -858,6 +991,42 @@ func TestMiddleware_CancelClosesOpenOverlaySelect(t *testing.T) {
 	}
 	if open {
 		t.Fatal("overlay select should be closed after cancel")
+	}
+}
+
+func TestMiddleware_OpenPopupConsumesCursorDown(t *testing.T) {
+	state := overlayControllerState{open: true, highlightedIndex: 0}
+	callbacks := &overlayCallbacks{
+		setOpen: func(next bool) overlayControllerState {
+			state.open = next
+			return state
+		},
+		setHighlight: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+		commit: func(index int) overlayControllerState {
+			state.highlightedIndex = index
+			return state
+		},
+	}
+	popup := newPopupInstance(rtui.Props{
+		"selectID":           "country-select",
+		"componentID":        "country-select",
+		"options":            []Option{{Value: "us", Label: "United States"}, {Value: "cn", Label: "China"}},
+		"highlightedIndex":   0,
+		overlayCallbacksProp: callbacks,
+	})
+	popup.OnMount()
+	defer popup.OnUnmount()
+
+	middleware := NewMiddleware()
+
+	if result := middleware.Before(action.NewAction(action.ActionCursorDown)); result != nil {
+		t.Fatal("cursor down should be intercepted while an overlay select is open")
+	}
+	if state.highlightedIndex != 1 {
+		t.Fatalf("highlightedIndex = %d, want 1", state.highlightedIndex)
 	}
 }
 

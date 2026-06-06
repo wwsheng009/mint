@@ -39,3 +39,35 @@ func TestTransferShortcut(t *testing.T) {
 		t.Fatalf("Tag = %q, want transfer", vnode.Tag())
 	}
 }
+
+func TestTransferOperationalShortcuts(t *testing.T) {
+	item := NewTransferItemWithDescription("a", "Alpha", "Primary\ncandidate")
+	if item.Description != "Primary candidate" {
+		t.Fatalf("Description = %q, want normalized description", item.Description)
+	}
+	disabled := NewDisabledTransferItem("b", "Beta", "Unavailable")
+	if !disabled.Disabled || disabled.Description != "Unavailable" {
+		t.Fatalf("disabled item = %+v, want disabled transfer item", disabled)
+	}
+
+	vnode := TransferOperationalAssignment("ops.transfer", []TransferItem{item, disabled}, []string{"a"})
+	if vnode == nil {
+		t.Fatal("TransferOperationalAssignment() returned nil")
+	}
+	if vnode.Tag() != "transfer" {
+		t.Fatalf("Tag = %q, want transfer", vnode.Tag())
+	}
+	props := vnode.Props()
+	if got, _ := props["componentID"].(string); got != "ops.transfer" {
+		t.Fatalf("componentID = %q, want ops.transfer", got)
+	}
+	if searchable, _ := props["searchable"].(bool); !searchable {
+		t.Fatal("searchable = false, want true")
+	}
+	if bulkOperations, _ := props["bulkOperations"].(bool); !bulkOperations {
+		t.Fatal("bulkOperations = false, want true")
+	}
+	if pageSize, _ := props["pageSize"].(int); pageSize != 20 {
+		t.Fatalf("pageSize = %d, want 20", pageSize)
+	}
+}

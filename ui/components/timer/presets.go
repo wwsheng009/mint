@@ -36,6 +36,21 @@ func RetryAfter(label string, deadline time.Time) *VNode {
 		BuildTyped()
 }
 
+// CountdownUntilWithKey creates a keyed, fixed-width countdown timer ending at a deadline.
+func CountdownUntilWithKey(key, label string, deadline, now time.Time, width int) *VNode {
+	node := RetryAfter(label, deadline)
+	if key != "" {
+		node.SetKey(key)
+	}
+	if !now.IsZero() {
+		node.SetNow(now)
+	}
+	if width > 0 {
+		node.SetWidth(width)
+	}
+	return node
+}
+
 // OperationElapsed creates an elapsed timer for a running operation.
 func OperationElapsed(label string, startedAt time.Time) *VNode {
 	label = timerPresetLabel(label, "Elapsed")
@@ -44,6 +59,21 @@ func OperationElapsed(label string, startedAt time.Time) *VNode {
 		Elapsed().
 		StartedAt(startedAt).
 		BuildTyped()
+}
+
+// OperationElapsedWithKey creates a keyed, fixed-width elapsed timer for a running operation.
+func OperationElapsedWithKey(key, label string, startedAt, now time.Time, width int) *VNode {
+	node := OperationElapsed(label, startedAt)
+	if key != "" {
+		node.SetKey(key)
+	}
+	if !now.IsZero() {
+		node.SetNow(now)
+	}
+	if width > 0 {
+		node.SetWidth(width)
+	}
+	return node
 }
 
 func timerPresetLabel(label, fallback string) string {

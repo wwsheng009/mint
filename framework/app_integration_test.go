@@ -454,6 +454,31 @@ func TestApp_ProcessMsg_LeftArrowMovesInputCursor_WithWrapperTag(t *testing.T) {
 	}
 }
 
+func TestApp_ProcessMsg_PasteMsgDispatchesToFocusedInput(t *testing.T) {
+	app := NewApp()
+
+	inst := input.NewInstance(rtui.Props{
+		"width": 4,
+	})
+	fiber := &rtui.Fiber{
+		Tag:      "input",
+		NodeID:   1,
+		Instance: inst,
+	}
+
+	app.focusManager.UpdateFocusableList([]*rtui.Fiber{fiber})
+	if ok := app.focusManager.SetFocusByIndex(0); !ok {
+		t.Fatal("SetFocusByIndex(0) should succeed")
+	}
+
+	pasted := "https://example.test/login"
+	app.processMsg(runtimemsg.NewPasteMsg(pasted))
+
+	if got := inst.GetValue(); got != pasted {
+		t.Fatalf("input value = %q, want pasted URL", got)
+	}
+}
+
 func TestApp_ProcessMsg_UpDownMoveTextareaCursor_WithWrapperTag(t *testing.T) {
 	app := NewApp()
 
@@ -740,6 +765,250 @@ func TestApp_SelectPopupTakesFocusAfterOpenRender(t *testing.T) {
 	}
 	if open, _ := selectInst.GetProp("open"); open != true {
 		t.Fatalf("select open after popup takes focus = %#v, want true", open)
+	}
+}
+
+func TestApp_ProcessMsg_SelectPopupFocusedArrowNavigation(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				FilterOption(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyEnter, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	focused := app.GetFocusManager().GetCurrent()
+	if focused == nil || focused.Tag != "select-popup" {
+		t.Fatalf("focused fiber after popup open = %#v, want select-popup", focused)
+	}
+	props := focused.Instance.GetProps()
+	if got := props["highlightedIndex"]; got != 0 {
+		t.Fatalf("initial popup highlightedIndex = %#v, want 0", got)
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	focused = app.GetFocusManager().GetCurrent()
+	if focused == nil || focused.Tag != "select-popup" {
+		t.Fatalf("focused fiber after down = %#v, want select-popup", focused)
+	}
+	props = focused.Instance.GetProps()
+	if got := props["highlightedIndex"]; got != 1 {
+		t.Fatalf("popup highlightedIndex after down = %#v, want 1", got)
+	}
+}
+
+func TestApp_ProcessMsg_SelectMouseOpenRenderThenArrowNavigation(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	app.actionRouter.SetMiddleware(action.NewMiddlewareChain())
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			rtui.NewElement("text").SetProps(rtui.Props{"content": "prefix"}),
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				FilterOption(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	detail := selectTriggerHitDetail(t, app, 1, 0)
+	mousePress := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mousePress.TargetFiber = detail.Entry.TargetFiber
+	mousePress.LocalX = detail.LocalX
+	mousePress.LocalY = detail.LocalY
+	app.processMsg(mousePress)
+	mouseRelease := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouseRelease.TargetFiber = detail.Entry.TargetFiber
+	mouseRelease.LocalX = detail.LocalX
+	mouseRelease.LocalY = detail.LocalY
+	app.processMsg(mouseRelease)
+	app.dirty = true
+	app.render()
+
+	focused := app.GetFocusManager().GetCurrent()
+	if focused == nil || focused.Tag != "select-popup" {
+		t.Fatalf("focused fiber after mouse open = %#v, want select-popup", focused)
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	focused = app.GetFocusManager().GetCurrent()
+	if focused == nil || focused.Tag != "select-popup" {
+		t.Fatalf("focused fiber after mouse-open down = %#v, want select-popup", focused)
+	}
+	props := focused.Instance.GetProps()
+	if got := props["highlightedIndex"]; got != 1 {
+		t.Fatalf("popup highlightedIndex after mouse-open down = %#v, want 1", got)
+	}
+}
+
+func TestApp_ProcessMsg_OpenSelectConsumesCursorDownFromFocusedTextarea(t *testing.T) {
+	app := NewApp()
+	app.Resize(80, 24)
+	selectcomp.Install(app)
+	globalDownCount := 0
+	app.OnKeyCombo("down", func() {
+		globalDownCount++
+	})
+
+	decl := irender.NewDeclarativeNodeFromFuncWithFiber(func() rtui.VNode {
+		return rtui.VStack(
+			textarea.NewBuilder().SetID("notes-input").Value("abc\ndef").Rows(2).Build(),
+			rtui.NewElement("box").SetProps(rtui.Props{
+				"portalRootId": rtui.DefaultOverlayPortalRootID,
+				"position":     "absolute",
+				"left":         0,
+				"top":          0,
+				"width":        1,
+				"height":       1,
+			}),
+			selectcomp.NewBuilder().
+				SetID("country-select").
+				OverlayPopup(true).
+				FilterOption(true).
+				Options([]selectcomp.Option{
+					{Value: "us", Label: "United States"},
+					{Value: "cn", Label: "China"},
+					{Value: "jp", Label: "Japan"},
+				}).
+				Selected(0).
+				Build(),
+		)
+	})
+	decl.SetApp(app)
+	if fm := decl.GetFocusManager(); fm != nil {
+		app.SetFocusManagerFromDeclarativeNode(fm)
+	}
+	app.SetRoot(decl)
+
+	app.dirty = true
+	app.render()
+	app.dirty = true
+	app.render()
+
+	detail := selectTriggerHitDetail(t, app, 1, 0)
+	mousePress := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionPress)
+	mousePress.TargetFiber = detail.Entry.TargetFiber
+	mousePress.LocalX = detail.LocalX
+	mousePress.LocalY = detail.LocalY
+	app.processMsg(mousePress)
+	mouseRelease := runtimemsg.NewMouseMsg(detail.ScreenX, detail.ScreenY, runtimemsg.MouseLeft, runtimemsg.MouseActionRelease)
+	mouseRelease.TargetFiber = detail.Entry.TargetFiber
+	mouseRelease.LocalX = detail.LocalX
+	mouseRelease.LocalY = detail.LocalY
+	app.processMsg(mouseRelease)
+	app.dirty = true
+	app.render()
+
+	var textareaFiber *rtui.Fiber
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if _, ok := fiber.Instance.(*textarea.Instance); ok {
+			textareaFiber = fiber
+			return false
+		}
+		return true
+	})
+	if textareaFiber == nil {
+		t.Fatal("expected textarea fiber")
+	}
+	if !app.GetFocusManager().SetFocusByID(fmt.Sprintf("%d", textareaFiber.NodeID)) {
+		t.Fatal("expected focus to move to textarea")
+	}
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, runtimeplatform.KeyDown, runtimemsg.Modifiers{}))
+	app.dirty = true
+	app.render()
+
+	var popupFiber *rtui.Fiber
+	rtui.WalkFiberDepthFirst(app.getFiberRoot(), func(fiber *rtui.Fiber) bool {
+		if fiber == nil || fiber.Instance == nil {
+			return true
+		}
+		if fiber.Tag == "select-popup" {
+			popupFiber = fiber
+			return false
+		}
+		return true
+	})
+	if popupFiber == nil {
+		t.Fatal("expected select popup fiber")
+	}
+	props := popupFiber.Instance.GetProps()
+	if got := props["highlightedIndex"]; got != 1 {
+		t.Fatalf("popup highlightedIndex after focused-textarea down = %#v, want 1", got)
+	}
+	if globalDownCount != 0 {
+		t.Fatalf("global down shortcut count = %d, want 0 while select popup is open", globalDownCount)
 	}
 }
 

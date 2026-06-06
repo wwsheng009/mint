@@ -151,6 +151,24 @@ func (b *Builder) ShowSearchStats(show bool) *Builder {
 	return b
 }
 
+// SortAscending sorts rows by their display text in ascending order.
+func (b *Builder) SortAscending() *Builder {
+	b.vnode.SetSortRows(false)
+	return b
+}
+
+// SortDescending sorts rows by their display text in descending order.
+func (b *Builder) SortDescending() *Builder {
+	b.vnode.SetSortRows(true)
+	return b
+}
+
+// SortRows controls whether rows are sorted by display text.
+func (b *Builder) SortRows(enabled bool, descending bool) *Builder {
+	b.vnode.SetSortRowsEnabled(enabled, descending)
+	return b
+}
+
 // SearchStatsStyle sets the style for the search stats row.
 func (b *Builder) SearchStatsStyle(s style.Style) *Builder {
 	b.vnode.SetSearchStatsStyle(s)

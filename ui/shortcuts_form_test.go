@@ -60,6 +60,7 @@ func TestFormInputItemShortcuts(t *testing.T) {
 		"http://127.0.0.1:8080",
 		FormInputPlaceholder("http://127.0.0.1:8080"),
 		FormInputWidth(48),
+		FormInputLabelWidth(14),
 		FormInputForForm("loginForm"),
 		FormInputLayout(FormInline),
 		FormInputValidators(Required(), MinLength(8), MaxLength(128)),
@@ -78,6 +79,9 @@ func TestFormInputItemShortcuts(t *testing.T) {
 	}
 	if got := props["itemLayout"]; got != FormInline {
 		t.Fatalf("itemLayout = %v, want %v", got, FormInline)
+	}
+	if got := props["itemLabelWidth"]; got != 14 {
+		t.Fatalf("itemLabelWidth = %v, want 14", got)
 	}
 	if got := props["help"]; got != "Use the Admin API base URL." {
 		t.Fatalf("help = %v, want helper text", got)
@@ -110,6 +114,15 @@ func TestFormInputItemShortcuts(t *testing.T) {
 		t.Fatalf("child formID = %v, want loginForm", got)
 	}
 
+	horizontal := FormInputItem("captcha", "Captcha", "", FormInputHorizontal(18))
+	horizontalProps := horizontal.Props()
+	if got := horizontalProps["itemLayout"]; got != FormHorizontal {
+		t.Fatalf("horizontal itemLayout = %v, want %v", got, FormHorizontal)
+	}
+	if got := horizontalProps["itemLabelWidth"]; got != 18 {
+		t.Fatalf("horizontal itemLabelWidth = %v, want 18", got)
+	}
+
 	formNode := NewForm("loginForm").
 		Layout(FormHorizontal).
 		AddChild(item)
@@ -136,6 +149,28 @@ func TestFormInputItemShortcuts(t *testing.T) {
 	searchChild := search.Props()["child"].(*input.VNode)
 	if got := searchChild.Props()["searchVariant"]; got != true {
 		t.Fatalf("searchVariant = %v, want true", got)
+	}
+
+	reason := FormOperationReasonItem("actionReason", "maintenance", FormInputWidth(72))
+	if reason == nil {
+		t.Fatal("FormOperationReasonItem() returned nil")
+	}
+	reasonProps := reason.Props()
+	if got := reasonProps["itemLabel"]; got != "Reason" {
+		t.Fatalf("operation reason label = %v, want Reason", got)
+	}
+	if got := reasonProps["required"]; got != true {
+		t.Fatalf("operation reason required = %v, want true", got)
+	}
+	if got := reasonProps["help"]; got != "Required before preparing any operation; shown in the confirmation dialog and sent where the API supports it." {
+		t.Fatalf("operation reason help = %v, want standard helper", got)
+	}
+	reasonChild := reasonProps["child"].(*input.VNode)
+	if got := reasonChild.Props()["placeholder"]; got != "maintenance window, incident response, provider recovery" {
+		t.Fatalf("operation reason placeholder = %v, want standard placeholder", got)
+	}
+	if got := reasonChild.Props()["width"]; got != 72 {
+		t.Fatalf("operation reason width = %v, want override width 72", got)
 	}
 }
 

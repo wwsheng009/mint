@@ -75,6 +75,29 @@ func ASCIIBarChart(labels []string, values []float64) rtui.VNode {
 		Build()
 }
 
+// HorizontalASCIIBarChart creates a keyed horizontal ASCII bar chart with value labels.
+func HorizontalASCIIBarChart(key string, labels []string, values []float64, width, height int) rtui.VNode {
+	builder := barchart.NewBuilder(values).
+		Key(key).
+		Labels(labels).
+		ASCII().
+		Horizontal().
+		ShowValue(true)
+	if width > 0 {
+		builder.Width(width)
+	}
+	if height > 0 {
+		builder.Height(height)
+	}
+	return builder.Build()
+}
+
+// HorizontalASCIIBarChartPanel creates a titled table-style panel containing a
+// keyed horizontal ASCII bar chart with value labels.
+func HorizontalASCIIBarChartPanel(title, key string, labels []string, values []float64, panelWidth, chartWidth, chartHeight int) rtui.VNode {
+	return TablePanel(title, HorizontalASCIIBarChart(key, labels, values, chartWidth, chartHeight), panelWidth)
+}
+
 func LineChart(data []float64) rtui.VNode {
 	return linechart.NewBuilder(data).Build()
 }

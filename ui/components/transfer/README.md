@@ -10,9 +10,11 @@
 - 当前过滤结果的批量迁移按钮
 - `targetKeys` 受控 / 非受控模式
 - 禁用项过滤
+- 带描述/禁用态的运维 item 预设
 - 自定义标题与操作文案
 - `Field` / `Form` 绑定
 - 组件级 `ChangeIntent`
+- 运维分配预设：默认开启搜索、分页、当前可见项批量移动，适合权限、scope、provider/key 和通知对象选择
 
 ## 示例
 
@@ -34,6 +36,26 @@ ui.NewTransferBuilder().
     InitialTargetKeys([]string{"b"}).
     Build()
 ```
+
+运维分配预设：
+
+```go
+transfer.OperationalAssignment("provider-scope", []transfer.Item{
+    transfer.NewItemWithDescription("group-default", "default", "Primary traffic group"),
+    transfer.DisabledItem("group-archive", "archive", "Read-only archived group"),
+}, []string{"group-default"}).
+    Titles("Available groups", "Selected groups").
+    Build()
+```
+
+通过 `ui.TransferOperationalAssignment(...)` 可以直接从顶层 SDK 使用同一预设。默认行为：
+
+- 源/目标标题：`Available` / `Selected`
+- 操作文案：`Add` / `Remove`
+- 批量文案：`Add visible` / `Remove visible`
+- 搜索占位：`Search available` / `Search selected`
+- 每页数量：`20`
+- 列宽/高度：`28` / `8`
 
 绑定到字段时，当前目标列表 key 会通过 `FieldChangeIntent` 一起发出。
 

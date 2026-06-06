@@ -22,6 +22,111 @@ modal.NewBuilder().
     Build()
 ```
 
+The root `ui` package also exposes `ui.ModalOf(...)`, `ui.ModalOfSize(...)`,
+`ui.ModalTitled(...)`, explicit opened helpers `ui.ModalOpenedOf(...)`,
+`ui.ModalOpenedOfSize(...)`, `ui.ModalOpenedTitled(...)`, and static helpers
+such as `ui.ModalConfirm(...)`.
+
+`ModalOf(...)` / `ModalTitled(...)` build a declarative modal node and keep the
+default `Open(false)` state. For an immediate popup, use `Opened()` on the
+builder or the opened shortcuts above. For business dialogs that need title,
+footer actions, close policies, or explicit size, prefer `ui.NewModalBuilder()`
+or `modal.NewBuilder()`.
+
+```go
+ui.ModalOpenedTitled(
+    "Provider Picker",
+    ui.List().
+        Rows([]string{"anthropic", "openai", "vertex"}).
+        SortAscending().
+        MaxRows(6).
+        ShowBorder(true).
+        Build(),
+)
+```
+
+## Operational content patterns
+
+Modal is only the container. The content can be a form, list, table, or any
+other `VNode`; choose the content component by operation intent:
+
+- Use `FormDialog` for short bounded forms such as an audit reason or one
+  operation parameter. It opens by default and provides title, body, targets,
+  submit/cancel footer, and close policies.
+- Use `ModalOpenedTitled(...)` with `List` for short single-column pickers such
+  as provider/action/scope selection. `List.SortAscending()`,
+  `List.SortDescending()`, or `List.SortRows(enabled, descending)` sort by
+  row text or `RowItem.Title`.
+- Use `ModalOpenedTitled(...)` with `DataTable` for multi-column comparison,
+  stable row keys, pagination, activation, or column sorting.
+- Use `Drawer` instead of `Modal` for longer create/edit workflows where the
+  operator should keep the underlying list context visible.
+
+Short form:
+
+```go
+ui.FormDialogDangerReasonAction(
+    "runtime.reload.reason",
+    "Reload Runtime",
+    "Reload runtime configuration after checking the target endpoint.",
+    "reload-runtime",
+    "reloadReason",
+    state.ReloadReason,
+    "Prepare Reload",
+    prepareReloadIntent{},
+    closeDialogIntent{},
+)
+```
+
+Sorted list popup:
+
+```go
+providers := ui.List().
+    Header("Providers").
+    Items([]ui.ListItem{
+        ui.NewListItem("openai").WithPrefix("[ok]").WithDescription("healthy"),
+        ui.NewListItemWithDescription("anthropic", "degraded").WithPrefix("[warn]"),
+    }).
+    SortAscending().
+    MaxRows(8).
+    ShowBorder(true).
+    Build()
+
+popup := ui.ModalOpenedTitled("Select Provider", providers)
+```
+
+Sortable table popup:
+
+```go
+tableView := ui.DataTable(
+    []ui.TableColumn{
+        {Title: "provider", Width: 18, Sortable: true},
+        {Title: "status", Width: 12, Sortable: true},
+        {Title: "available", Width: 10, Sortable: true},
+    },
+    [][]string{
+        {"openai", "healthy", "12/12"},
+        {"anthropic", "degraded", "7/10"},
+    },
+    ui.DataTableComponentID("provider.picker.table"),
+    ui.DataTableRowKeys([]string{"provider:openai", "provider:anthropic"}),
+    ui.DataTableSelectedKey(state.SelectedProviderKey),
+    ui.DataTableSelectedKeyField("selectedProviderKey"),
+    ui.DataTableActivateKeyField("activatedProviderKey"),
+    ui.DataTableSortBy(state.ProviderSortColumn, state.ProviderSortDescending),
+    ui.DataTableOnChange(providerPickerTableChangeIntent{}),
+    ui.DataTableOperationalStyle(),
+)
+
+popup := ui.ModalOpenedTitled("Compare Providers", tableView)
+```
+
+For service-side pagination or service-side sorting, keep the modal table
+controlled with `DataTableComponentID(...)`, `DataTableCurrentPage(...)`,
+`DataTableSortBy(...)`, and `DataTableOnChange(...)`; only translate sort state
+to API query parameters when the backend contract explicitly supports those
+fields.
+
 ## Static helpers
 
 `Confirm / Info / Success / Warning / Error / Alert` 现在除了默认标题和 footer 之外，还支持静态模板选项：

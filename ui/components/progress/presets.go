@@ -53,6 +53,18 @@ func ForStateWithValue(label string, value, max int, state, unit string) *VNode 
 		SetUnit(unit)
 }
 
+// OperationalValue creates a keyed, fixed-width operational progress bar with value labels.
+func OperationalValue(key, label string, value, max int, state, unit string, width int) *VNode {
+	node := ForStateWithValue(label, value, max, state, unit)
+	if key != "" {
+		node.SetKey(key)
+	}
+	if width > 0 {
+		node.SetWidth(width)
+	}
+	return node
+}
+
 // Usage creates a progress bar for resource usage with default 80/95 thresholds.
 func Usage(label string, used, total int) *VNode {
 	return UsageWithThresholds(label, used, total, defaultUsageWarnAt, defaultUsageCriticalAt)
@@ -118,6 +130,18 @@ func usageWithThresholds(label string, used, total, warnAt, criticalAt int) *VNo
 // Busy creates an indeterminate progress bar for work without a known total.
 func Busy(label string) *VNode {
 	return NewBuilder().Label(label).Indeterminate().BuildTyped()
+}
+
+// BusyWithKey creates a keyed, fixed-width indeterminate progress bar.
+func BusyWithKey(key, label string, width int) *VNode {
+	node := Busy(label)
+	if key != "" {
+		node.SetKey(key)
+	}
+	if width > 0 {
+		node.SetWidth(width)
+	}
+	return node
 }
 
 // Complete creates a complete success progress bar.

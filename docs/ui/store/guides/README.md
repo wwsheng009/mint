@@ -171,6 +171,7 @@ func App() ui.VNode {
 | `BindStringField(name, Handler)` | 绑定字符串字段 |
 | `BindIntField(name, Handler)` | 绑定整型字段（自动转换）|
 | `BindBoolField(name, Handler)` | 绑定布尔字段（自动转换）|
+| `UpdateStringFieldIfChanged(state, current, next, update)` | 字符串字段未变化时 no-op，变化时执行更新逻辑，适合筛选 scope 变更后重置分页或 selection |
 
 **详细文档**: [FIELD_BINDING_OPTIMIZATION.md](../optimization/FIELD_BINDING_OPTIMIZATION.md)
 

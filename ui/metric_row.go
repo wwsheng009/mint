@@ -15,6 +15,34 @@ func MetricRow(items []MetricItem, opts ...MetricRowOption) rtui.VNode {
 	return metricrow.New(items, opts...)
 }
 
+func OperationalMetricRow(items []MetricItem) rtui.VNode {
+	return metricrow.Operational(items)
+}
+
+func MetricRowValue(title string, value interface{}) MetricItem {
+	return metricrow.Value(title, value)
+}
+
+func MetricRowFallbackValue(title string, value interface{}, fallback string) MetricItem {
+	return metricrow.FallbackValue(title, value, fallback)
+}
+
+func MetricRowCompactValue(title string, value interface{}, maxWidth int) MetricItem {
+	return metricrow.CompactValue(title, value, maxWidth)
+}
+
+func MetricRowCompactFallbackValue(title string, value interface{}, fallback string, maxWidth int) MetricItem {
+	return metricrow.CompactFallbackValue(title, value, fallback, maxWidth)
+}
+
+func MetricRowItemWithWidth(item MetricItem, width int) MetricItem {
+	return item.WithWidth(width)
+}
+
+func MetricRowCount(title string, count int) MetricItem {
+	return metricrow.Count(title, count)
+}
+
 func MetricRowItemWidth(width int) MetricRowOption {
 	return metricrow.ItemWidth(width)
 }

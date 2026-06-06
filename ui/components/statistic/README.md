@@ -46,3 +46,5 @@ summary := ui.MetricRow(
 - `MetricRowValueStyle(style)`
 - `MetricRowPanelStyle(style)`
 - `MetricRowFormatter(func(interface{}) string)`
+
+单个 metric 需要展示较长 scope、筛选或目标摘要时，可对该 item 使用 `WithWidth(width)`，或通过根包 `ui.MetricRowItemWithWidth(item, width)` 覆盖默认宽度；其它短计数项仍保持 `MetricRowItemWidth(...)` 的默认宽度。

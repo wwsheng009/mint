@@ -30,6 +30,11 @@ func ProgressForStateWithValue(label string, value, max int, state, unit string)
 	return progress.ForStateWithValue(label, value, max, state, unit)
 }
 
+// ProgressOperationalValue creates a keyed, fixed-width operational progress bar with value labels.
+func ProgressOperationalValue(key, label string, value, max int, state, unit string, width int) rtui.VNode {
+	return progress.OperationalValue(key, label, value, max, state, unit, width)
+}
+
 // ProgressUsage creates a resource usage progress bar with default 80/95 thresholds.
 func ProgressUsage(label string, used, total int) rtui.VNode {
 	return progress.Usage(label, used, total)
@@ -53,6 +58,11 @@ func ProgressUsageWithValueThresholds(label string, used, total int, unit string
 // ProgressBusy creates an indeterminate progress bar for work without a known total.
 func ProgressBusy(label string) rtui.VNode {
 	return progress.Busy(label)
+}
+
+// ProgressBusyWithKey creates a keyed, fixed-width indeterminate progress bar.
+func ProgressBusyWithKey(key, label string, width int) rtui.VNode {
+	return progress.BusyWithKey(key, label, width)
 }
 
 // ProgressComplete creates a complete success progress bar.

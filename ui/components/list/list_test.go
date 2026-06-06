@@ -85,6 +85,71 @@ func TestBuilder_Items(t *testing.T) {
 	}
 }
 
+func TestBuilder_SortAscendingRows(t *testing.T) {
+	vnode := NewBuilder().
+		Rows([]string{"zeta", "Alpha", "beta"}).
+		SortAscending().
+		BuildVNode()
+
+	wantRows := []string{"Alpha", "beta", "zeta"}
+	if !equalStrings(vnode.Rows(), wantRows) {
+		t.Fatalf("Rows = %v, want %v", vnode.Rows(), wantRows)
+	}
+	props := vnode.Props()
+	if props[propSortRows] != true || props[propSortDescending] != false {
+		t.Fatalf("sort props = (%v,%v), want (true,false)", props[propSortRows], props[propSortDescending])
+	}
+}
+
+func TestBuilder_SortDescendingItemsByTitle(t *testing.T) {
+	vnode := NewBuilder().
+		Items([]RowItem{
+			Item("openai").WithPrefix("[ok]"),
+			Item("azure").WithPrefix("[warn]"),
+			Item("anthropic").WithPrefix("[ok]"),
+		}).
+		SortDescending().
+		BuildVNode()
+
+	wantRows := []string{
+		"[ok] openai",
+		"[warn] azure",
+		"[ok] anthropic",
+	}
+	if !equalStrings(vnode.Rows(), wantRows) {
+		t.Fatalf("Rows = %v, want %v", vnode.Rows(), wantRows)
+	}
+}
+
+func TestInstance_SortRowsWorksWithSearchAndSelection(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"rows":             []string{"zeta", "alpha", "beta"},
+		"sortRows":         true,
+		"sortDescending":   false,
+		"searchQuery":      "a",
+		"showBorder":       false,
+		"showSeparator":    false,
+		"viewportHeight":   3,
+		"showSearchStats":  true,
+		"searchStatsStyle": style.Style{FG: style.Green},
+	})
+
+	wantRows := []string{"alpha", "beta", "zeta"}
+	if !equalStrings(inst.GetRows(), wantRows) {
+		t.Fatalf("rows = %v, want %v", inst.GetRows(), wantRows)
+	}
+	if inst.GetSelectedIndex() != 0 {
+		t.Fatalf("selectedIndex = %d, want first sorted match", inst.GetSelectedIndex())
+	}
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 4 {
+		t.Fatalf("cmd count = %d, want >= 4", len(cmds))
+	}
+	if cmds[1].Text != "alpha" || cmds[2].Text != "beta" || cmds[3].Text != "zeta" {
+		t.Fatalf("rendered sorted rows = %q, %q, %q", cmds[1].Text, cmds[2].Text, cmds[3].Text)
+	}
+}
+
 func TestVNode_ToVirtualList_MapsRowsAndSelection(t *testing.T) {
 	vnode := New().
 		SetRows([]string{"alpha", "beta", "betamax", "gamma"}).

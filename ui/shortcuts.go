@@ -49,6 +49,7 @@ import (
 	"github.com/wwsheng009/mint/ui/components/modal"
 	"github.com/wwsheng009/mint/ui/components/notification"
 	"github.com/wwsheng009/mint/ui/components/optiongroup"
+	"github.com/wwsheng009/mint/ui/components/pageviewport"
 	"github.com/wwsheng009/mint/ui/components/pagination"
 	"github.com/wwsheng009/mint/ui/components/panel"
 	"github.com/wwsheng009/mint/ui/components/popconfirm"
@@ -193,6 +194,10 @@ func NewPaginationBuilder() *pagination.Builder {
 	return pagination.NewBuilder()
 }
 
+func NewPageViewportBuilder() *pageviewport.Builder {
+	return pageviewport.NewBuilder()
+}
+
 func NewScrollViewBuilder() *scrollview.Builder {
 	return scrollview.NewBuilder()
 }
@@ -215,6 +220,7 @@ func NewStatusBarBuilder() *statusbar.Builder {
 
 func StatusBar(left, center, right []statusbar.Section) rtui.VNode {
 	return statusbar.NewBuilder().
+		Gap(1).
 		LeftSections(left...).
 		CenterSections(center...).
 		RightSections(right...).
@@ -228,6 +234,7 @@ func StatusBarWithHelp(theme statusbar.Theme, helpFallback string, left, center,
 func StatusBarWithHelpMode(theme statusbar.Theme, helpFallback string, mode statusbar.HelpDisplayMode, left, center, right []statusbar.Section) rtui.VNode {
 	return statusbar.NewBuilder().
 		Theme(theme).
+		Gap(1).
 		HelpFallback(helpFallback).
 		HelpDisplayMode(mode).
 		LeftSections(left...).
@@ -239,6 +246,16 @@ func StatusBarWithHelpMode(theme statusbar.Theme, helpFallback string, mode stat
 // Data Display Components
 func NewListBuilder() *list.Builder {
 	return list.NewBuilder()
+}
+
+// NewListItem creates a structured list item for ui.List().Items(...).
+func NewListItem(title string) list.RowItem {
+	return list.Item(title)
+}
+
+// NewListItemWithDescription creates a structured list item with secondary text.
+func NewListItemWithDescription(title, description string) list.RowItem {
+	return list.Item(title).WithDescription(description)
 }
 
 func NewBadgeBuilder(label string) *badge.Builder {
@@ -462,6 +479,7 @@ type Anchor = absolute.Anchor
 // Tab Types
 type TabPosition = tabs.TabPosition
 type TabItem = tabs.TabItem
+type ListItem = list.RowItem
 type FormLayout = formcomp.FormLayout
 type InputType = input.Type
 type AlertType = alert.AlertType
@@ -472,7 +490,10 @@ type NotificationType = notification.NotificationType
 type NotificationPlacement = notification.Placement
 type CollapseItem = collapse.Item
 type DescriptionsItem = descriptions.Item
+type DescriptionsContextStripConfig = descriptions.ContextStripConfig
+type DetailPanelConfig = descriptions.DetailPanelConfig
 type DescriptionsLayout = descriptions.Layout
+type PanelLine = panel.Line
 type TagColor = tag.TagColor
 type TimelineItem = timeline.Item
 type TimelineStatus = timeline.Status
@@ -686,6 +707,16 @@ func NewTransferItem(key, title string) transfer.Item {
 	return transfer.NewItem(key, title)
 }
 
+// NewTransferItemWithDescription creates a transfer item with secondary searchable text.
+func NewTransferItemWithDescription(key, title, description string) transfer.Item {
+	return transfer.NewItemWithDescription(key, title, description)
+}
+
+// NewDisabledTransferItem creates a disabled transfer item with optional secondary text.
+func NewDisabledTransferItem(key, title, description string) transfer.Item {
+	return transfer.DisabledItem(key, title, description)
+}
+
 // NewBreadcrumbItem creates a breadcrumb item with the given label.
 func NewBreadcrumbItem(label string) breadcrumb.Item {
 	return breadcrumb.Crumb(label)
@@ -709,6 +740,56 @@ func NewDescriptionsField(label, value string) descriptions.Item {
 // NewDescriptionsValue creates a descriptions item from an arbitrary value.
 func NewDescriptionsValue(label string, value interface{}) descriptions.Item {
 	return descriptions.Value(label, value)
+}
+
+// NewDescriptionsFallbackValue creates a descriptions item with a fallback for nil or blank values.
+func NewDescriptionsFallbackValue(label string, value interface{}, fallback string) descriptions.Item {
+	return descriptions.FallbackValue(label, value, fallback)
+}
+
+// NewDescriptionsCompactValue creates a descriptions item with a compact display-width-bounded value.
+func NewDescriptionsCompactValue(label string, value interface{}, maxWidth int) descriptions.Item {
+	return descriptions.CompactValue(label, value, maxWidth)
+}
+
+// NewDescriptionsCompactFallbackValue creates a descriptions item with fallback and display-width truncation.
+func NewDescriptionsCompactFallbackValue(label string, value interface{}, fallback string, maxWidth int) descriptions.Item {
+	return descriptions.CompactFallbackValue(label, value, fallback, maxWidth)
+}
+
+// NewDescriptionsCountValue creates a descriptions item for non-negative operational counts.
+func NewDescriptionsCountValue(label string, count int) descriptions.Item {
+	return descriptions.CountValue(label, count)
+}
+
+// NewDescriptionsRatioValue creates a descriptions item for available/total operational counts.
+func NewDescriptionsRatioValue(label string, available, total int) descriptions.Item {
+	return descriptions.RatioValue(label, available, total)
+}
+
+// NewDescriptionsMaskedValue creates a descriptions item with a partially masked value.
+func NewDescriptionsMaskedValue(label string, value interface{}, visiblePrefix, visibleSuffix int) descriptions.Item {
+	return descriptions.MaskedValue(label, value, visiblePrefix, visibleSuffix)
+}
+
+// NewDescriptionsMaskedFallbackValue creates a partially masked descriptions item with fallback.
+func NewDescriptionsMaskedFallbackValue(label string, value interface{}, fallback string, visiblePrefix, visibleSuffix int) descriptions.Item {
+	return descriptions.MaskedFallbackValue(label, value, fallback, visiblePrefix, visibleSuffix)
+}
+
+// NewDescriptionsStateValue creates a descriptions item with semantically colored operational state text.
+func NewDescriptionsStateValue(label string, value interface{}, state string) descriptions.Item {
+	return descriptions.StateValue(label, value, state)
+}
+
+// NewDescriptionsBoolStateValue creates a descriptions item from a boolean with custom text and state semantics.
+func NewDescriptionsBoolStateValue(label string, value bool, trueText, falseText, trueState, falseState string) descriptions.Item {
+	return descriptions.BoolStateValue(label, value, trueText, falseText, trueState, falseState)
+}
+
+// NewDescriptionsEnabledValue creates a descriptions item for enabled/disabled boolean state.
+func NewDescriptionsEnabledValue(label string, enabled bool) descriptions.Item {
+	return descriptions.EnabledValue(label, enabled)
 }
 
 // NewSensitiveDescriptionsItem creates a masked descriptions item.
@@ -925,6 +1006,16 @@ func Transfer(items []transfer.Item) rtui.VNode {
 	return transfer.Of(items)
 }
 
+// NewTransferOperationalAssignmentBuilder creates an operational transfer assignment preset.
+func NewTransferOperationalAssignmentBuilder(componentID string, items []transfer.Item, targetKeys []string) *transfer.Builder {
+	return transfer.OperationalAssignment(componentID, items, targetKeys)
+}
+
+// TransferOperationalAssignment creates an operational transfer assignment component.
+func TransferOperationalAssignment(componentID string, items []transfer.Item, targetKeys []string) rtui.VNode {
+	return NewTransferOperationalAssignmentBuilder(componentID, items, targetKeys).Build()
+}
+
 // Space creates a horizontal spacing layout from the provided children.
 func Space(children ...rtui.VNode) rtui.VNode {
 	return spacecomp.NewBuilder().Children(children...).Build()
@@ -1055,6 +1146,7 @@ func StatusBarThemeContrast() statusbar.Theme {
 func StatusBarWithTheme(theme statusbar.Theme, left, center, right []statusbar.Section) rtui.VNode {
 	return statusbar.NewBuilder().
 		Theme(theme).
+		Gap(1).
 		LeftSections(left...).
 		CenterSections(center...).
 		RightSections(right...).
@@ -1098,6 +1190,43 @@ func Collapse(items []collapse.Item) rtui.VNode {
 // Descriptions creates a descriptions component from items.
 func Descriptions(items []descriptions.Item) rtui.VNode {
 	return descriptions.Of(items)
+}
+
+// DescriptionsPanel creates a titled details panel from description items and optional actions.
+func DescriptionsPanel(key, title string, width, labelWidth, contentWidth int, items []descriptions.Item, actions ...rtui.VNode) rtui.VNode {
+	return descriptions.Panel(key, title, width, labelWidth, contentWidth, items, actions...)
+}
+
+// DescriptionsContextStrip creates a compact selected-object context row.
+func DescriptionsContextStrip(config descriptions.ContextStripConfig) rtui.VNode {
+	return descriptions.ContextStrip(config)
+}
+
+// DescriptionsPanelWithContext creates a titled details panel with a selected-object context strip.
+func DescriptionsPanelWithContext(key, title string, width, labelWidth, contentWidth int, context descriptions.ContextStripConfig, items []descriptions.Item, actions ...rtui.VNode) rtui.VNode {
+	return descriptions.PanelWithContext(key, title, width, labelWidth, contentWidth, context, items, actions...)
+}
+
+// DetailPanel creates a semantic selected-object details panel.
+func DetailPanel(config descriptions.DetailPanelConfig) rtui.VNode {
+	return descriptions.DetailPanel(config)
+}
+
+// DetailPanelEmptyHint creates a compact recovery hint for an empty detail
+// panel and appends a normalized "Scope: ..." summary when scope parts exist.
+func DetailPanelEmptyHint(action string, parts ...KeyValueTextPart) string {
+	return descriptions.DetailPanelEmptyHint(action, parts...)
+}
+
+// DetailPanelEmptyHintWithScopeWidth creates a compact empty detail hint with a
+// caller-provided display width for the scope summary.
+func DetailPanelEmptyHintWithScopeWidth(action string, scopeWidth int, parts ...KeyValueTextPart) string {
+	return descriptions.DetailPanelEmptyHintWithScopeWidth(action, scopeWidth, parts...)
+}
+
+// DescriptionsEmptyPanel creates a titled details panel for unavailable diagnostics.
+func DescriptionsEmptyPanel(key, title string, width int, emptyText string) rtui.VNode {
+	return descriptions.EmptyPanel(key, title, width, emptyText)
 }
 
 // Timeline creates a timeline component from items.
@@ -1256,6 +1385,81 @@ func PanelTitled(title string, content rtui.VNode) rtui.VNode {
 	return panel.Titled(title, content)
 }
 
+// TablePanel creates a single-border titled panel for table-like content.
+func TablePanel(title string, content rtui.VNode, width int) rtui.VNode {
+	return panel.TablePanel(title, content, width)
+}
+
+// TablePanelWithScope creates a single-border titled table panel with a subtle scope line.
+func TablePanelWithScope(title string, content rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	return panel.TablePanelWithScope(title, content, scope, emptyText, width)
+}
+
+// ContentPanel creates a single-border titled panel for one primary content node.
+func ContentPanel(title string, content rtui.VNode, emptyText string, width int) rtui.VNode {
+	return panel.ContentPanel(title, content, emptyText, width)
+}
+
+// StackPanel creates a single-border titled panel that stacks child nodes in order.
+func StackPanel(title string, nodes []rtui.VNode, emptyText string, width int) rtui.VNode {
+	return panel.StackPanel(title, nodes, emptyText, width)
+}
+
+// StackPanelWithScope creates a stack panel and appends a subtle scope line when provided.
+func StackPanelWithScope(title string, nodes []rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	return panel.StackPanelWithScope(title, nodes, scope, emptyText, width)
+}
+
+// PaddedStackPanel creates a single-border titled panel that stacks child nodes with padding.
+func PaddedStackPanel(title string, nodes []rtui.VNode, emptyText string, width, padding int) rtui.VNode {
+	return panel.PaddedStackPanel(title, nodes, emptyText, width, padding)
+}
+
+// PanelRow arranges sibling panels horizontally with a stable one-cell gap.
+func PanelRow(nodes ...rtui.VNode) rtui.VNode {
+	return panel.PanelRow(nodes...)
+}
+
+// OperationsPanel creates a single-border titled panel for operational progress/status nodes.
+func OperationsPanel(title string, nodes []rtui.VNode, emptyText string, width int) rtui.VNode {
+	return panel.OperationsPanel(title, nodes, emptyText, width)
+}
+
+// OperationsPanelWithScope creates an operations panel and appends a subtle scope line when provided.
+func OperationsPanelWithScope(title string, nodes []rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	return panel.OperationsPanelWithScope(title, nodes, scope, emptyText, width)
+}
+
+// PanelTextLine creates a colored line for LinesPanel.
+func PanelTextLine(text, color string) panel.Line {
+	return panel.TextLine(text, color)
+}
+
+// PanelMutedLine creates a muted gray line for LinesPanel.
+func PanelMutedLine(text string) panel.Line {
+	return panel.MutedLine(text)
+}
+
+// PanelSuccessLine creates a green success line for LinesPanel.
+func PanelSuccessLine(text string) panel.Line {
+	return panel.SuccessLine(text)
+}
+
+// PanelWarningLine creates a yellow warning line for LinesPanel.
+func PanelWarningLine(text string) panel.Line {
+	return panel.WarningLine(text)
+}
+
+// LinesPanel creates a single-border titled panel from colored text lines.
+func LinesPanel(title string, lines []panel.Line, emptyText string, width int) rtui.VNode {
+	return panel.LinesPanel(title, lines, emptyText, width)
+}
+
+// NoticePanel creates a muted single-border panel for compact operational notes.
+func NoticePanel(title string, lines []string, width int) rtui.VNode {
+	return panel.NoticePanel(title, lines, width)
+}
+
 // PanelBordered creates a panel with border and specified size
 func PanelBordered(content rtui.VNode, width, height int) rtui.VNode {
 	return panel.Bordered(content, width, height)
@@ -1281,6 +1485,16 @@ func ScrollSize(child rtui.VNode, width, height int) rtui.VNode {
 // ScrollBordered creates a bordered scrollable view with specified size
 func ScrollBordered(child rtui.VNode, width, height int) rtui.VNode {
 	return scrollview.Bordered(child, width, height)
+}
+
+// PageViewport creates an interactive clipped viewport that preserves child controls.
+func PageViewport(child rtui.VNode, width, height int) rtui.VNode {
+	return pageviewport.Of(child, width, height)
+}
+
+// PageViewportOffset creates an interactive clipped viewport with a controlled scroll offset.
+func PageViewportOffset(child rtui.VNode, width, height, scrollOffset int) rtui.VNode {
+	return pageviewport.NewBuilder().Child(child).Size(width, height).ScrollOffset(scrollOffset).Build()
 }
 
 // =============================================================================
@@ -1415,9 +1629,24 @@ func DividerSection(title string) rtui.VNode {
 // Note: Modal() function exists in ui/layer.go (returns *ModalBuilder)
 // The following are shortcuts for ui/components/modal.Of():
 
+// ModalOf creates a modal with the provided content.
+func ModalOf(content rtui.VNode) rtui.VNode {
+	return modal.Of(content)
+}
+
 // ModalOfSize creates a modal with specified size
 func ModalOfSize(content rtui.VNode, width, height int) rtui.VNode {
 	return modal.OfSize(content, width, height)
+}
+
+// ModalOpenedOf creates an opened modal with the provided content.
+func ModalOpenedOf(content rtui.VNode) rtui.VNode {
+	return modal.OpenedOf(content)
+}
+
+// ModalOpenedOfSize creates an opened modal with specified size.
+func ModalOpenedOfSize(content rtui.VNode, width, height int) rtui.VNode {
+	return modal.OpenedOfSize(content, width, height)
 }
 
 // Drawer creates a drawer with the provided content.
@@ -1433,6 +1662,11 @@ func DrawerTitled(title string, content rtui.VNode) rtui.VNode {
 // ModalTitled creates a modal with title
 func ModalTitled(title string, content rtui.VNode) rtui.VNode {
 	return modal.Titled(title, content)
+}
+
+// ModalOpenedTitled creates an opened modal with title.
+func ModalOpenedTitled(title string, content rtui.VNode) rtui.VNode {
+	return modal.OpenedTitled(title, content)
 }
 
 // ModalAlert creates an alert modal dialog

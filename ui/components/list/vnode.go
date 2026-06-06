@@ -48,6 +48,8 @@ const (
 	propShowScrollbar            = "showScrollbar"
 	propShowSearchStats          = "showSearchStats"
 	propShowSeparator            = "showSeparator"
+	propSortDescending           = "sortDescending"
+	propSortRows                 = "sortRows"
 	propViewportHeight           = "viewportHeight"
 )
 
@@ -92,6 +94,8 @@ type VNode struct {
 	searchFn         func(string, string) bool
 	showSearchStats  bool
 	searchStatsStyle style.Style
+	sortRows         bool
+	sortDescending   bool
 
 	// === State Properties (declarative initial state) ===
 	scrollOffset             int  // Initial scroll offset
@@ -142,6 +146,8 @@ func New() *VNode {
 		selectionMode:   SelectionNone,
 		searchQuery:     "",
 		showSearchStats: false,
+		sortRows:        false,
+		sortDescending:  false,
 		scrollOffset:    0,
 		selectedIndex:   -1,
 		checkedIndices:  nil,
@@ -190,6 +196,8 @@ func (v *VNode) Props() rtui.Props {
 		propSearchQuery:             v.searchQuery,
 		propShowSearchStats:         v.showSearchStats,
 		propSearchStatsStyle:        v.searchStatsStyle,
+		propSortRows:                v.sortRows,
+		propSortDescending:          v.sortDescending,
 		propScrollOffsetControlled:  v.scrollOffsetControlled,
 		propScrollOffset:            v.scrollOffset,
 		propSelectedIndex:           v.selectedIndex,
@@ -285,6 +293,12 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if searchStatsStyle, ok := p[propSearchStatsStyle].(style.Style); ok {
 		v.searchStatsStyle = searchStatsStyle
 	}
+	if sortRows, ok := p[propSortRows].(bool); ok {
+		v.sortRows = sortRows
+	}
+	if sortDescending, ok := p[propSortDescending].(bool); ok {
+		v.sortDescending = sortDescending
+	}
 	if scrollOffset, ok := p[propScrollOffset].(int); ok {
 		v.scrollOffset = scrollOffset
 	}
@@ -312,6 +326,7 @@ func (v *VNode) SetProps(p rtui.Props) rtui.VNode {
 	if allowScroll, ok := p[propAllowScroll].(bool); ok {
 		v.allowScroll = allowScroll
 	}
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, v.sortRows, v.sortDescending)
 	return v
 }
 
@@ -331,10 +346,12 @@ func (v *VNode) SetComponentID(id string) *VNode { v.componentID = id; return v 
 func (v *VNode) SetHeader(header string) *VNode  { v.header = header; return v }
 func (v *VNode) SetItems(items []RowItem) *VNode {
 	v.items, v.rows = normalizeItemsAndRows(items, nil)
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, v.sortRows, v.sortDescending)
 	return v
 }
 func (v *VNode) SetRows(rows []string) *VNode {
 	v.items, v.rows = normalizeItemsAndRows(nil, rows)
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, v.sortRows, v.sortDescending)
 	return v
 }
 func (v *VNode) SetEmptyText(text string) *VNode                       { v.emptyText = text; return v }
@@ -367,6 +384,18 @@ func (v *VNode) SetSearchFn(fn func(string, string) bool) *VNode {
 func (v *VNode) SetShowSearchStats(show bool) *VNode { v.showSearchStats = show; return v }
 func (v *VNode) SetSearchStatsStyle(s style.Style) *VNode {
 	v.searchStatsStyle = s
+	return v
+}
+func (v *VNode) SetSortRows(descending bool) *VNode {
+	v.sortRows = true
+	v.sortDescending = descending
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, true, descending)
+	return v
+}
+func (v *VNode) SetSortRowsEnabled(enabled bool, descending bool) *VNode {
+	v.sortRows = enabled
+	v.sortDescending = descending
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, enabled, descending)
 	return v
 }
 func (v *VNode) SetScrollOffset(offset int) *VNode {
@@ -426,6 +455,7 @@ func (v *VNode) AddRow(row string) *VNode {
 func (v *VNode) AddItem(item RowItem) *VNode {
 	v.items = append(v.items, item)
 	v.rows = append(v.rows, item.Text())
+	v.items, v.rows = sortListItemsAndRows(v.items, v.rows, v.sortRows, v.sortDescending)
 	return v
 }
 

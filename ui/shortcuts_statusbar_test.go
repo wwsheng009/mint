@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func TestStatusBarDirectShortcut(t *testing.T) {
 	if bar == nil {
 		t.Fatal("StatusBar() returned nil")
 	}
+	assertStatusBarShortcutGap(t, bar, 1)
 }
 
 func TestStatusBarOverflowAlias(t *testing.T) {
@@ -54,6 +56,7 @@ func TestStatusBarOverflowAlias(t *testing.T) {
 	if bar == nil {
 		t.Fatal("StatusBarWithTheme() returned nil")
 	}
+	assertStatusBarShortcutGap(t, bar, 1)
 }
 
 func TestStatusBarActionShortcuts(t *testing.T) {
@@ -72,6 +75,7 @@ func TestStatusBarActionShortcuts(t *testing.T) {
 	if bar == nil {
 		t.Fatal("StatusBarWithTheme() returned nil")
 	}
+	assertStatusBarShortcutGap(t, bar, 1)
 }
 
 func TestStatusBarWithHelpShortcut(t *testing.T) {
@@ -93,6 +97,7 @@ func TestStatusBarWithHelpShortcut(t *testing.T) {
 	if len(bar.Children()) != 2 {
 		t.Fatalf("children len = %d, want 2", len(bar.Children()))
 	}
+	assertStatusBarShortcutGap(t, bar.Children()[0], 1)
 }
 
 func TestStatusBarWithHelpModeShortcut(t *testing.T) {
@@ -113,6 +118,7 @@ func TestStatusBarWithHelpModeShortcut(t *testing.T) {
 	if len(bar.Children()) != 2 {
 		t.Fatalf("children len = %d, want 2", len(bar.Children()))
 	}
+	assertStatusBarShortcutGap(t, bar.Children()[0], 1)
 }
 
 func TestStatusBarTooltipArrowAliases(t *testing.T) {
@@ -187,6 +193,108 @@ func TestStatusBarOperationalShortcutPresets(t *testing.T) {
 	) {
 		if section.Text == "" {
 			t.Fatalf("operational status shortcut returned empty section: %+v", section)
+		}
+	}
+
+	if got := StatusBarSelectionTarget("job", "Sync", 12); got != "job Sync" {
+		t.Fatalf("selection target = %q, want job Sync", got)
+	}
+}
+
+func TestOperationalStatusBarShortcutPreset(t *testing.T) {
+	now := time.Date(2026, 5, 26, 10, 0, 0, 0, time.UTC)
+	bar := OperationalStatusBar(
+		StatusBarBusyBadge("BUSY").WithHelp("Request running"),
+		"http://localhost:8080",
+		"admin: ops",
+		"Runtime",
+		now.Add(-2*time.Minute),
+		now,
+		"key openai/default/key-op...ai-1",
+		StatusBarText("Up/Down select").WithHelp("Move selection"),
+		StatusBarText("HTTP Admin API only").WithHelp("No internal imports"),
+	)
+	if bar == nil {
+		t.Fatal("OperationalStatusBar() returned nil")
+	}
+	if len(bar.Children()) != 3 {
+		t.Fatalf("children len = %d, want 3", len(bar.Children()))
+	}
+	texts := statusBarShortcutSectionTexts(bar)
+	joined := strings.Join(texts, "")
+	for _, want := range []string{
+		" | endpoint: http://localhost:8080",
+		" | user: admin: ops",
+		" | page: Runtime",
+		" | last sync: 2m ago",
+		" | selection: key openai/default/key-op...ai-1",
+		" | Up/Down select",
+		" | HTTP Admin API only",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("operational status bar text = %q, want segment %q", joined, want)
+		}
+	}
+
+	fallback := OperationalStatusBar(StatusBarSection{}, "", "", "", time.Time{}, time.Time{}, "")
+	if fallback == nil {
+		t.Fatal("OperationalStatusBar() fallback returned nil")
+	}
+	if len(fallback.Children()) != 3 {
+		t.Fatalf("fallback children len = %d, want 3", len(fallback.Children()))
+	}
+	blankEndpoint := OperationalStatusBar(
+		StatusBarStateBadge("ready"),
+		"",
+		"admin: ops",
+		"Runtime",
+		now,
+		now,
+		"-",
+	)
+	blankEndpointText := strings.Join(statusBarShortcutSectionTexts(blankEndpoint), "")
+	if strings.Contains(blankEndpointText, "endpoint:") {
+		t.Fatalf("blank endpoint status bar text = %q, should omit endpoint section", blankEndpointText)
+	}
+	for _, want := range []string{"user: admin: ops", "page: Runtime"} {
+		if !strings.Contains(blankEndpointText, want) {
+			t.Fatalf("blank endpoint status bar text = %q, want %q", blankEndpointText, want)
+		}
+	}
+}
+
+func statusBarShortcutSectionTexts(node VNode) []string {
+	if node == nil {
+		return nil
+	}
+	texts := []string{}
+	if node.Tag() == "statusbar-section" {
+		if text, ok := node.Props()["text"].(string); ok {
+			texts = append(texts, text)
+		}
+	}
+	for _, child := range node.Children() {
+		texts = append(texts, statusBarShortcutSectionTexts(child)...)
+	}
+	return texts
+}
+
+func assertStatusBarShortcutGap(t *testing.T, node VNode, want int) {
+	t.Helper()
+	if node == nil {
+		t.Fatal("status bar node is nil")
+	}
+	children := node.Children()
+	if len(children) != 3 {
+		t.Fatalf("status bar children len = %d, want 3", len(children))
+	}
+	for index, child := range children {
+		gapNode, ok := child.(interface{ Gap() int })
+		if !ok {
+			t.Fatalf("status bar slot %d does not expose gap", index)
+		}
+		if got := gapNode.Gap(); got != want {
+			t.Fatalf("status bar slot %d gap = %d, want %d", index, got, want)
 		}
 	}
 }

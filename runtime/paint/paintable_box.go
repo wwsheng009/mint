@@ -24,9 +24,9 @@ type PaintableBox struct {
 	Node PaintableNode
 
 	// === Position and Size (from LayoutBox) ===
-	X, Y      int
-	Width     int
-	Height    int
+	X, Y   int
+	Width  int
+	Height int
 
 	// === Identity (from Fiber) ===
 	// NodeID for stable runtime identity (e.g., 95)
@@ -42,6 +42,9 @@ type PaintableBox struct {
 	// === Tree Structure ===
 	Children []*PaintableBox
 	Parent   *PaintableBox
+
+	// Clip limits this box and descendant painting in absolute screen cells.
+	Clip *Rect
 
 	// === Rendering Helpers ===
 	// Text with alignment padding applied (computed during layout)
@@ -74,9 +77,9 @@ type PaintableBox struct {
 // NewPaintableBox creates a new PaintableBox with the given node.
 func NewPaintableBox(node PaintableNode) *PaintableBox {
 	return &PaintableBox{
-		Node:    node,
-		Layer:   0,
-		ZIndex:  0,
+		Node:     node,
+		Layer:    0,
+		ZIndex:   0,
 		Children: make([]*PaintableBox, 0),
 	}
 }
@@ -253,6 +256,7 @@ func (b *PaintableBox) Clone() *PaintableBox {
 		DiffKey:      b.DiffKey,
 		Layer:        b.Layer,
 		ZIndex:       b.ZIndex,
+		Clip:         cloneRect(b.Clip),
 		RenderedText: b.RenderedText,
 		NaturalWidth: b.NaturalWidth,
 		BorderStyle:  b.BorderStyle,
@@ -262,6 +266,13 @@ func (b *PaintableBox) Clone() *PaintableBox {
 		LayoutHash:   b.LayoutHash,
 		Children:     make([]*PaintableBox, 0),
 	}
+}
+
+func cloneRect(r *Rect) *Rect {
+	if r == nil {
+		return nil
+	}
+	return &Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}
 }
 
 // CloneDeep creates a deep copy of this box and all its children.

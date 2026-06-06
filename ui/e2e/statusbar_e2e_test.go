@@ -292,6 +292,59 @@ func TestE2EStatusbarOperationalPresetsRender(t *testing.T) {
 	} {
 		waitForRenderedText(t, app, text)
 	}
+	rendered := app.RenderString()
+	for _, joined := range []string{"localprofile:", "devuser:", "adminrole:", "opspage:", "providertarget:", "key-1selection:", "job-1filter:", "250msuptime:", "3hr reload"} {
+		if strings.Contains(rendered, joined) {
+			t.Fatalf("status bar render still has joined segment %q:\n%s", joined, rendered)
+		}
+	}
+	for _, spaced := range []string{
+		"endpoint: local profile: dev user: admin role: ops page: jobs",
+		"scope: provider target: openai/key-1 selection: job-1 filter: failed",
+		"latency: 250ms uptime: 3h r reload",
+	} {
+		if !strings.Contains(rendered, spaced) {
+			t.Fatalf("status bar render missing spaced segment %q:\n%s", spaced, rendered)
+		}
+	}
+}
+
+func TestE2EStatusbarOperationalStatusBarRendersVisibleSeparators(t *testing.T) {
+	now := time.Date(2026, 5, 26, 10, 0, 0, 0, time.UTC)
+	app, err := Run(func() ui.VNode {
+		return ui.OperationalStatusBar(
+			ui.StatusBarStateBadge("ready"),
+			"http://127.0.0.1:8080",
+			"admin: admin",
+			"Overview",
+			now.Add(-14*time.Second),
+			now,
+			"-",
+			ui.StatusBarText("PgUp/PgDn scroll"),
+			ui.StatusBarText("Up/Down select"),
+			ui.StatusBarText("HTTP Admin API only"),
+		)
+	}, ui.WithSize(220, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	line := lastStatusbarE2ENonEmptyLine(app.RenderString())
+	for _, want := range []string{
+		" | endpoint: http://127.0.0.1:8080",
+		" | user: admin: admin",
+		" | page: Overview",
+	} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("status bar line = %q, want visible segment %q\n%s", line, want, app.RenderString())
+		}
+	}
+	for _, joined := range []string{"8080user:", "adminpage:"} {
+		if strings.Contains(line, joined) {
+			t.Fatalf("status bar line still has joined segment %q: %q", joined, line)
+		}
+	}
 }
 
 func TestE2EStatusbarInlineHelpFallbackAndActivation(t *testing.T) {
@@ -356,6 +409,16 @@ func TestE2EStatusbarInlineHelpFallbackAndActivation(t *testing.T) {
 	if !handled {
 		t.Fatalf("handled activation intent %q not found in dispatch logs: %+v", meta.ActivateIntentType, logs)
 	}
+}
+
+func lastStatusbarE2ENonEmptyLine(rendered string) string {
+	lines := strings.Split(rendered, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) != "" {
+			return lines[i]
+		}
+	}
+	return ""
 }
 
 func TestE2EStatusbarOverlayTopRightCornerFallsBelowWithinRightFamily(t *testing.T) {

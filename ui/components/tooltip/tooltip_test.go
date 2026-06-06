@@ -36,6 +36,40 @@ func TestNewTooltip(t *testing.T) {
 	if tooltip.Delay() != 500*time.Millisecond {
 		t.Errorf("Expected delay 500ms, got %v", tooltip.Delay())
 	}
+
+	if tooltip.GetLayer() != rtui.LayerBase {
+		t.Errorf("Expected wrapper layer base, got %v", tooltip.GetLayer())
+	}
+
+	if got := tooltip.Props()[propLayer]; got != rtui.LayerTooltip {
+		t.Errorf("Expected default overlay layer tooltip, got %v", got)
+	}
+}
+
+func TestTooltipWrapperStaysBaseAndRuntimeOverlayUsesConfiguredLayer(t *testing.T) {
+	content := newtext.New("button")
+	tooltip := NewBuilder(content, "Help").
+		OverlayLayer().
+		Delay(0).
+		Build().(*VNode)
+
+	if tooltip.GetLayer() != rtui.LayerBase {
+		t.Fatalf("wrapper layer = %v, want %v", tooltip.GetLayer(), rtui.LayerBase)
+	}
+	if got := tooltip.Props()[propLayer]; got != rtui.LayerOverlay {
+		t.Fatalf("configured overlay layer prop = %v, want %v", got, rtui.LayerOverlay)
+	}
+
+	inst := tooltip.CreateInstance().(*Instance)
+	inst.SetBounds(2, 2, 8, 1)
+	inst.Show()
+	children := inst.RuntimeChildren()
+	if len(children) != 1 {
+		t.Fatalf("runtime children = %d, want 1", len(children))
+	}
+	if children[0].GetLayer() != rtui.LayerOverlay {
+		t.Fatalf("runtime overlay layer = %v, want %v", children[0].GetLayer(), rtui.LayerOverlay)
+	}
 }
 
 func TestTooltipBuilder(t *testing.T) {

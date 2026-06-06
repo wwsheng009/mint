@@ -28,6 +28,7 @@ node := ui.DataTable(
     ui.DataTableSelectedKey("provider.azure"),
     ui.DataTableSelectedKeyField("selectedProviderKey"),
     ui.DataTableActivateKeyField("activatedProviderKey"),
+    ui.DataTableSortState(state.ProviderSortColumn, state.ProviderSortDescending),
     ui.DataTableServerPagination(2, 25, 76),
     ui.DataTableOperationalStyle(),
 )
@@ -46,6 +47,13 @@ node := ui.DataTable(
 - `DataTableSelectedKey(key)`：以 row key 控制当前高亮行，排序、过滤和刷新后不依赖易变行号。
 - `DataTableSelectedKeyField(field)`：行选择变化时向字段写入当前 row key。
 - `DataTableActivateKeyField(field)`：用户按 Enter 或确认当前行时向字段写入激活 row key。
+
+## 受控排序
+
+- `DataTableSortBy(column, descending)`：显式设置排序列和方向，适合调用方确定一定存在排序状态的场景。
+- `DataTableSortState(column, descending)`：使用 `column < 0` 表示未排序，`column == 0 && descending == false` 仍保留为第一列升序。该入口适合直接转接业务 reducer 中的表格排序状态，避免把第 0 列升序误判成默认空状态。
+- 客户端排序继承底层 `table` 的运维格式比较能力：RFC3339/API 时间文本会按时间排序，纯数字、千分位数字、百分比、`ms/s/m/h` 时长和 `x/y` 比例会按数值排序，适合日志时间、观察时间、负载、延迟、成功率、配额等列的当前页扫描。
+- 服务端排序仍应由业务层把 `table.StateChangeIntent.SortColumn` 映射到明确支持的 API 字段；组件不发起 IO，也不假设后端支持任意列排序。
 
 ## Fiber-first 约束
 

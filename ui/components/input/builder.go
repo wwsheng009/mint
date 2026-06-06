@@ -116,6 +116,12 @@ func (b *Builder) Search() *Builder {
 	return b
 }
 
+// NoBorder renders the input as a compact single-line bracket field.
+func (b *Builder) NoBorder() *Builder {
+	b.node.SetNoBorder()
+	return b
+}
+
 // Password sets the input type to password.
 func (b *Builder) Password() *Builder {
 	b.node.SetPassword()

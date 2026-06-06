@@ -2,6 +2,7 @@ package metricrow
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
@@ -14,6 +15,41 @@ import (
 type Item struct {
 	Title string
 	Value interface{}
+	Width int
+}
+
+// WithWidth overrides the row default width for this metric item.
+func (i Item) WithWidth(width int) Item {
+	i.Width = width
+	return i
+}
+
+// Value creates a metric item with the standard blank-value fallback.
+func Value(title string, value interface{}) Item {
+	return FallbackValue(title, value, "-")
+}
+
+// FallbackValue creates a metric item and replaces nil or blank values with fallback.
+func FallbackValue(title string, value interface{}, fallback string) Item {
+	return Item{Title: title, Value: metricValueText(value, fallback)}
+}
+
+// CompactValue creates a display-width-bounded metric item with "-" fallback.
+func CompactValue(title string, value interface{}, maxWidth int) Item {
+	return CompactFallbackValue(title, value, "-", maxWidth)
+}
+
+// CompactFallbackValue creates a display-width-bounded metric item with fallback.
+func CompactFallbackValue(title string, value interface{}, fallback string, maxWidth int) Item {
+	return Item{Title: title, Value: text.CompactFallbackText(metricValueText(value, fallback), fallback, maxWidth)}
+}
+
+// Count creates a non-negative integer metric item.
+func Count(title string, count int) Item {
+	if count < 0 {
+		count = 0
+	}
+	return Item{Title: title, Value: count}
 }
 
 // Option configures MetricRow.
@@ -50,6 +86,10 @@ func New(items []Item, opts ...Option) rtui.VNode {
 
 	nodes := make([]rtui.VNode, 0, len(items))
 	for _, item := range items {
+		itemWidth := cfg.ItemWidth
+		if item.Width > 0 {
+			itemWidth = item.Width
+		}
 		valueBuilder := text.NewBuilder(formatValue(item.Value, cfg.FormatValue))
 		if cfg.HasValueStyle {
 			valueBuilder.Style(cfg.ValueStyle)
@@ -58,7 +98,7 @@ func New(items []Item, opts ...Option) rtui.VNode {
 			Title(item.Title).
 			BorderStyle(cfg.BorderStyle).
 			BorderColor(cfg.BorderColor).
-			Width(cfg.ItemWidth).
+			Width(itemWidth).
 			Content(valueBuilder.Build())
 		if cfg.HasPanelStyle {
 			panelBuilder.Style(cfg.PanelStyle)
@@ -66,6 +106,11 @@ func New(items []Item, opts ...Option) rtui.VNode {
 		nodes = append(nodes, panelBuilder.Build())
 	}
 	return rtui.HStackBuilder(nodes...).Gap(cfg.Gap).Build()
+}
+
+// Operational builds a standard metrics row for operations dashboards.
+func Operational(items []Item) rtui.VNode {
+	return New(items, ItemWidth(20), Gap(1))
 }
 
 func formatValue(value interface{}, formatter func(interface{}) string) string {
@@ -76,6 +121,21 @@ func formatValue(value interface{}, formatter func(interface{}) string) string {
 		return "-"
 	}
 	return fmt.Sprint(value)
+}
+
+func metricValueText(value interface{}, fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	if fallback == "" {
+		fallback = "-"
+	}
+	if value == nil {
+		return fallback
+	}
+	text := strings.TrimSpace(fmt.Sprint(value))
+	if text == "" {
+		return fallback
+	}
+	return text
 }
 
 func ItemWidth(width int) Option {

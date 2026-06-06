@@ -35,6 +35,9 @@ func TestProgressPresets(t *testing.T) {
 	if got := ForStateWithValue("Sync", 50, 100, "pending_restart", "items"); got.Status() != StatusWarning || !got.ShowValue() || got.Unit() != "items" {
 		t.Fatalf("ForStateWithValue = status:%v showValue:%v unit:%q", got.Status(), got.ShowValue(), got.Unit())
 	}
+	if got := OperationalValue("runtime.sections", "Sections", 3, 4, "effective", "sections", 36); got.Key() != "runtime.sections" || got.Width() != 36 || got.Status() != StatusSuccess || !got.ShowValue() || got.Unit() != "sections" {
+		t.Fatalf("OperationalValue = key:%q width:%d status:%v showValue:%v unit:%q", got.Key(), got.Width(), got.Status(), got.ShowValue(), got.Unit())
+	}
 	if got := Usage("CPU", 79, 100); got.Status() != StatusNormal {
 		t.Fatalf("Usage 79%% status = %v, want normal", got.Status())
 	}
@@ -55,6 +58,9 @@ func TestProgressPresets(t *testing.T) {
 	}
 	if got := Busy("Loading"); !got.IsIndeterminate() || got.Status() != StatusActive {
 		t.Fatalf("Busy = indeterminate:%v status:%v, want active indeterminate", got.IsIndeterminate(), got.Status())
+	}
+	if got := BusyWithKey("manager.feedback", "loading", 28); got.Key() != "manager.feedback" || got.Width() != 28 || !got.IsIndeterminate() || got.Status() != StatusActive {
+		t.Fatalf("BusyWithKey = key:%q width:%d indeterminate:%v status:%v", got.Key(), got.Width(), got.IsIndeterminate(), got.Status())
 	}
 	if got := Complete("Done"); got.Value() != 100 || got.Status() != StatusSuccess {
 		t.Fatalf("Complete = value:%d status:%v, want 100 success", got.Value(), got.Status())

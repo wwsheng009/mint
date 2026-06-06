@@ -3,6 +3,7 @@ package descriptions
 import (
 	"testing"
 
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 	textcomp "github.com/wwsheng009/mint/ui/components/text"
@@ -70,6 +71,338 @@ func TestBuilderFluent(t *testing.T) {
 	}
 }
 
+func TestPanelPresetWrapsDescriptionsAndActions(t *testing.T) {
+	action := textcomp.New("Open")
+	node := Panel(
+		"logs.selection",
+		"Log Detail",
+		56,
+		12,
+		36,
+		[]Item{Value("Request", "req-1")},
+		action,
+	)
+	if node.Tag() != "panel" {
+		t.Fatalf("panel tag = %q, want panel", node.Tag())
+	}
+	props := node.Props()
+	if got := props["key"]; got != "logs.selection" {
+		t.Fatalf("panel key = %v, want logs.selection", got)
+	}
+	if got := props["title"]; got != "Log Detail" {
+		t.Fatalf("panel title = %v, want Log Detail", got)
+	}
+	if got := props["width"]; got != 56 {
+		t.Fatalf("panel width = %v, want 56", got)
+	}
+	content, ok := props["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", props["content"])
+	}
+	if content.Tag() != "vstack" {
+		t.Fatalf("content tag = %q, want vstack", content.Tag())
+	}
+	children := content.Children()
+	if len(children) != 2 {
+		t.Fatalf("children len = %d, want 2", len(children))
+	}
+	details := children[0]
+	if details.Tag() != "descriptions" || details.Key() != "logs.selection.details" {
+		t.Fatalf("details = tag:%q key:%q", details.Tag(), details.Key())
+	}
+	if got := details.Props()[propLabelWidth]; got != 12 {
+		t.Fatalf("details label width = %v, want 12", got)
+	}
+	if got := details.Props()[propContentWidth]; got != 36 {
+		t.Fatalf("details content width = %v, want 36", got)
+	}
+}
+
+func TestContextStripBuildsCompactDescriptionNode(t *testing.T) {
+	node := ContextStrip(ContextStripConfig{
+		Key:          "jobs.selection.context",
+		Width:        62,
+		Column:       3,
+		LabelWidth:   7,
+		ContentWidth: 12,
+		Items: []Item{
+			CompactValue("ID", "job-background-refresh", 12),
+			StateValue("Status", "running", "running"),
+			EnabledValue("Enabled", true),
+		},
+	})
+
+	if node.Tag() != "descriptions" {
+		t.Fatalf("context tag = %q, want descriptions", node.Tag())
+	}
+	if node.Key() != "jobs.selection.context" {
+		t.Fatalf("context key = %q, want jobs.selection.context", node.Key())
+	}
+	props := node.Props()
+	if got := props[propWidth]; got != 62 {
+		t.Fatalf("context width = %v, want 62", got)
+	}
+	if got := props[propColumn]; got != 3 {
+		t.Fatalf("context column = %v, want 3", got)
+	}
+	if got := props[propLabelWidth]; got != 7 {
+		t.Fatalf("context label width = %v, want 7", got)
+	}
+	if got := props[propContentWidth]; got != 12 {
+		t.Fatalf("context content width = %v, want 12", got)
+	}
+	items, ok := props[propItems].([]Item)
+	if !ok {
+		t.Fatalf("context items = %T, want []Item", props[propItems])
+	}
+	if len(items) != 3 {
+		t.Fatalf("context item count = %d, want 3", len(items))
+	}
+	if items[0].Value != "job-backg..." {
+		t.Fatalf("compact context id = %v, want job-backg...", items[0].Value)
+	}
+}
+
+func TestPanelWithContextOrdersContextBeforeDetailsAndActions(t *testing.T) {
+	action := textcomp.New("Next")
+	node := PanelWithContext(
+		"jobs.selection",
+		"Job Detail",
+		62,
+		14,
+		40,
+		ContextStripConfig{
+			LabelWidth:   7,
+			ContentWidth: 12,
+			Items: []Item{
+				CompactValue("ID", "job-1", 12),
+				StateValue("Status", "running", "running"),
+			},
+		},
+		[]Item{Value("Current Run", "run-1")},
+		action,
+	)
+
+	if node.Tag() != "panel" {
+		t.Fatalf("panel tag = %q, want panel", node.Tag())
+	}
+	content, ok := node.Props()["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", node.Props()["content"])
+	}
+	if content.Tag() != "vstack" {
+		t.Fatalf("content tag = %q, want vstack", content.Tag())
+	}
+	children := content.Children()
+	if len(children) != 3 {
+		t.Fatalf("children len = %d, want context/details/action", len(children))
+	}
+	if children[0].Tag() != "descriptions" || children[0].Key() != "jobs.selection.context" {
+		t.Fatalf("context child = tag:%q key:%q", children[0].Tag(), children[0].Key())
+	}
+	if children[1].Tag() != "descriptions" || children[1].Key() != "jobs.selection.details" {
+		t.Fatalf("details child = tag:%q key:%q", children[1].Tag(), children[1].Key())
+	}
+	if children[2] != action {
+		t.Fatal("action child not preserved")
+	}
+}
+
+func TestDetailPanelConfigWrapsContextDetailsAndActions(t *testing.T) {
+	action := textcomp.New("Open Trace")
+	node := DetailPanel(DetailPanelConfig{
+		Key:          "logs.selection",
+		Title:        "Log Detail",
+		Width:        56,
+		LabelWidth:   12,
+		ContentWidth: 36,
+		Context: ContextStripConfig{
+			Column:       2,
+			LabelWidth:   8,
+			ContentWidth: 18,
+			Items: []Item{
+				CompactValue("Request", "request-1", 18),
+				StateValue("Status", "failed", "failed"),
+			},
+		},
+		Items: []Item{
+			CompactValue("Path", "/v1/chat/completions", 36),
+			MaskedValue("Key", "provider-key-demo", 6, 4),
+		},
+		Actions: []rtui.VNode{action},
+	})
+
+	if node.Tag() != "panel" {
+		t.Fatalf("panel tag = %q, want panel", node.Tag())
+	}
+	props := node.Props()
+	if got := props["key"]; got != "logs.selection" {
+		t.Fatalf("panel key = %v, want logs.selection", got)
+	}
+	if got := props["title"]; got != "Log Detail" {
+		t.Fatalf("panel title = %v, want Log Detail", got)
+	}
+	if got := props["width"]; got != 56 {
+		t.Fatalf("panel width = %v, want 56", got)
+	}
+	content, ok := props["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", props["content"])
+	}
+	if content.Tag() != "vstack" {
+		t.Fatalf("content tag = %q, want vstack", content.Tag())
+	}
+	children := content.Children()
+	if len(children) != 3 {
+		t.Fatalf("children len = %d, want context/details/action", len(children))
+	}
+
+	context := children[0]
+	if context.Tag() != "descriptions" || context.Key() != "logs.selection.context" {
+		t.Fatalf("context child = tag:%q key:%q", context.Tag(), context.Key())
+	}
+	if got := context.Props()[propWidth]; got != 56 {
+		t.Fatalf("context width = %v, want inherited panel width 56", got)
+	}
+	if got := context.Props()[propColumn]; got != 2 {
+		t.Fatalf("context column = %v, want 2", got)
+	}
+
+	details := children[1]
+	if details.Tag() != "descriptions" || details.Key() != "logs.selection.details" {
+		t.Fatalf("details child = tag:%q key:%q", details.Tag(), details.Key())
+	}
+	if got := details.Props()[propLabelWidth]; got != 12 {
+		t.Fatalf("details label width = %v, want 12", got)
+	}
+	if got := details.Props()[propContentWidth]; got != 36 {
+		t.Fatalf("details content width = %v, want 36", got)
+	}
+	if children[2] != action {
+		t.Fatal("action child not preserved")
+	}
+}
+
+func TestDetailPanelEmptyWhenShowsEmptyStateAndKeepsActions(t *testing.T) {
+	action := textcomp.New("Next")
+	node := DetailPanel(DetailPanelConfig{
+		Key:       "jobs.selection",
+		Title:     "Job Detail",
+		Width:     62,
+		EmptyWhen: true,
+		EmptyText: "No job selected.",
+		EmptyHint: "Clear filters or refresh jobs.",
+		Context: ContextStripConfig{
+			Items: []Item{CompactValue("ID", "job-1", 12)},
+		},
+		Items:   []Item{Value("Name", "Sync")},
+		Actions: []rtui.VNode{action},
+	})
+
+	if node.Tag() != "panel" {
+		t.Fatalf("panel tag = %q, want panel", node.Tag())
+	}
+	props := node.Props()
+	if got := props["key"]; got != "jobs.selection" {
+		t.Fatalf("panel key = %v, want jobs.selection", got)
+	}
+	if got := props["title"]; got != "Job Detail" {
+		t.Fatalf("panel title = %v, want Job Detail", got)
+	}
+	if got := props["width"]; got != 62 {
+		t.Fatalf("panel width = %v, want 62", got)
+	}
+	content, ok := props["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", props["content"])
+	}
+	if content.Tag() != "vstack" {
+		t.Fatalf("content tag = %q, want vstack", content.Tag())
+	}
+	children := content.Children()
+	if len(children) != 3 {
+		t.Fatalf("children len = %d, want empty/hint/action", len(children))
+	}
+	if children[0].Tag() != "empty" {
+		t.Fatalf("first child tag = %q, want empty", children[0].Tag())
+	}
+	if got := children[0].Props()["description"]; got != "No job selected." {
+		t.Fatalf("empty description = %v, want No job selected.", got)
+	}
+	if children[1].Tag() != "text" || children[1].Props()["content"] != "Clear filters or refresh jobs." {
+		t.Fatalf("empty hint = %s %+v, want subtle hint text", children[1].Tag(), children[1].Props())
+	}
+	if children[2] != action {
+		t.Fatal("action child not preserved")
+	}
+}
+
+func TestDetailPanelEmptyHintBuildsRecoveryScopeText(t *testing.T) {
+	got := DetailPanelEmptyHint("Refresh jobs or reset filters.",
+		textcomp.KeyValuePart{Label: "status", Value: " active "},
+		textcomp.KeyValuePart{Label: "search", Value: ""},
+		textcomp.KeyValuePart{Label: "last", Value: "failed\n"},
+	)
+	want := "Refresh jobs or reset filters. Scope: status=active / last=failed"
+	if got != want {
+		t.Fatalf("empty hint = %q, want %q", got, want)
+	}
+
+	if got := DetailPanelEmptyHint("Refresh jobs."); got != "Refresh jobs." {
+		t.Fatalf("hint without scope = %q, want action only", got)
+	}
+	if got := DetailPanelEmptyHint("", textcomp.KeyValuePart{Label: "source", Value: "unavailable"}); got != "Scope: source=unavailable" {
+		t.Fatalf("hint without action = %q, want scope only", got)
+	}
+	if got := DetailPanelEmptyHintWithScopeWidth("Clear search.", 18, textcomp.KeyValuePart{Label: "search", Value: "abcdefghijklmnopqrstuvwxyz"}); got != "Clear search. Scope: search=abcdefgh..." {
+		t.Fatalf("compact hint = %q, want compact scope", got)
+	}
+}
+
+func TestDetailPanelEmptyWhenDefaultsEmptyText(t *testing.T) {
+	node := DetailPanel(DetailPanelConfig{
+		Title:     "Selection",
+		EmptyWhen: true,
+	})
+	content, ok := node.Props()["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", node.Props()["content"])
+	}
+	if content.Tag() != "empty" {
+		t.Fatalf("content tag = %q, want empty", content.Tag())
+	}
+	if got := content.Props()["description"]; got != "No selection available." {
+		t.Fatalf("empty description = %v, want No selection available.", got)
+	}
+}
+
+func TestEmptyPanelPresetWrapsEmptyState(t *testing.T) {
+	node := EmptyPanel("runtime.http", "HTTP Client", 56, "HTTP client diagnostics unavailable")
+	if node.Tag() != "panel" {
+		t.Fatalf("panel tag = %q, want panel", node.Tag())
+	}
+	props := node.Props()
+	if got := props["key"]; got != "runtime.http" {
+		t.Fatalf("panel key = %v, want runtime.http", got)
+	}
+	if got := props["title"]; got != "HTTP Client" {
+		t.Fatalf("panel title = %v, want HTTP Client", got)
+	}
+	if got := props["width"]; got != 56 {
+		t.Fatalf("panel width = %v, want 56", got)
+	}
+	content, ok := props["content"].(rtui.VNode)
+	if !ok {
+		t.Fatalf("content = %T, want VNode", props["content"])
+	}
+	if content.Tag() != "empty" {
+		t.Fatalf("content tag = %q, want empty", content.Tag())
+	}
+	if got := content.Props()["description"]; got != "HTTP client diagnostics unavailable" {
+		t.Fatalf("empty description = %v, want HTTP client diagnostics unavailable", got)
+	}
+}
+
 func TestNormalizeItemsAssignsKeysAndSpan(t *testing.T) {
 	items := normalizeItems([]Item{
 		Field("Name", "Mint").WithKey("dup").WithSpan(0),
@@ -129,6 +462,108 @@ func TestValueItemsRenderEmptyAndSensitiveValues(t *testing.T) {
 	}
 	if containsVNodeText(root, "agw_example_token") {
 		t.Fatal("sensitive value should not be rendered")
+	}
+}
+
+func TestFallbackAndCompactValueItems(t *testing.T) {
+	items := normalizeItems([]Item{
+		FallbackValue("Blank", " ", "n/a").WithKey("blank"),
+		CompactValue("ASCII", "abcdefghijklmnopqrstuvwxyz", 10).WithKey("ascii"),
+		CompactFallbackValue("Wide", "服务端运行状态很长", "-", 8).WithKey("wide"),
+	})
+
+	if items[0].Value != "n/a" {
+		t.Fatalf("fallback value = %v, want n/a", items[0].Value)
+	}
+	if items[1].Value != "abcdefg..." {
+		t.Fatalf("compact ascii value = %v, want abcdefg...", items[1].Value)
+	}
+	if got := items[2].Value.(string); paint.StringWidth(got) > 8 {
+		t.Fatalf("compact wide value width = %d, want <= 8 (%q)", paint.StringWidth(got), got)
+	}
+}
+
+func TestCountAndRatioValueItemsUseOperationalText(t *testing.T) {
+	items := normalizeItems([]Item{
+		CountValue("Retries", -3).WithKey("retries"),
+		RatioValue("Queue", -1, 12).WithKey("queue"),
+		RatioValue("Active", 4, 7).WithKey("active"),
+	})
+
+	if items[0].Value != "0" {
+		t.Fatalf("count value = %v, want 0", items[0].Value)
+	}
+	if items[1].Value != "0/12" {
+		t.Fatalf("negative ratio value = %v, want 0/12", items[1].Value)
+	}
+	if items[2].Value != "4/7" {
+		t.Fatalf("ratio value = %v, want 4/7", items[2].Value)
+	}
+}
+
+func TestMaskedValueItemsDoNotStoreRawSensitiveText(t *testing.T) {
+	items := normalizeItems([]Item{
+		MaskedValue("Account", "account-billing-prod", 4, 4).WithKey("account"),
+		MaskedFallbackValue("Missing", " ", "-", 2, 4).WithKey("missing"),
+	})
+
+	if items[0].Value != "acco...prod" {
+		t.Fatalf("masked account value = %v, want acco...prod", items[0].Value)
+	}
+	if items[0].Value == "account-billing-prod" {
+		t.Fatal("masked item should not keep the raw account value")
+	}
+	if items[1].Value != "-" {
+		t.Fatalf("masked fallback value = %v, want -", items[1].Value)
+	}
+}
+
+func TestStateValueItemUsesSemanticText(t *testing.T) {
+	item := StateValue("Status", "failed", "failed").WithKey("status")
+	if item.HasValue {
+		t.Fatal("state value should use content node instead of raw value")
+	}
+	if item.Content == nil {
+		t.Fatal("state value content is nil")
+	}
+	if item.Content.Tag() != "text" {
+		t.Fatalf("state value content tag = %q, want text", item.Content.Tag())
+	}
+	if got := item.Content.Props()["content"]; got != "failed" {
+		t.Fatalf("state value content = %v, want failed", got)
+	}
+	lineStyle, ok := item.Content.Props()["style"].(style.Style)
+	if !ok {
+		t.Fatalf("state value style = %T, want style.Style", item.Content.Props()["style"])
+	}
+	if lineStyle.FG != "red" {
+		t.Fatalf("state value fg = %q, want red", lineStyle.FG)
+	}
+}
+
+func TestBoolStateAndEnabledValueItemsUseSemanticText(t *testing.T) {
+	running := BoolStateValue("Running", true, "yes", "no", "running", "idle")
+	if running.Content == nil || running.Content.Props()["content"] != "yes" {
+		t.Fatalf("running content = %+v, want yes text", running.Content)
+	}
+	runningStyle, ok := running.Content.Props()["style"].(style.Style)
+	if !ok {
+		t.Fatalf("running style = %T, want style.Style", running.Content.Props()["style"])
+	}
+	if runningStyle.FG != "yellow" {
+		t.Fatalf("running fg = %q, want yellow", runningStyle.FG)
+	}
+
+	enabled := EnabledValue("Enabled", false)
+	if enabled.Content == nil || enabled.Content.Props()["content"] != "disabled" {
+		t.Fatalf("enabled content = %+v, want disabled text", enabled.Content)
+	}
+	enabledStyle, ok := enabled.Content.Props()["style"].(style.Style)
+	if !ok {
+		t.Fatalf("enabled style = %T, want style.Style", enabled.Content.Props()["style"])
+	}
+	if enabledStyle.FG != "red" {
+		t.Fatalf("enabled fg = %q, want red", enabledStyle.FG)
 	}
 }
 

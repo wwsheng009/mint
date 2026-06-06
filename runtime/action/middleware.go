@@ -126,6 +126,19 @@ func (m *ThrottleMiddleware) Before(action *Action) *Action {
 		return action
 	}
 
+	if action.IsNavigation() {
+		m.lastAction[action.Type] = now
+		return action
+	}
+
+	// Text editing actions must preserve every event. Terminal paste on some
+	// platforms arrives as a rapid stream of key presses, and throttling these
+	// actions drops characters.
+	if isUnthrottledEditingAction(action.Type) {
+		m.lastAction[action.Type] = now
+		return action
+	}
+
 	// Check if triggered too frequently
 	if exists && now.Sub(last) < m.interval {
 		log.ActionLogger.Debug("[Action] ⚠ Throttled: Type=%s (last: %v ago)\n",
@@ -137,6 +150,32 @@ func (m *ThrottleMiddleware) Before(action *Action) *Action {
 	// Update last trigger time
 	m.lastAction[action.Type] = now
 	return action
+}
+
+func isUnthrottledEditingAction(actionType ActionType) bool {
+	switch actionType {
+	case ActionInputChar,
+		ActionInputText,
+		ActionPaste,
+		ActionBackspace,
+		ActionDeleteChar,
+		ActionDeleteWord,
+		ActionDeleteLine,
+		ActionCursorHome,
+		ActionCursorEnd,
+		ActionCursorUp,
+		ActionCursorDown,
+		ActionCursorLeft,
+		ActionCursorRight,
+		ActionCursorWordLeft,
+		ActionCursorWordRight,
+		ActionSelectAll,
+		ActionSelectWord,
+		ActionSelectLine:
+		return true
+	default:
+		return false
+	}
 }
 
 // After is no-op for throttle middleware

@@ -108,6 +108,13 @@ func (b *Builder) ShowHotkeys(show bool) *Builder {
 	return b
 }
 
+// ActiveTabMarker adds a textual marker before the active tab label.
+// This is useful in terminal themes where color, reverse, or underline can be subtle.
+func (b *Builder) ActiveTabMarker(marker string) *Builder {
+	b.vnode.SetActiveTabMarker(marker)
+	return b
+}
+
 // Divider sets the separator between horizontal tabs.
 func (b *Builder) Divider(divider string) *Builder {
 	b.vnode.SetDivider(divider)
@@ -131,7 +138,7 @@ func (b *Builder) Line() *Builder {
 	return b.Variant(TabVariantLine)
 }
 
-// Card uses card-style tabs.
+// Card uses card-style tabs with a top border.
 func (b *Builder) Card() *Builder {
 	return b.Variant(TabVariantCard)
 }

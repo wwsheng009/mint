@@ -123,6 +123,34 @@ func TestApp_HandleGlobalKeyShortcut_InActionPath(t *testing.T) {
 	}
 }
 
+func TestApp_ProcessMsg_GlobalKeyShortcutWithoutDefaultAction(t *testing.T) {
+	app := NewApp()
+	triggered := false
+	app.OnKeyCombo("f6", func() {
+		triggered = true
+	})
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, platform.KeyF6, runtimemsg.Modifiers{}))
+
+	if !triggered {
+		t.Fatal("global key shortcut should be triggered even when the key has no default action")
+	}
+}
+
+func TestApp_ProcessMsg_GlobalNavigationShortcutAfterMiddleware(t *testing.T) {
+	app := NewApp()
+	triggered := false
+	app.OnKeyCombo("down", func() {
+		triggered = true
+	})
+
+	app.processMsg(runtimemsg.NewKeyMsg(0, platform.KeyDown, runtimemsg.Modifiers{}))
+
+	if !triggered {
+		t.Fatal("global down shortcut should be triggered when no component middleware consumes it")
+	}
+}
+
 func TestApp_HandleGlobalKeyShortcut_CtrlComboNormalized(t *testing.T) {
 	app := NewApp()
 	triggered := false

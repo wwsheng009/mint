@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rivo/uniseg"
 	"github.com/wwsheng009/mint/internal/log"
 	cachepkg "github.com/wwsheng009/mint/internal/render/cache"
 	"github.com/wwsheng009/mint/runtime"
@@ -236,7 +237,7 @@ func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Bu
 			if parentBG != "" && (styleToApply.BG == "" || styleToApply.BG == style.NoColor) {
 				styleToApply.BG = parentBG
 			}
-			buffer.SetString(cmd.X, cmd.Y, cmd.Text, styleToApply)
+			e.setStringClipped(buffer, box, cmd.X, cmd.Y, cmd.Text, styleToApply, 0)
 		}
 		// For leaf nodes (no children), we're done
 		if len(box.Children) == 0 {
@@ -267,7 +268,10 @@ func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Bu
 		e.paintElementBox(box, buffer)
 	case paint.NodeTypeFragment:
 		if paintChildren {
-			return e.paintBoxChildren(box, buffer)
+			if err := e.paintBoxChildren(box, buffer); err != nil {
+				return err
+			}
+			e.postPaintBox(box, buffer)
 		}
 		return nil
 	}
@@ -275,12 +279,18 @@ func (e *PaintEngine) paintBoxWithMode(box *paint.PaintableBox, buffer *paint.Bu
 	// Handle bordered elements (legacy path - for nodes without custom Paint)
 	if bs, bc, bl := box.GetBorderInfo(); bs != paint.BorderStyleNone && len(commands) == 0 {
 		e.paintBorderedBox(box, buffer, bs, bc, bl, paintChildren)
+		if paintChildren {
+			e.postPaintBox(box, buffer)
+		}
 		return nil
 	}
 
 	// Paint children
 	if paintChildren {
-		return e.paintBoxChildren(box, buffer)
+		if err := e.paintBoxChildren(box, buffer); err != nil {
+			return err
+		}
+		e.postPaintBox(box, buffer)
 	}
 	return nil
 }
@@ -294,7 +304,7 @@ func (e *PaintEngine) paintTextBox(box *paint.PaintableBox, buffer *paint.Buffer
 	}
 	if text != "" {
 		// SetStringAligned expects an absolute maxX; clip text to box bounds.
-		buffer.SetStringAligned(box.X, box.Y, text, box.Node.Style(), box.X+box.Width)
+		e.setStringClipped(buffer, box, box.X, box.Y, text, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for text box (if cacheable)
 		if e.enableCache && e.paintContext != nil && cacheKey != "" {
@@ -313,7 +323,7 @@ func (e *PaintEngine) paintElementBox(box *paint.PaintableBox, buffer *paint.Buf
 	}
 	if content != "" {
 		// SetStringAligned expects an absolute maxX; clip text to box bounds.
-		buffer.SetStringAligned(box.X, box.Y, content, box.Node.Style(), box.X+box.Width)
+		e.setStringClipped(buffer, box, box.X, box.Y, content, box.Node.Style(), box.X+box.Width)
 
 		// Update cache for element with content (if cacheable)
 		if e.enableCache && e.paintContext != nil && cacheKey != "" {
@@ -343,7 +353,7 @@ func (e *PaintEngine) paintBoxContainerBackground(box *paint.PaintableBox, buffe
 	backgroundStyle := style.Style{}.Background(bgStyle.BG)
 	for y := 0; y < box.Height; y++ {
 		for x := 0; x < box.Width; x++ {
-			buffer.SetCell(box.X+x, box.Y+y, ' ', backgroundStyle)
+			e.setCellClipped(buffer, box, box.X+x, box.Y+y, ' ', backgroundStyle)
 		}
 	}
 }
@@ -356,6 +366,21 @@ func (e *PaintEngine) paintBoxChildren(box *paint.PaintableBox, buffer *paint.Bu
 		}
 	}
 	return nil
+}
+
+func (e *PaintEngine) postPaintBox(box *paint.PaintableBox, buffer *paint.Buffer) {
+	if box == nil || box.Node == nil || buffer == nil {
+		return
+	}
+	postPainter, ok := box.Node.(interface {
+		PostPaint(x, y int) []paint.DrawCmd
+	})
+	if !ok {
+		return
+	}
+	for _, cmd := range postPainter.PostPaint(box.X, box.Y) {
+		e.setStringClipped(buffer, box, cmd.X, cmd.Y, cmd.Text, cmd.Style, 0)
+	}
 }
 
 // paintBorderedBox paints a bordered PaintableBox.
@@ -398,7 +423,7 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 
 	renderer.Paint(box.X, box.Y, contentWidth, contentHeight,
 		func(px, py int, ch rune, s style.Style) {
-			buffer.SetCell(px, py, ch, s)
+			e.setCellClipped(buffer, box, px, py, ch, s)
 		})
 
 	if paintChildren {
@@ -408,6 +433,99 @@ func (e *PaintEngine) paintBorderedBox(box *paint.PaintableBox, buffer *paint.Bu
 			}
 		}
 	}
+}
+
+func (e *PaintEngine) setCellClipped(buffer *paint.Buffer, box *paint.PaintableBox, x, y int, ch rune, s style.Style) {
+	if buffer == nil {
+		return
+	}
+	if clip := e.effectiveClip(box); clip != nil && !clip.Contains(x, y) {
+		return
+	}
+	buffer.SetCell(x, y, ch, s)
+}
+
+func (e *PaintEngine) setStringClipped(buffer *paint.Buffer, box *paint.PaintableBox, x, y int, text string, s style.Style, maxX int) {
+	if buffer == nil || text == "" {
+		return
+	}
+	clip := e.effectiveClip(box)
+	if clip == nil {
+		if maxX > 0 {
+			buffer.SetStringAligned(x, y, text, s, maxX)
+			return
+		}
+		buffer.SetString(x, y, text, s)
+		return
+	}
+	if y < clip.Y || y >= clip.Y+clip.Height {
+		return
+	}
+	startX := x
+	endX := maxX
+	if endX <= 0 {
+		endX = x + paint.StringWidth(text)
+	}
+	if startX < clip.X {
+		startX = clip.X
+	}
+	clipEndX := clip.X + clip.Width
+	if endX > clipEndX {
+		endX = clipEndX
+	}
+	if startX >= endX {
+		return
+	}
+	visible := clipTextToRange(text, x, startX, endX)
+	if visible == "" {
+		return
+	}
+	if maxX > 0 {
+		buffer.SetStringAligned(startX, y, visible, s, endX)
+		return
+	}
+	buffer.SetString(startX, y, visible, s)
+}
+
+func (e *PaintEngine) effectiveClip(box *paint.PaintableBox) *paint.Rect {
+	if box == nil {
+		return nil
+	}
+	if box.Clip != nil {
+		return box.Clip
+	}
+	return nil
+}
+
+func clipTextToRange(text string, originX, startX, endX int) string {
+	if text == "" || startX >= endX {
+		return ""
+	}
+	text = paint.SanitizeForTerminal(text)
+	var out string
+	col := originX
+	g := uniseg.NewGraphemes(text)
+	for g.Next() {
+		cluster := g.Str()
+		width := paint.StringWidth(cluster)
+		if width <= 0 {
+			continue
+		}
+		clusterStart := col
+		clusterEnd := col + width
+		col = clusterEnd
+		if clusterEnd <= startX {
+			continue
+		}
+		if clusterStart >= endX {
+			break
+		}
+		if clusterStart < startX || clusterEnd > endX {
+			continue
+		}
+		out += cluster
+	}
+	return out
 }
 
 // paintModalBackdropBox draws modal backdrop (PaintableBox version)
@@ -736,6 +854,12 @@ func (e *PaintEngine) PaintPaintablePlanes(
 			}
 			if err != nil {
 				return fmt.Errorf("error painting box in layer %s: %w", layer.String(), err)
+			}
+		}
+
+		if !paintChildren {
+			for _, box := range boxes {
+				e.postPaintBox(box, buffer)
 			}
 		}
 

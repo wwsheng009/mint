@@ -19,14 +19,20 @@ type Config struct {
 	ComponentID      string
 	RowKeys          []string
 	PageSize         int
+	CurrentPage      int
+	HasCurrentPage   bool
 	SelectedIndex    int
 	HasSelectedIndex bool
 	SelectedKey      string
 	HasSelectedKey   bool
 	SelectedField    string
 	SelectedKeyField string
+	PageField        string
 	SearchQuery      string
 	EmptyText        string
+	SortColumn       int
+	SortDescending   bool
+	HasSort          bool
 	Loading          bool
 	LoadingText      string
 	ErrorText        string
@@ -43,6 +49,7 @@ type Config struct {
 	HasSelectedStyle bool
 	TableStyle       style.Style
 	HasTableStyle    bool
+	ChangeIntent     intent.Intent
 	ActivateIntent   intent.Intent
 	ActivateField    string
 	ActivateKeyField string
@@ -71,6 +78,9 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.PageSize > 0 {
 		builder.PageSize(cfg.PageSize)
 	}
+	if cfg.HasCurrentPage {
+		builder.CurrentPage(cfg.CurrentPage)
+	}
 	if cfg.HasSelectedIndex {
 		builder.SelectedIndex(cfg.SelectedIndex)
 	}
@@ -83,8 +93,14 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.SelectedKeyField != "" {
 		builder.SelectedKeyForField(intent.BindField(cfg.SelectedKeyField))
 	}
+	if cfg.PageField != "" {
+		builder.PageForField(intent.BindField(cfg.PageField))
+	}
 	if cfg.SearchQuery != "" {
 		builder.SearchQuery(cfg.SearchQuery)
+	}
+	if cfg.HasSort {
+		builder.SortBy(cfg.SortColumn, cfg.SortDescending)
 	}
 	if emptyText := emptyTextForState(cfg); emptyText != "" {
 		builder.EmptyText(emptyText)
@@ -107,6 +123,9 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 	if cfg.HasTableStyle {
 		builder.TableStyle(cfg.TableStyle)
 	}
+	if cfg.ChangeIntent != nil {
+		builder.OnChange(cfg.ChangeIntent)
+	}
 	if cfg.ActivateIntent != nil {
 		builder.OnActivate(cfg.ActivateIntent)
 	}
@@ -117,6 +136,22 @@ func New(columns []table.TableColumn, rows [][]string, opts ...Option) rtui.VNod
 		builder.ActivateKeyForField(intent.BindField(cfg.ActivateKeyField))
 	}
 	return builder.Build()
+}
+
+// Operational builds a table with the standard operations-page defaults.
+func Operational(columns []table.TableColumn, rows [][]string, selectedIndex, pageSize int, selectedField string, opts ...Option) rtui.VNode {
+	defaults := []Option{
+		PageSize(pageSize),
+		SelectedIndex(selectedIndex),
+		ShowFooter(true),
+		ShowScrollbar(true),
+		OperationalStyle(),
+	}
+	if strings.TrimSpace(selectedField) != "" {
+		defaults = append(defaults, SelectedField(selectedField))
+	}
+	defaults = append(defaults, opts...)
+	return New(columns, rows, defaults...)
 }
 
 func Key(key string) Option {
@@ -140,6 +175,13 @@ func RowKeys(keys []string) Option {
 func PageSize(pageSize int) Option {
 	return func(cfg *Config) {
 		cfg.PageSize = pageSize
+	}
+}
+
+func CurrentPage(page int) Option {
+	return func(cfg *Config) {
+		cfg.CurrentPage = page
+		cfg.HasCurrentPage = true
 	}
 }
 
@@ -169,10 +211,31 @@ func SelectedKeyField(field string) Option {
 	}
 }
 
+func PageField(field string) Option {
+	return func(cfg *Config) {
+		cfg.PageField = field
+	}
+}
+
 func Search(query string) Option {
 	return func(cfg *Config) {
 		cfg.SearchQuery = query
 	}
+}
+
+func SortBy(columnIndex int, descending bool) Option {
+	return func(cfg *Config) {
+		cfg.SortColumn = columnIndex
+		cfg.SortDescending = descending
+		cfg.HasSort = true
+	}
+}
+
+func SortState(columnIndex int, descending bool) Option {
+	if columnIndex < 0 {
+		return nil
+	}
+	return SortBy(columnIndex, descending)
 }
 
 func EmptyText(text string) Option {
@@ -300,6 +363,12 @@ func TableStyle(tableStyle style.Style) Option {
 	return func(cfg *Config) {
 		cfg.TableStyle = tableStyle
 		cfg.HasTableStyle = true
+	}
+}
+
+func OnChange(changeIntent intent.Intent) Option {
+	return func(cfg *Config) {
+		cfg.ChangeIntent = changeIntent
 	}
 }
 

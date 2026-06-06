@@ -85,6 +85,11 @@ func (b *Builder) RowGap(rowGap int) *Builder {
 	return b
 }
 
+func (b *Builder) RootGap(rootGap int) *Builder {
+	b.node.SetRootGap(rootGap)
+	return b
+}
+
 func (b *Builder) Wrap(wrap bool) *Builder {
 	b.node.SetWrap(wrap)
 	return b

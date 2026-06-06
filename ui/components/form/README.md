@@ -71,6 +71,7 @@ loginForm := ui.NewForm("loginForm").
 
 - `FormInputPlaceholder(text)`
 - `FormInputWidth(width)`
+- `FormInputLabelWidth(width)`
 - `FormInputType(inputType)`
 - `FormInputDisabled(disabled)`
 - `FormInputReadOnly(readOnly)`

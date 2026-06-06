@@ -22,6 +22,8 @@ node := ui.FormInputItem(
 
 - `ui.FormInputPlaceholder(text)`
 - `ui.FormInputWidth(width)`
+- `ui.FormInputLabelWidth(width)`
+- `ui.FormInputHorizontal(labelWidth)`
 - `ui.FormInputForForm(formID)`
 - `ui.FormInputLayout(layout)`
 - `ui.FormInputValidators(validators...)`
@@ -33,6 +35,7 @@ node := ui.FormInputItem(
 - `ui.FormInputItem(...)`
 - `ui.FormPasswordItem(...)`
 - `ui.FormSearchItem(...)`
+- `ui.FormOperationReasonItem(...)`：运维写操作的标准必填 reason 输入，默认包含审计/确认 help 与常用 placeholder。
 
 ## Fiber-first 约束
 

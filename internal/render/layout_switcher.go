@@ -223,12 +223,6 @@ func convertLayoutHitMap(hm *layout.HitMap, fiberRoot *rtui.Fiber) *event.HitMap
 		if fiberByID != nil {
 			if fiber := fiberByID[nodeID]; fiber != nil {
 				targetFiber = fiber
-				if boundsAware, ok := fiber.Instance.(interface{ GetBounds() (int, int, int, int) }); ok {
-					x, y, width, height := boundsAware.GetBounds()
-					if width > 0 && height > 0 {
-						hitBounds = layout.Rect{X: x, Y: y, Width: width, Height: height}
-					}
-				}
 			}
 		}
 		localRect := rect

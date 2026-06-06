@@ -534,6 +534,11 @@ func TestInstance_Paint_BorderNone(t *testing.T) {
 	if cmds[0].Text != "[" {
 		t.Errorf("First cmd = %q, want [", cmds[0].Text)
 	}
+	for index, cmd := range cmds {
+		if cmd.Y != 0 {
+			t.Fatalf("cmd %d Y = %d, want 0 for one-line BorderNone paint", index, cmd.Y)
+		}
+	}
 	// Second command should be the text
 	if cmds[1].Text != "test      " {
 		t.Errorf("Text = %q, want %q", cmds[1].Text, "test      ")
@@ -541,6 +546,29 @@ func TestInstance_Paint_BorderNone(t *testing.T) {
 	// Third command should be "]"
 	if cmds[2].Text != "]" {
 		t.Errorf("Third cmd = %q, want ]", cmds[2].Text)
+	}
+}
+
+func TestInstance_Paint_BorderNoneFocusedCursorStaysOnFirstLine(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"value":       "abc",
+		"borderStyle": layout.BorderNone,
+		"width":       10,
+	})
+	inst.SetFocus(true)
+	inst.SetCursorPos(1)
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 4 {
+		t.Fatalf("Paint returned %d commands, want 4 with bracket field and focused cursor", len(cmds))
+	}
+
+	cursorCmd := cmds[len(cmds)-1]
+	if cursorCmd.X != 2 || cursorCmd.Y != 0 {
+		t.Fatalf("Cursor command at (%d,%d), want (2,0)", cursorCmd.X, cursorCmd.Y)
+	}
+	if cursorCmd.Text != "b" {
+		t.Fatalf("Cursor command text = %q, want %q", cursorCmd.Text, "b")
 	}
 }
 

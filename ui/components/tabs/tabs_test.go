@@ -1,6 +1,7 @@
 package tabs
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wwsheng009/mint/framework/styling"
@@ -9,10 +10,19 @@ import (
 	"github.com/wwsheng009/mint/runtime/intent"
 	"github.com/wwsheng009/mint/runtime/layout"
 	runtimemsg "github.com/wwsheng009/mint/runtime/msg"
+	"github.com/wwsheng009/mint/runtime/paint"
 	"github.com/wwsheng009/mint/runtime/platform"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
 )
+
+func paintCommandsText(cmds []paint.DrawCmd) string {
+	var builder strings.Builder
+	for _, cmd := range cmds {
+		builder.WriteString(cmd.Text)
+	}
+	return builder.String()
+}
 
 type TestCloseCustomIntent struct{}
 
@@ -545,6 +555,57 @@ func TestInstance_Measure(t *testing.T) {
 	}
 }
 
+func TestInstance_Measure_WrapTabsUsesConstrainedWidth(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "groups", Label: "Groups"},
+			{ID: "providers", Label: "Providers"},
+			{ID: "keys", Label: "Keys"},
+		},
+		"width":    80,
+		"wrapTabs": true,
+	})
+
+	size := inst.Measure(layout.Constraints{MaxWidth: 18})
+
+	if size.Width != 18 {
+		t.Fatalf("width = %d, want constrained width 18", size.Width)
+	}
+	if size.Height < 2 {
+		t.Fatalf("height = %d, want wrapped rows to affect measurement", size.Height)
+	}
+}
+
+func TestInstance_Measure_CardVariantIncludesTopBorder(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab One"},
+			{ID: "tab2", Label: "Tab Two"},
+		},
+		"tabVariant": TabVariantCard,
+	})
+
+	size := inst.Measure(layout.Constraints{})
+	if size.Height != 2 {
+		t.Fatalf("card tab height = %d, want 2 with top border", size.Height)
+	}
+}
+
+func TestInstance_Measure_CardVariantVerticalDoesNotAddTopBorder(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab One"},
+		},
+		"tabVariant": TabVariantCard,
+		"position":   TabPositionLeft,
+	})
+
+	size := inst.Measure(layout.Constraints{})
+	if size.Height != 1 {
+		t.Fatalf("vertical card tab height = %d, want 1 without top border", size.Height)
+	}
+}
+
 func TestInstance_Paint(t *testing.T) {
 	tabs := []TabItem{
 		{ID: "tab1", Label: "Tab 1"},
@@ -581,14 +642,39 @@ func TestInstance_Paint_CardVariant(t *testing.T) {
 	})
 
 	cmds := inst.Paint(0, 0)
-	if len(cmds) < 3 {
-		t.Fatalf("expected tab bar and divider commands, got %d", len(cmds))
+	if len(cmds) < 4 {
+		t.Fatalf("expected top border, tab bar and divider commands, got %d", len(cmds))
 	}
-	if cmds[0].Text != "╭ Tab 1 ╮" {
-		t.Fatalf("active card text = %q, want %q", cmds[0].Text, "╭ Tab 1 ╮")
+	if cmds[0].Text == "" || strings.Trim(cmds[0].Text, "─") != "" {
+		t.Fatalf("top border text = %q, want horizontal border", cmds[0].Text)
 	}
-	if cmds[2].Text != "│ Tab 2 │" {
-		t.Fatalf("inactive card text = %q, want %q", cmds[2].Text, "│ Tab 2 │")
+	if cmds[1].Text != "▌ Tab 1 ▐" || cmds[1].Y != 1 {
+		t.Fatalf("active card command = (%q, y=%d), want %q at y=1", cmds[1].Text, cmds[1].Y, "▌ Tab 1 ▐")
+	}
+	if cmds[3].Text != "│ Tab 2 │" || cmds[3].Y != 1 {
+		t.Fatalf("inactive card command = (%q, y=%d), want %q at y=1", cmds[3].Text, cmds[3].Y, "│ Tab 2 │")
+	}
+}
+
+func TestInstance_Paint_CardVariantTopBorderUsesTabsWidth(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "tab1", Label: "Tab 1"},
+			{ID: "tab2", Label: "Tab 2"},
+		},
+		"tabVariant": TabVariantCard,
+		"width":      80,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) < 4 {
+		t.Fatalf("expected top border, tab bar and divider commands, got %d", len(cmds))
+	}
+	if got, want := paint.StringWidth(cmds[0].Text), paint.StringWidth(cmds[1].Text)+paint.StringWidth(cmds[2].Text)+paint.StringWidth(cmds[3].Text); got != want {
+		t.Fatalf("top border width = %d, want tabs width %d instead of component width", got, want)
+	}
+	if got := paint.StringWidth(cmds[0].Text); got == 80 {
+		t.Fatalf("top border width = %d, should not span explicit component width", got)
 	}
 }
 
@@ -604,14 +690,17 @@ func TestInstance_Paint_CardVariantClosable(t *testing.T) {
 	})
 
 	cmds := inst.Paint(0, 0)
-	if len(cmds) < 3 {
-		t.Fatalf("expected tab bar and divider commands, got %d", len(cmds))
+	if len(cmds) < 4 {
+		t.Fatalf("expected top border, tab bar and divider commands, got %d", len(cmds))
 	}
-	if cmds[0].Text != "╭ Tab 1 × ╮" {
-		t.Fatalf("active closable card text = %q, want %q", cmds[0].Text, "╭ Tab 1 × ╮")
+	if cmds[1].Text != "▌ Tab 1 × ▐" {
+		t.Fatalf("active closable card text = %q, want %q", cmds[1].Text, "▌ Tab 1 × ▐")
 	}
 	if inst.tabBarBounds[0].closeW == 0 {
 		t.Fatal("Expected closable tab to expose a close hitbox")
+	}
+	if inst.tabBarBounds[0].y != 1 {
+		t.Fatalf("closable card hitbox y = %d, want 1 below top border", inst.tabBarBounds[0].y)
 	}
 }
 
@@ -1189,6 +1278,45 @@ func TestInstance_Paint_RightPositionOffsetsBounds(t *testing.T) {
 	}
 	if inst.tabBarBounds[0].x <= 0 {
 		t.Fatalf("Expected right-positioned tabs to be offset horizontally, got x=%d", inst.tabBarBounds[0].x)
+	}
+}
+
+func TestInstance_Paint_ActiveTabMarkerOnlyAppliesToActiveTab(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "requests", Label: "Requests"},
+			{ID: "detail", Label: "Detail"},
+		},
+		"activeTabID":       "requests",
+		propActiveTabMarker: ">",
+		"tabVariant":        TabVariantCard,
+	})
+
+	cmds := inst.Paint(0, 0)
+	text := paintCommandsText(cmds)
+	if !strings.Contains(text, "> Requests") {
+		t.Fatalf("paint text = %q, want active marker before Requests", text)
+	}
+	if strings.Contains(text, "> Detail") {
+		t.Fatalf("paint text = %q, inactive tab should not include active marker", text)
+	}
+
+	inst.SetProps(rtui.Props{
+		"tabs": []TabItem{
+			{ID: "requests", Label: "Requests"},
+			{ID: "detail", Label: "Detail"},
+		},
+		"activeTabID":       "detail",
+		propActiveTabMarker: ">",
+		"tabVariant":        TabVariantCard,
+	})
+	cmds = inst.Paint(0, 0)
+	text = paintCommandsText(cmds)
+	if !strings.Contains(text, "> Detail") {
+		t.Fatalf("paint text = %q, want marker to follow active tab", text)
+	}
+	if strings.Contains(text, "> Requests") {
+		t.Fatalf("paint text = %q, previous active tab should not keep marker", text)
 	}
 }
 

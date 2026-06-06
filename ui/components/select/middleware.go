@@ -25,6 +25,26 @@ func (m *Middleware) Before(act *action.Action) *action.Action {
 		return m.handleCancel(act)
 	case action.ActionClick:
 		return m.handleClickOutside(act)
+	case action.ActionNavigateUp,
+		action.ActionNavigateDown,
+		action.ActionNavigateHome,
+		action.ActionNavigateEnd,
+		action.ActionNavigatePageUp,
+		action.ActionNavigatePageDown,
+		action.ActionScrollUp,
+		action.ActionScrollDown,
+		action.ActionEnter,
+		action.ActionSubmit,
+		action.ActionInputChar,
+		action.ActionInputText,
+		action.ActionBackspace,
+		action.ActionDeleteChar,
+		action.ActionClear,
+		action.ActionCursorUp,
+		action.ActionCursorDown,
+		action.ActionCursorHome,
+		action.ActionCursorEnd:
+		return m.handleOpenPopupKeyboard(act)
 	}
 	return act
 }
@@ -38,6 +58,46 @@ func (m *Middleware) handleCancel(act *action.Action) *action.Action {
 		}
 	}
 	return act
+}
+
+func (m *Middleware) handleOpenPopupKeyboard(act *action.Action) *action.Action {
+	popupAct := popupKeyboardAction(act)
+	for _, popup := range selectPopupRegistry.openPopups() {
+		if popup == nil {
+			continue
+		}
+		if popup.HandleAction(popupAct) {
+			return nil
+		}
+	}
+	return act
+}
+
+func popupKeyboardAction(act *action.Action) *action.Action {
+	if act == nil {
+		return nil
+	}
+	switch act.Type {
+	case action.ActionCursorUp:
+		return cloneActionWithType(act, action.ActionNavigateUp)
+	case action.ActionCursorDown:
+		return cloneActionWithType(act, action.ActionNavigateDown)
+	case action.ActionCursorHome:
+		return cloneActionWithType(act, action.ActionNavigateHome)
+	case action.ActionCursorEnd:
+		return cloneActionWithType(act, action.ActionNavigateEnd)
+	default:
+		return act
+	}
+}
+
+func cloneActionWithType(act *action.Action, actionType action.ActionType) *action.Action {
+	if act == nil {
+		return nil
+	}
+	clone := act.Clone()
+	clone.Type = actionType
+	return clone
 }
 
 func (m *Middleware) handleClickOutside(act *action.Action) *action.Action {

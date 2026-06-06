@@ -240,9 +240,9 @@ bar := ui.StatusBarWithTheme(
     ui.StatusBarSections(ui.StatusBarStateBadge("healthy")),
     ui.StatusBarSections(
         ui.StatusBarScope("provider"),
-        ui.StatusBarTarget("openai/key-1"),
-        ui.StatusBarSelection("job-1"),
-        ui.StatusBarFilter("failed"),
+	ui.StatusBarTarget("openai/key-1"),
+	ui.StatusBarSelection(ui.StatusBarSelectionTarget("job", "cleanup", 24)),
+	ui.StatusBarFilter("failed"),
         ui.StatusBarCount("keys", 12),
         ui.StatusBarLatency(250*time.Millisecond),
         ui.StatusBarLastSync(now.Add(-2*time.Minute), now),
@@ -251,6 +251,11 @@ bar := ui.StatusBarWithTheme(
     ),
 )
 ```
+
+`StatusBarSelectionTarget(kind, value, maxValueWidth)` 用于生成稳定的
+`kind value` 选择摘要。调用方仍负责对 key/token 等敏感值先做掩码，
+该 helper 只处理空态和显示宽度，避免每个页面手写不同的 selection
+字符串。
 
 当状态片段较多时，优先按职责拆成主状态栏、对象状态栏和快捷提示栏等多行，而不是把所有信息塞进同一槽；`StatusBar` 的三槽布局会保留稳定区域，超出可视宽度的内容应显式 `WithWidth(...).WithEllipsis()` 或分行承载。
 

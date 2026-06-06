@@ -19,6 +19,7 @@ const (
 	propKey        = "key"
 	propLabelWidth = "labelWidth"
 	propRowGap     = "rowGap"
+	propRootGap    = "rootGap"
 	propStyle      = "style"
 	propSummary    = "summary"
 	propTitle      = "title"
@@ -81,6 +82,7 @@ type VNode struct {
 	width      int
 	gap        int
 	rowGap     int
+	rootGap    int
 	wrap       bool
 	labelWidth int
 	rootStyle  style.Style
@@ -97,6 +99,7 @@ func New() *VNode {
 		ElementVNode: rtui.NewElement("filterbar"),
 		gap:          1,
 		rowGap:       1,
+		rootGap:      0,
 		wrap:         false,
 		labelWidth:   0,
 	}
@@ -147,6 +150,7 @@ func (v *VNode) Props() rtui.Props {
 		propKey:        v.key,
 		propLabelWidth: v.labelWidth,
 		propRowGap:     v.rowGap,
+		propRootGap:    v.rootGap,
 		propStyle:      v.rootStyle,
 		propSummary:    v.summary,
 		propTitle:      v.title,
@@ -164,6 +168,7 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	v.width = getIntProp(props, propWidth, v.width)
 	v.gap = getIntProp(props, propGap, v.gap)
 	v.rowGap = getIntProp(props, propRowGap, v.rowGap)
+	v.rootGap = getIntProp(props, propRootGap, v.rootGap)
 	v.wrap = getBoolProp(props, propWrap, v.wrap)
 	v.labelWidth = getIntProp(props, propLabelWidth, v.labelWidth)
 	v.rootStyle = getStyleProp(props, propStyle, v.rootStyle)
@@ -223,6 +228,12 @@ func (v *VNode) SetRowGap(rowGap int) *VNode {
 	return v
 }
 
+func (v *VNode) SetRootGap(rootGap int) *VNode {
+	v.rootGap = rootGap
+	v.normalize()
+	return v
+}
+
 func (v *VNode) SetWrap(wrap bool) *VNode {
 	v.wrap = wrap
 	return v
@@ -254,6 +265,9 @@ func (v *VNode) normalize() {
 	}
 	if v.rowGap < 0 {
 		v.rowGap = 0
+	}
+	if v.rootGap < 0 {
+		v.rootGap = 0
 	}
 	if v.labelWidth < 0 {
 		v.labelWidth = 0
@@ -341,6 +355,148 @@ func Button(key, label string, pressIntent intent.Intent) Action {
 	return Action{Key: key, Label: label, PressIntent: pressIntent}
 }
 
+// RefreshAction creates a primary refresh action with a standard loading disabled reason.
+func RefreshAction(pressIntent intent.Intent, busy bool, loadingReason string) Action {
+	action := Button("refresh", "Refresh", pressIntent).Primary()
+	if busy {
+		return action.WithDisabledReason(defaultLoadingReason(loadingReason))
+	}
+	return action
+}
+
+// ResetAction creates a secondary action that resets filters through the
+// application-owned reducer.
+func ResetAction(pressIntent intent.Intent, busy bool, loadingReason string) Action {
+	action := Button("reset", "Reset", pressIntent).Secondary()
+	if busy {
+		return action.WithDisabledReason(defaultLoadingReason(loadingReason))
+	}
+	return action
+}
+
+// ResetActionWhenChanged creates a secondary Reset action that is disabled when
+// the current filter state already matches the application defaults.
+func ResetActionWhenChanged(pressIntent intent.Intent, changed bool, busy bool, loadingReason string) Action {
+	action := ResetAction(pressIntent, busy, loadingReason)
+	if busy || changed {
+		return action
+	}
+	return action.WithDisabledReason("Nothing to reset.")
+}
+
+// ClearFieldAction creates a secondary action that clears a bound field.
+func ClearFieldAction(fieldName, value string, busy bool, loadingReason string) Action {
+	return ClearFieldActionWithLabel("clear", "Clear", fieldName, value, busy, loadingReason)
+}
+
+// ClearFieldActionWithLabel creates a secondary action that clears a bound
+// field using caller-provided key and label. It is useful when a multi-field
+// FilterBar needs separate clear actions for multiple search fields.
+func ClearFieldActionWithLabel(key, label, fieldName, value string, busy bool, loadingReason string) Action {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		key = "clear"
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = "Clear"
+	}
+	fieldName = strings.TrimSpace(fieldName)
+	action := Button(key, label, intent.FieldChangeIntent{Field: fieldName, Value: ""}).Secondary()
+	if busy {
+		return action.WithDisabledReason(defaultLoadingReason(loadingReason))
+	}
+	if fieldName == "" {
+		return action.WithDisabledReason("No field is bound.")
+	}
+	if strings.TrimSpace(value) == "" {
+		return action.WithDisabledReason("Nothing to clear.")
+	}
+	return action
+}
+
+// SearchRefresh creates a standard data-page filter bar with one search field and a refresh action.
+func SearchRefresh(key, summary string, width, labelWidth int, search Field, refreshIntent intent.Intent, busy bool, loadingReason string) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Field(search).
+		Action(RefreshAction(refreshIntent, busy, loadingReason)).
+		Build()
+}
+
+// SearchRefreshClear creates a standard one-search filter bar with Refresh and Clear actions.
+func SearchRefreshClear(key, summary string, width, labelWidth int, search Field, refreshIntent intent.Intent, busy bool, loadingReason string) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Field(search).
+		Action(RefreshAction(refreshIntent, busy, loadingReason)).
+		Action(ClearFieldAction(search.FieldName, search.Value, busy, loadingReason)).
+		Build()
+}
+
+// SearchActions creates a standard one-search filter bar with contextual actions.
+func SearchActions(key, summary string, width, labelWidth int, search Field, actions ...Action) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Field(search).
+		Actions(actions).
+		Build()
+}
+
+// FieldsRefresh creates a standard multi-field data-page filter bar with Refresh.
+func FieldsRefresh(key, summary string, width, labelWidth int, fields []Field, refreshIntent intent.Intent, busy bool, loadingReason string) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Wrap(true).
+		Fields(fields).
+		Action(RefreshAction(refreshIntent, busy, loadingReason)).
+		Build()
+}
+
+// FieldsRefreshReset creates a standard multi-field data-page filter bar with
+// Refresh and Reset actions. The reset intent is owned by the application so it
+// can restore business defaults such as status/source values and page state.
+func FieldsRefreshReset(key, summary string, width, labelWidth int, fields []Field, refreshIntent, resetIntent intent.Intent, busy bool, loadingReason string) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Wrap(true).
+		Fields(fields).
+		Action(RefreshAction(refreshIntent, busy, loadingReason)).
+		Action(ResetAction(resetIntent, busy, loadingReason)).
+		Build()
+}
+
+// FieldsRefreshResetWhenChanged creates a standard multi-field data-page filter
+// bar with Refresh and a Reset action that is disabled until filters differ
+// from the application-defined defaults.
+func FieldsRefreshResetWhenChanged(key, summary string, width, labelWidth int, fields []Field, refreshIntent, resetIntent intent.Intent, resetChanged bool, busy bool, loadingReason string) rtui.VNode {
+	return NewBuilder().
+		Key(key).
+		Summary(summary).
+		Width(width).
+		LabelWidth(labelWidth).
+		Wrap(true).
+		Fields(fields).
+		Action(RefreshAction(refreshIntent, busy, loadingReason)).
+		Action(ResetActionWhenChanged(resetIntent, resetChanged, busy, loadingReason)).
+		Build()
+}
+
 func (a Action) WithVariant(variant button.Variant) Action {
 	a.Variant = variant
 	return a
@@ -368,8 +524,44 @@ func (a Action) WithDisabled(disabled bool) Action {
 
 func (a Action) WithDisabledReason(reason string) Action {
 	a.Disabled = true
-	a.DisabledReason = reason
+	a.DisabledReason = normalizeInlineText(reason)
 	return a
+}
+
+// WithDisabledReasonIf disables the action with reason when condition is true.
+// When the action already has a disabled reason, the new reason is appended so
+// chained condition checks expose all matching prerequisites.
+func (a Action) WithDisabledReasonIf(condition bool, reason string) Action {
+	if !condition {
+		return a
+	}
+	if normalizeInlineText(a.DisabledReason) != "" {
+		return a.WithDisabledReason(JoinDisabledReasons(a.DisabledReason, reason))
+	}
+	return a.WithDisabledReason(reason)
+}
+
+// WithDisabledReasons disables the action when at least one non-empty reason is
+// supplied and joins all reasons into one concise explanation.
+func (a Action) WithDisabledReasons(reasons ...string) Action {
+	joined := JoinDisabledReasons(reasons...)
+	if joined == "" {
+		return a
+	}
+	return a.WithDisabledReason(joined)
+}
+
+// JoinDisabledReasons normalizes, filters, and joins multiple disabled reasons.
+func JoinDisabledReasons(reasons ...string) string {
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		reason = normalizeInlineText(reason)
+		if reason == "" {
+			continue
+		}
+		parts = append(parts, reason)
+	}
+	return strings.Join(parts, " ")
 }
 
 func (a Action) WithWidth(width int) Action {
@@ -479,4 +671,12 @@ func cloneOptions(options []Option) []Option {
 
 func normalizeInlineText(content string) string {
 	return strings.TrimSpace(strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ", "\t", " ").Replace(content))
+}
+
+func defaultLoadingReason(reason string) string {
+	reason = normalizeInlineText(reason)
+	if reason == "" {
+		return "Data is loading."
+	}
+	return reason
 }

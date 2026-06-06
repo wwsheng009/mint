@@ -1,9 +1,13 @@
 package panel
 
 import (
+	"strings"
+
 	"github.com/wwsheng009/mint/runtime/layout"
 	"github.com/wwsheng009/mint/runtime/style"
 	rtui "github.com/wwsheng009/mint/runtime/ui"
+	emptycomp "github.com/wwsheng009/mint/ui/components/empty"
+	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // =============================================================================
@@ -13,6 +17,12 @@ import (
 // Builder provides a fluent API for constructing Panel VNodes.
 type Builder struct {
 	vnode *VNode
+}
+
+// Line describes one colored text line in a compact panel.
+type Line struct {
+	Text  string
+	Color string
 }
 
 // NewBuilder creates a new Panel builder.
@@ -178,6 +188,175 @@ func OfSize(content rtui.VNode, width, height int) rtui.VNode {
 // Titled creates a Panel with a title.
 func Titled(title string, content rtui.VNode) rtui.VNode {
 	return NewBuilder().Title(title).Content(content).Rounded().Build()
+}
+
+// TablePanel creates a single-border titled panel for table-like content.
+func TablePanel(title string, content rtui.VNode, width int) rtui.VNode {
+	return NewBuilder().Title(title).Single().Width(width).Content(content).Build()
+}
+
+// TablePanelWithScope creates a table panel and appends a subtle scope line when provided.
+func TablePanelWithScope(title string, content rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	if content == nil {
+		if emptyText == "" {
+			emptyText = "content unavailable"
+		}
+		content = emptycomp.NewBuilder().Description(emptyText).Build()
+		return TablePanel(title, content, width)
+	}
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return TablePanel(title, content, width)
+	}
+	stack := rtui.VStackBuilder(content, textcomp.Subtle("Scope: "+scope)).Gap(0).AlignCross(rtui.AlignStart).Build()
+	return TablePanel(title, stack, width)
+}
+
+// ContentPanel creates a single-border titled panel for one primary content node.
+func ContentPanel(title string, content rtui.VNode, emptyText string, width int) rtui.VNode {
+	if content == nil {
+		if emptyText == "" {
+			emptyText = "content unavailable"
+		}
+		content = emptycomp.NewBuilder().Description(emptyText).Build()
+	}
+	return NewBuilder().Title(title).Single().Width(width).Content(content).Build()
+}
+
+// StackPanel creates a single-border titled panel that stacks child nodes in order.
+func StackPanel(title string, nodes []rtui.VNode, emptyText string, width int) rtui.VNode {
+	nodes = filterPanelNodes(nodes)
+	if len(nodes) == 0 {
+		if emptyText == "" {
+			emptyText = "content unavailable"
+		}
+		nodes = []rtui.VNode{emptycomp.NewBuilder().Description(emptyText).Build()}
+	}
+	content := rtui.VStackBuilder(nodes...).Gap(0).AlignCross(rtui.AlignStart).Build()
+	return NewBuilder().Title(title).Single().Width(width).Content(content).Build()
+}
+
+// StackPanelWithScope creates a stack panel and appends a subtle scope line when provided.
+func StackPanelWithScope(title string, nodes []rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	nodes = filterPanelNodes(nodes)
+	scope = strings.TrimSpace(scope)
+	if len(nodes) > 0 && scope != "" {
+		nodes = append(nodes, textcomp.Subtle("Scope: "+scope))
+	}
+	return StackPanel(title, nodes, emptyText, width)
+}
+
+// PaddedStackPanel creates a single-border titled panel with stacked content and padding.
+func PaddedStackPanel(title string, nodes []rtui.VNode, emptyText string, width, padding int) rtui.VNode {
+	nodes = filterPanelNodes(nodes)
+	if len(nodes) == 0 {
+		if emptyText == "" {
+			emptyText = "content unavailable"
+		}
+		nodes = []rtui.VNode{emptycomp.NewBuilder().Description(emptyText).Build()}
+	}
+	content := rtui.VStackBuilder(nodes...).Gap(0).AlignCross(rtui.AlignStart).Build()
+	return NewBuilder().Title(title).Single().Width(width).Padding(padding).Content(content).Build()
+}
+
+func filterPanelNodes(nodes []rtui.VNode) []rtui.VNode {
+	if len(nodes) == 0 {
+		return nil
+	}
+	filtered := make([]rtui.VNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil {
+			filtered = append(filtered, node)
+		}
+	}
+	return filtered
+}
+
+// PanelRow arranges sibling panels horizontally with a stable one-cell gap.
+func PanelRow(nodes ...rtui.VNode) rtui.VNode {
+	filtered := make([]rtui.VNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node != nil {
+			filtered = append(filtered, node)
+		}
+	}
+	return rtui.HStackBuilder(filtered...).Gap(1).AlignCross(rtui.AlignStart).Build()
+}
+
+// OperationsPanel creates a single-border titled panel for operational progress/status nodes.
+func OperationsPanel(title string, nodes []rtui.VNode, emptyText string, width int) rtui.VNode {
+	if emptyText == "" {
+		emptyText = "operations unavailable"
+	}
+	return StackPanel(title, nodes, emptyText, width)
+}
+
+// OperationsPanelWithScope creates an operations panel and appends a subtle scope line when provided.
+func OperationsPanelWithScope(title string, nodes []rtui.VNode, scope, emptyText string, width int) rtui.VNode {
+	if emptyText == "" {
+		emptyText = "operations unavailable"
+	}
+	return StackPanelWithScope(title, nodes, scope, emptyText, width)
+}
+
+// TextLine creates a colored panel line.
+func TextLine(text, color string) Line {
+	return Line{Text: text, Color: color}
+}
+
+// MutedLine creates a gray panel line.
+func MutedLine(text string) Line {
+	return TextLine(text, "gray")
+}
+
+// SuccessLine creates a green panel line.
+func SuccessLine(text string) Line {
+	return TextLine(text, "green")
+}
+
+// WarningLine creates a yellow panel line.
+func WarningLine(text string) Line {
+	return TextLine(text, "yellow")
+}
+
+// LinesPanel creates a single-border titled panel from colored text lines.
+func LinesPanel(title string, lines []Line, emptyText string, width int) rtui.VNode {
+	nodes := make([]rtui.VNode, 0, len(lines))
+	for _, line := range lines {
+		text := strings.TrimSpace(line.Text)
+		if text == "" {
+			continue
+		}
+		color := strings.TrimSpace(line.Color)
+		if color == "" {
+			color = "gray"
+		}
+		nodes = append(nodes, textcomp.NewBuilder(text).FgColor(color).Build())
+	}
+	if len(nodes) == 0 {
+		if emptyText == "" {
+			emptyText = "No lines."
+		}
+		nodes = append(nodes, textcomp.NewBuilder(emptyText).FgColor("gray").Build())
+	}
+	content := rtui.VStackBuilder(nodes...).Gap(0).AlignCross(rtui.AlignStart).Build()
+	return NewBuilder().Title(title).Single().Width(width).Content(content).Build()
+}
+
+// NoticePanel creates a muted single-border panel for compact operational notes.
+func NoticePanel(title string, lines []string, width int) rtui.VNode {
+	panelLines := make([]Line, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		panelLines = append(panelLines, TextLine(line, "bright-black"))
+	}
+	if len(panelLines) == 0 {
+		panelLines = append(panelLines, TextLine("No notice.", "bright-black"))
+	}
+	return LinesPanel(title, panelLines, "", width)
 }
 
 // Bordered creates a Panel with border.

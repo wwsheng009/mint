@@ -9,6 +9,7 @@
 - `filterOption` 与过滤占位文案
 - `placeholder`、`disabled`
 - overlay popup、portal root、outside-click 收口
+- 弹层打开后支持鼠标滚轮、上下方向键、Home/End、PageUp/PageDown 切换高亮选项并保持高亮项可见
 - `OnChange`、`ForField`、`ForForm`
 
 ## 状态语义

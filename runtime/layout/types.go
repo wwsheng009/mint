@@ -52,6 +52,21 @@ type PropsIDProvider interface {
 	GetPropsID() string
 }
 
+// ScrollViewportProvider describes a clipping viewport whose child subtree can be
+// shifted vertically while remaining in normal layout and event routing.
+type ScrollViewportProvider interface {
+	Node
+	GetScrollViewport() ScrollViewport
+}
+
+// ScrollViewport stores controlled scroll viewport layout metadata.
+type ScrollViewport struct {
+	Enabled      bool
+	Width        int
+	Height       int
+	ScrollOffset int
+}
+
 // Versioned 可版本接口
 // 节点可以实现此接口以跟踪版本信息
 type Versioned interface {
@@ -157,6 +172,9 @@ type LayoutBox struct {
 	// 注意：BoxModel 主要在布局计算过程中使用，不总是需要存储在最终结果中
 	BoxModel BoxModel
 
+	// Clip 限制该盒子及其子树可绘制/可命中的屏幕区域。
+	Clip *Rect
+
 	// Children 子节点布局结果
 	Children []*LayoutBox
 }
@@ -183,7 +201,6 @@ type LayoutResult struct {
 	// 负责收集各个layer的信息，统一把非base的layer的坐标对齐到0,0
 	LayerManager *LayerManager
 }
-
 
 // Constraints 布局约束
 type Constraints struct {
@@ -272,17 +289,14 @@ type Engine struct {
 	viewportConstraints Constraints
 }
 
-
 // MaxLayoutDepth is the maximum depth for layout recursion
 const MaxLayoutDepth = 500
-
 
 // LayoutStats 布局统计
 type LayoutStats struct {
 	CacheHits   int64
 	CacheMisses int64
 }
-
 
 // =============================================================================
 // Baseline Alignment Interface
@@ -307,7 +321,6 @@ type BaselineLayoutBox struct {
 	// HasBaselineInfo indicates if this box has valid baseline info
 	HasBaselineInfo bool
 }
-
 
 // GetBaselineFromNode safely gets baseline from a node
 func GetBaselineFromNode(node Node) int {

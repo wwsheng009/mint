@@ -83,7 +83,8 @@ Not every component has every file listed above; small display components can be
 | Space | `../../ui/components/space/README.md` | Spacing layout. |
 | SplitPane | `../../ui/components/splitpane/README.md` | Two-pane master/detail or top/bottom layout. |
 | Wrap | `../../ui/components/wrap/README.md` | Wrapping layout. |
-| ScrollView | `../../ui/components/scrollview/README.md` | Scrollable viewport. |
+| PageViewport | `../../ui/components/pageviewport/README.md` | Interactive clipped page viewport that preserves child controls. |
+| ScrollView | `../../ui/components/scrollview/README.md` | Text-oriented scrollable viewport. |
 | Collapse | `../../ui/components/collapse/README.md` | Expand/collapse panels. |
 
 ### Form And Input

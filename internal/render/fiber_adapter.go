@@ -1126,6 +1126,49 @@ func (a *FiberToNodeAdapter) GetAnchor() layout.Anchor {
 	return a.fiber.Anchor
 }
 
+// GetScrollViewport exposes controlled interactive viewports to the layout engine.
+func (a *FiberToNodeAdapter) GetScrollViewport() layout.ScrollViewport {
+	if a.fiber == nil {
+		return layout.ScrollViewport{}
+	}
+	if a.fiber.Instance != nil {
+		if provider, ok := a.fiber.Instance.(interface{ GetScrollViewport() layout.ScrollViewport }); ok {
+			return provider.GetScrollViewport()
+		}
+	}
+	if a.fiber.Tag != "pageviewport" || a.fiber.Props == nil {
+		return layout.ScrollViewport{}
+	}
+	return layout.ScrollViewport{
+		Enabled:      true,
+		Width:        propInt(a.fiber.Props, "width"),
+		Height:       propInt(a.fiber.Props, "height"),
+		ScrollOffset: propInt(a.fiber.Props, "scrollOffset"),
+	}
+}
+
+// SetScrollViewportMetrics forwards post-layout content metrics to viewport instances.
+func (a *FiberToNodeAdapter) SetScrollViewportMetrics(contentWidth, contentHeight, viewportWidth, viewportHeight int) {
+	if a.fiber == nil || a.fiber.Instance == nil {
+		return
+	}
+	if receiver, ok := a.fiber.Instance.(interface {
+		SetScrollViewportMetrics(contentWidth, contentHeight, viewportWidth, viewportHeight int)
+	}); ok {
+		receiver.SetScrollViewportMetrics(contentWidth, contentHeight, viewportWidth, viewportHeight)
+	}
+}
+
+func propInt(props rtui.Props, key string) int {
+	if props == nil {
+		return 0
+	}
+	if v, ok := props[key].(int); ok {
+		return v
+	}
+	return 0
+}
+
 // ========== layout.Dirtyable 接口实现 ==========
 
 // IsLayoutDirty 检查是否需要重新布局

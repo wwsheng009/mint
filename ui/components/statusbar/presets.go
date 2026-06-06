@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	textcomp "github.com/wwsheng009/mint/ui/components/text"
 )
 
 // Tone describes an operational status severity for status bar presets.
@@ -103,6 +105,22 @@ func Selection(value string) Section {
 	return MutedKeyValue("selection", value)
 }
 
+// SelectionTarget creates a compact selection value in "kind value" form. The
+// caller owns sensitive-value masking; this helper only normalizes blank kind or
+// value and applies display-width bounds to the value portion.
+func SelectionTarget(kind, value string, maxValueWidth int) string {
+	kind = strings.TrimSpace(normalizeStatusText(kind))
+	value = strings.TrimSpace(normalizeStatusText(value))
+	if value == "" {
+		return "-"
+	}
+	value = textcomp.CompactFallbackText(value, "-", maxValueWidth)
+	if kind == "" {
+		return value
+	}
+	return kind + " " + value
+}
+
 // Filter creates a low-emphasis status section for active filters or search criteria.
 func Filter(value string) Section {
 	return MutedKeyValue("filter", value)
@@ -141,7 +159,7 @@ func Hotkey(key, label string) Section {
 
 // Separator creates a low-emphasis visual divider between compact status sections.
 func Separator() Section {
-	return Text("|").WithForeground("bright-black")
+	return Text(" | ").WithForeground("bright-black")
 }
 
 // LastSync creates a low-emphasis status section for the last successful sync time.
