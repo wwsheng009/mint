@@ -10,7 +10,8 @@ and short async operation timers.
 - Countdown mode: time until `Deadline(...)` or `StartedAt(...) + Duration(...)`.
 - Live ticking through `TickableInstance`.
 - Static deterministic rendering with `Live(false)` or `Static()`.
-- Optional ASCII progress bar for countdown or bounded elapsed windows.
+- Optional Unicode progress bar for countdown or bounded elapsed windows.
+- ASCII progress fallback through `ASCIIProgress()` or `ProgressGlyphStyle(ProgressGlyphStyleASCII)`.
 - Semantic styles for normal, warning, and expired states.
 - Fixed width rendering for status bars and dense toolbars.
 - Operational presets for auto-refresh, retry-after/cooldown, and operation elapsed timers.
@@ -23,6 +24,17 @@ ui.NewTimerBuilder().
     Label("Refresh").
     Countdown(30 * time.Second).
     ShowProgress(true).
+    Build()
+```
+
+ASCII progress fallback:
+
+```go
+ui.NewTimerBuilder().
+    Label("Refresh").
+    Countdown(30 * time.Second).
+    ShowProgress(true).
+    ASCIIProgress().
     Build()
 ```
 

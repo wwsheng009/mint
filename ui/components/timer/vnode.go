@@ -9,23 +9,24 @@ import (
 )
 
 const (
-	propDuration      = "duration"
-	propExpiredStyle  = "expiredStyle"
-	propExpiredText   = "expiredText"
-	propKey           = "key"
-	propLabel         = "label"
-	propLive          = "live"
-	propMode          = "mode"
-	propNow           = "now"
-	propProgressStyle = "progressStyle"
-	propProgressWidth = "progressWidth"
-	propShowProgress  = "showProgress"
-	propStartedAt     = "startedAt"
-	propStyle         = "style"
-	propDeadline      = "deadline"
-	propWarningBelow  = "warningBelow"
-	propWarningStyle  = "warningStyle"
-	propWidth         = "width"
+	propDuration           = "duration"
+	propExpiredStyle       = "expiredStyle"
+	propExpiredText        = "expiredText"
+	propKey                = "key"
+	propLabel              = "label"
+	propLive               = "live"
+	propMode               = "mode"
+	propNow                = "now"
+	propProgressStyle      = "progressStyle"
+	propProgressGlyphStyle = "progressGlyphStyle"
+	propProgressWidth      = "progressWidth"
+	propShowProgress       = "showProgress"
+	propStartedAt          = "startedAt"
+	propStyle              = "style"
+	propDeadline           = "deadline"
+	propWarningBelow       = "warningBelow"
+	propWarningStyle       = "warningStyle"
+	propWidth              = "width"
 )
 
 // Mode controls how the timer value is interpreted.
@@ -38,27 +39,38 @@ const (
 	ModeCountdown
 )
 
+// ProgressGlyphStyle controls the character set used by the optional timer progress bar.
+type ProgressGlyphStyle int
+
+const (
+	// ProgressGlyphStyleUnicode uses block characters for a denser TUI progress bar.
+	ProgressGlyphStyleUnicode ProgressGlyphStyle = iota
+	// ProgressGlyphStyleASCII uses plain ASCII characters for Unicode-limited terminals or logs.
+	ProgressGlyphStyleASCII
+)
+
 // VNode is the immutable description of a Timer component.
 type VNode struct {
 	*rtui.ElementVNode
 
-	key           string
-	label         string
-	mode          Mode
-	duration      time.Duration
-	startedAt     time.Time
-	deadline      time.Time
-	now           time.Time
-	live          bool
-	width         int
-	showProgress  bool
-	progressWidth int
-	expiredText   string
-	warningBelow  time.Duration
-	timerStyle    style.Style
-	warningStyle  style.Style
-	expiredStyle  style.Style
-	progressStyle style.Style
+	key                string
+	label              string
+	mode               Mode
+	duration           time.Duration
+	startedAt          time.Time
+	deadline           time.Time
+	now                time.Time
+	live               bool
+	width              int
+	showProgress       bool
+	progressWidth      int
+	progressGlyphStyle ProgressGlyphStyle
+	expiredText        string
+	warningBelow       time.Duration
+	timerStyle         style.Style
+	warningStyle       style.Style
+	expiredStyle       style.Style
+	progressStyle      style.Style
 }
 
 var (
@@ -69,17 +81,18 @@ var (
 // New creates a new Timer VNode.
 func New() *VNode {
 	return &VNode{
-		ElementVNode:  rtui.NewElement("timer"),
-		mode:          ModeElapsed,
-		live:          true,
-		progressWidth: 12,
-		expiredText:   "00:00",
-		warningBelow:  10 * time.Second,
-		showProgress:  false,
-		progressStyle: style.Style{},
-		timerStyle:    style.Style{},
-		warningStyle:  style.Style{},
-		expiredStyle:  style.Style{},
+		ElementVNode:       rtui.NewElement("timer"),
+		mode:               ModeElapsed,
+		live:               true,
+		progressWidth:      12,
+		progressGlyphStyle: ProgressGlyphStyleUnicode,
+		expiredText:        "00:00",
+		warningBelow:       10 * time.Second,
+		showProgress:       false,
+		progressStyle:      style.Style{},
+		timerStyle:         style.Style{},
+		warningStyle:       style.Style{},
+		expiredStyle:       style.Style{},
 	}
 }
 
@@ -109,23 +122,24 @@ func (v *VNode) SetLayer(l rtui.Layer) rtui.VNode { return v }
 
 func (v *VNode) Props() rtui.Props {
 	return rtui.Props{
-		propDuration:      v.duration,
-		propExpiredStyle:  v.expiredStyle,
-		propExpiredText:   v.expiredText,
-		propKey:           v.key,
-		propLabel:         v.label,
-		propLive:          v.live,
-		propMode:          v.mode,
-		propNow:           v.now,
-		propProgressStyle: v.progressStyle,
-		propProgressWidth: v.progressWidth,
-		propShowProgress:  v.showProgress,
-		propStartedAt:     v.startedAt,
-		propStyle:         v.timerStyle,
-		propDeadline:      v.deadline,
-		propWarningBelow:  v.warningBelow,
-		propWarningStyle:  v.warningStyle,
-		propWidth:         v.width,
+		propDuration:           v.duration,
+		propExpiredStyle:       v.expiredStyle,
+		propExpiredText:        v.expiredText,
+		propKey:                v.key,
+		propLabel:              v.label,
+		propLive:               v.live,
+		propMode:               v.mode,
+		propNow:                v.now,
+		propProgressStyle:      v.progressStyle,
+		propProgressGlyphStyle: v.progressGlyphStyle,
+		propProgressWidth:      v.progressWidth,
+		propShowProgress:       v.showProgress,
+		propStartedAt:          v.startedAt,
+		propStyle:              v.timerStyle,
+		propDeadline:           v.deadline,
+		propWarningBelow:       v.warningBelow,
+		propWarningStyle:       v.warningStyle,
+		propWidth:              v.width,
 	}
 }
 
@@ -180,6 +194,9 @@ func (v *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if progressStyle, ok := props[propProgressStyle].(style.Style); ok {
 		v.progressStyle = progressStyle
+	}
+	if progressGlyphStyle, ok := props[propProgressGlyphStyle].(ProgressGlyphStyle); ok {
+		v.progressGlyphStyle = progressGlyphStyle
 	}
 	return v
 }
@@ -236,6 +253,11 @@ func (v *VNode) SetShowProgress(show bool) *VNode {
 
 func (v *VNode) SetProgressWidth(width int) *VNode {
 	v.progressWidth = maxInt(0, width)
+	return v
+}
+
+func (v *VNode) SetProgressGlyphStyle(glyphStyle ProgressGlyphStyle) *VNode {
+	v.progressGlyphStyle = glyphStyle
 	return v
 }
 
@@ -301,20 +323,31 @@ func (v *VNode) Progress(show bool) *VNode {
 	return v
 }
 
-func (v *VNode) Label() string               { return v.label }
-func (v *VNode) Mode() Mode                  { return v.mode }
-func (v *VNode) Duration() time.Duration     { return v.duration }
-func (v *VNode) StartedAt() time.Time        { return v.startedAt }
-func (v *VNode) Deadline() time.Time         { return v.deadline }
-func (v *VNode) Now() time.Time              { return v.now }
-func (v *VNode) Live() bool                  { return v.live }
-func (v *VNode) Width() int                  { return v.width }
-func (v *VNode) ShowProgress() bool          { return v.showProgress }
-func (v *VNode) ProgressWidth() int          { return v.progressWidth }
-func (v *VNode) ExpiredText() string         { return v.expiredText }
-func (v *VNode) WarningBelow() time.Duration { return v.warningBelow }
-func (v *VNode) TimerStyle() style.Style     { return v.timerStyle }
-func (v *VNode) WarningStyle() style.Style   { return v.warningStyle }
-func (v *VNode) ExpiredStyle() style.Style   { return v.expiredStyle }
-func (v *VNode) ProgressStyle() style.Style  { return v.progressStyle }
-func (v *VNode) NewInstance() *Instance      { return NewInstance(v.Props()) }
+func (v *VNode) UnicodeProgress() *VNode {
+	v.progressGlyphStyle = ProgressGlyphStyleUnicode
+	return v
+}
+
+func (v *VNode) ASCIIProgress() *VNode {
+	v.progressGlyphStyle = ProgressGlyphStyleASCII
+	return v
+}
+
+func (v *VNode) Label() string                          { return v.label }
+func (v *VNode) Mode() Mode                             { return v.mode }
+func (v *VNode) Duration() time.Duration                { return v.duration }
+func (v *VNode) StartedAt() time.Time                   { return v.startedAt }
+func (v *VNode) Deadline() time.Time                    { return v.deadline }
+func (v *VNode) Now() time.Time                         { return v.now }
+func (v *VNode) Live() bool                             { return v.live }
+func (v *VNode) Width() int                             { return v.width }
+func (v *VNode) ShowProgress() bool                     { return v.showProgress }
+func (v *VNode) ProgressWidth() int                     { return v.progressWidth }
+func (v *VNode) ProgressGlyphStyle() ProgressGlyphStyle { return v.progressGlyphStyle }
+func (v *VNode) ExpiredText() string                    { return v.expiredText }
+func (v *VNode) WarningBelow() time.Duration            { return v.warningBelow }
+func (v *VNode) TimerStyle() style.Style                { return v.timerStyle }
+func (v *VNode) WarningStyle() style.Style              { return v.warningStyle }
+func (v *VNode) ExpiredStyle() style.Style              { return v.expiredStyle }
+func (v *VNode) ProgressStyle() style.Style             { return v.progressStyle }
+func (v *VNode) NewInstance() *Instance                 { return NewInstance(v.Props()) }

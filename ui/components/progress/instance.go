@@ -31,6 +31,21 @@ type gridPoint struct {
 	col int
 }
 
+type linearGlyphs struct {
+	filled rune
+	empty  rune
+	active rune
+}
+
+type segmentGlyphs struct {
+	filled rune
+	high   rune
+	mid    rune
+	low    rune
+	track  rune
+	active rune
+}
+
 // =============================================================================
 // Instance - Runtime Entity
 // =============================================================================
@@ -46,6 +61,7 @@ type Instance struct {
 	indeterminate  bool
 	progressType   Type
 	status         Status
+	glyphStyle     GlyphStyle
 	showPercent    bool
 	showValue      bool
 	unit           string
@@ -83,6 +99,7 @@ func NewInstance(props rtui.Props) *Instance {
 		indeterminate:  proputil.GetBool(props, propIndeterminate, false),
 		progressType:   getTypeProp(props, TypeLine),
 		status:         getStatusProp(props, StatusNormal),
+		glyphStyle:     getGlyphStyleProp(props, GlyphStyleUnicode),
 		showPercent:    proputil.GetBool(props, propShowPercent, true),
 		showValue:      proputil.GetBool(props, propShowValue, false),
 		unit:           normalizeUnit(proputil.GetString(props, propUnit, "")),
@@ -116,6 +133,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	oldIndeterminate := inst.indeterminate
 	oldType := inst.progressType
 	oldStatus := inst.status
+	oldGlyphStyle := inst.glyphStyle
 	oldShowPercent := inst.showPercent
 	oldShowValue := inst.showValue
 	oldUnit := inst.unit
@@ -135,6 +153,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.indeterminate = proputil.GetBool(props, propIndeterminate, inst.indeterminate)
 	inst.progressType = getTypeProp(props, inst.progressType)
 	inst.status = getStatusProp(props, inst.status)
+	inst.glyphStyle = getGlyphStyleProp(props, inst.glyphStyle)
 	inst.showPercent = proputil.GetBool(props, propShowPercent, inst.showPercent)
 	inst.showValue = proputil.GetBool(props, propShowValue, inst.showValue)
 	inst.unit = normalizeUnit(proputil.GetString(props, propUnit, inst.unit))
@@ -158,6 +177,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 		oldIndeterminate != inst.indeterminate ||
 		oldType != inst.progressType ||
 		oldStatus != inst.status ||
+		oldGlyphStyle != inst.glyphStyle ||
 		oldShowPercent != inst.showPercent ||
 		oldShowValue != inst.showValue ||
 		oldUnit != inst.unit
@@ -178,6 +198,7 @@ func (inst *Instance) GetProps() rtui.Props {
 		propIndeterminate: inst.indeterminate,
 		propType:          inst.progressType,
 		propStatus:        inst.status,
+		propGlyphStyle:    inst.glyphStyle,
 		propShowPercent:   inst.showPercent,
 		propShowValue:     inst.showValue,
 		propUnit:          inst.unit,
@@ -324,11 +345,13 @@ func (inst *Instance) visualRows() []string {
 }
 
 func (inst *Instance) lineRow() string {
-	return inst.linearRow('=', '-', '>')
+	glyphs := inst.lineGlyphs()
+	return inst.linearRow(glyphs.filled, glyphs.empty, glyphs.active)
 }
 
 func (inst *Instance) blockRow() string {
-	return inst.linearRow('█', '░', '▓')
+	glyphs := inst.blockGlyphs()
+	return inst.linearRow(glyphs.filled, glyphs.empty, glyphs.active)
 }
 
 func (inst *Instance) linearRow(filledRune, emptyRune, activeRune rune) string {
@@ -419,7 +442,8 @@ func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
 
 	percent := inst.Percent()
 	scaled := float64(percent) * float64(len(positions)) / 100
-	trackRune := 'o'
+	glyphs := inst.segmentGlyphs()
+	trackRune := glyphs.track
 	activeIndex := -1
 	activeSpan := int(math.Ceil(scaled))
 	if inst.status == StatusActive && percent < 100 && activeSpan > 0 {
@@ -433,9 +457,9 @@ func (inst *Instance) fillSegments(grid [][]rune, positions []gridPoint) {
 			continue
 		}
 
-		glyph := segmentFillRune(fill)
+		glyph := segmentFillRune(fill, glyphs)
 		if idx == activeIndex {
-			glyph = '@'
+			glyph = glyphs.active
 		}
 		grid[pos.row][pos.col] = glyph
 	}
@@ -445,8 +469,9 @@ func (inst *Instance) fillIndeterminateSegments(grid [][]rune, positions []gridP
 	if len(positions) == 0 {
 		return
 	}
+	glyphs := inst.segmentGlyphs()
 	for _, pos := range positions {
-		grid[pos.row][pos.col] = 'o'
+		grid[pos.row][pos.col] = glyphs.track
 	}
 	window := 2
 	if window > len(positions) {
@@ -455,7 +480,7 @@ func (inst *Instance) fillIndeterminateSegments(grid [][]rune, positions []gridP
 	start := inst.activeFrame % len(positions)
 	for i := 0; i < window; i++ {
 		pos := positions[(start+i)%len(positions)]
-		grid[pos.row][pos.col] = '@'
+		grid[pos.row][pos.col] = glyphs.active
 	}
 }
 
@@ -480,16 +505,51 @@ func gridToStrings(grid [][]rune) []string {
 	return rows
 }
 
-func segmentFillRune(fill float64) rune {
+func segmentFillRune(fill float64, glyphs segmentGlyphs) rune {
 	switch {
 	case fill >= 1:
-		return '#'
+		return glyphs.filled
 	case fill >= 0.67:
-		return '▓'
+		return glyphs.high
 	case fill >= 0.34:
-		return '▒'
+		return glyphs.mid
 	default:
-		return '░'
+		return glyphs.low
+	}
+}
+
+func (inst *Instance) lineGlyphs() linearGlyphs {
+	if inst.glyphStyle == GlyphStyleASCII {
+		return linearGlyphs{filled: '=', empty: '-', active: '>'}
+	}
+	return linearGlyphs{filled: '━', empty: '·', active: '●'}
+}
+
+func (inst *Instance) blockGlyphs() linearGlyphs {
+	if inst.glyphStyle == GlyphStyleASCII {
+		return linearGlyphs{filled: '#', empty: '-', active: '>'}
+	}
+	return linearGlyphs{filled: '█', empty: '░', active: '▓'}
+}
+
+func (inst *Instance) segmentGlyphs() segmentGlyphs {
+	if inst.glyphStyle == GlyphStyleASCII {
+		return segmentGlyphs{
+			filled: '#',
+			high:   '+',
+			mid:    '=',
+			low:    '-',
+			track:  'o',
+			active: '@',
+		}
+	}
+	return segmentGlyphs{
+		filled: '█',
+		high:   '▓',
+		mid:    '▒',
+		low:    '░',
+		track:  '·',
+		active: '▓',
 	}
 }
 
@@ -705,6 +765,15 @@ func getStatusProp(props rtui.Props, def Status) Status {
 	if v, ok := props[propStatus]; ok {
 		if status, ok := v.(Status); ok {
 			return status
+		}
+	}
+	return def
+}
+
+func getGlyphStyleProp(props rtui.Props, def GlyphStyle) GlyphStyle {
+	if v, ok := props[propGlyphStyle]; ok {
+		if glyphStyle, ok := v.(GlyphStyle); ok {
+			return glyphStyle
 		}
 	}
 	return def

@@ -17,24 +17,25 @@ const timerTickInterval = time.Second
 
 // Instance is the runtime entity for Timer components.
 type Instance struct {
-	key           string
-	label         string
-	mode          Mode
-	duration      time.Duration
-	startedAt     time.Time
-	deadline      time.Time
-	now           time.Time
-	live          bool
-	width         int
-	showProgress  bool
-	progressWidth int
-	expiredText   string
-	warningBelow  time.Duration
-	timerStyle    style.Style
-	warningStyle  style.Style
-	expiredStyle  style.Style
-	progressStyle style.Style
-	dirty         bool
+	key                string
+	label              string
+	mode               Mode
+	duration           time.Duration
+	startedAt          time.Time
+	deadline           time.Time
+	now                time.Time
+	live               bool
+	width              int
+	showProgress       bool
+	progressWidth      int
+	progressGlyphStyle ProgressGlyphStyle
+	expiredText        string
+	warningBelow       time.Duration
+	timerStyle         style.Style
+	warningStyle       style.Style
+	expiredStyle       style.Style
+	progressStyle      style.Style
+	dirty              bool
 }
 
 var (
@@ -58,24 +59,25 @@ func NewInstance(props rtui.Props) *Instance {
 	}
 
 	return &Instance{
-		key:           proputil.GetString(props, propKey, ""),
-		label:         proputil.GetString(props, propLabel, ""),
-		mode:          mode,
-		duration:      duration,
-		startedAt:     startedAt,
-		deadline:      deadline,
-		now:           now,
-		live:          proputil.GetBool(props, propLive, true),
-		width:         maxInt(0, proputil.GetInt(props, propWidth, 0)),
-		showProgress:  proputil.GetBool(props, propShowProgress, false),
-		progressWidth: maxInt(0, proputil.GetInt(props, propProgressWidth, 12)),
-		expiredText:   proputil.GetString(props, propExpiredText, "00:00"),
-		warningBelow:  getDurationProp(props, propWarningBelow, 10*time.Second),
-		timerStyle:    proputil.GetStyle(props, propStyle, style.Style{}),
-		warningStyle:  proputil.GetStyle(props, propWarningStyle, style.Style{}),
-		expiredStyle:  proputil.GetStyle(props, propExpiredStyle, style.Style{}),
-		progressStyle: proputil.GetStyle(props, propProgressStyle, style.Style{}),
-		dirty:         true,
+		key:                proputil.GetString(props, propKey, ""),
+		label:              proputil.GetString(props, propLabel, ""),
+		mode:               mode,
+		duration:           duration,
+		startedAt:          startedAt,
+		deadline:           deadline,
+		now:                now,
+		live:               proputil.GetBool(props, propLive, true),
+		width:              maxInt(0, proputil.GetInt(props, propWidth, 0)),
+		showProgress:       proputil.GetBool(props, propShowProgress, false),
+		progressWidth:      maxInt(0, proputil.GetInt(props, propProgressWidth, 12)),
+		progressGlyphStyle: getProgressGlyphStyleProp(props, ProgressGlyphStyleUnicode),
+		expiredText:        proputil.GetString(props, propExpiredText, "00:00"),
+		warningBelow:       getDurationProp(props, propWarningBelow, 10*time.Second),
+		timerStyle:         proputil.GetStyle(props, propStyle, style.Style{}),
+		warningStyle:       proputil.GetStyle(props, propWarningStyle, style.Style{}),
+		expiredStyle:       proputil.GetStyle(props, propExpiredStyle, style.Style{}),
+		progressStyle:      proputil.GetStyle(props, propProgressStyle, style.Style{}),
+		dirty:              true,
 	}
 }
 
@@ -121,6 +123,7 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 	inst.width = maxInt(0, proputil.GetInt(props, propWidth, inst.width))
 	inst.showProgress = proputil.GetBool(props, propShowProgress, inst.showProgress)
 	inst.progressWidth = maxInt(0, proputil.GetInt(props, propProgressWidth, inst.progressWidth))
+	inst.progressGlyphStyle = getProgressGlyphStyleProp(props, inst.progressGlyphStyle)
 	inst.expiredText = proputil.GetString(props, propExpiredText, inst.expiredText)
 	inst.warningBelow = getDurationProp(props, propWarningBelow, inst.warningBelow)
 	inst.timerStyle = proputil.GetStyle(props, propStyle, inst.timerStyle)
@@ -137,23 +140,24 @@ func (inst *Instance) SetProps(props rtui.Props) bool {
 
 func (inst *Instance) GetProps() rtui.Props {
 	return rtui.Props{
-		propDuration:      inst.duration,
-		propExpiredStyle:  inst.expiredStyle,
-		propExpiredText:   inst.expiredText,
-		propKey:           inst.key,
-		propLabel:         inst.label,
-		propLive:          inst.live,
-		propMode:          inst.mode,
-		propNow:           inst.now,
-		propProgressStyle: inst.progressStyle,
-		propProgressWidth: inst.progressWidth,
-		propShowProgress:  inst.showProgress,
-		propStartedAt:     inst.startedAt,
-		propStyle:         inst.timerStyle,
-		propDeadline:      inst.deadline,
-		propWarningBelow:  inst.warningBelow,
-		propWarningStyle:  inst.warningStyle,
-		propWidth:         inst.width,
+		propDuration:           inst.duration,
+		propExpiredStyle:       inst.expiredStyle,
+		propExpiredText:        inst.expiredText,
+		propKey:                inst.key,
+		propLabel:              inst.label,
+		propLive:               inst.live,
+		propMode:               inst.mode,
+		propNow:                inst.now,
+		propProgressStyle:      inst.progressStyle,
+		propProgressGlyphStyle: inst.progressGlyphStyle,
+		propProgressWidth:      inst.progressWidth,
+		propShowProgress:       inst.showProgress,
+		propStartedAt:          inst.startedAt,
+		propStyle:              inst.timerStyle,
+		propDeadline:           inst.deadline,
+		propWarningBelow:       inst.warningBelow,
+		propWarningStyle:       inst.warningStyle,
+		propWidth:              inst.width,
 	}
 }
 
@@ -276,7 +280,8 @@ func (inst *Instance) progressBar() string {
 	if filled > inner {
 		filled = inner
 	}
-	return "[" + strings.Repeat("#", filled) + strings.Repeat("-", inner-filled) + "]"
+	filledRune, emptyRune := inst.progressRunes()
+	return "[" + strings.Repeat(string(filledRune), filled) + strings.Repeat(string(emptyRune), inner-filled) + "]"
 }
 
 func (inst *Instance) progressPercent() int {
@@ -327,10 +332,26 @@ func resolveTimerStyle(base style.Style, fg style.Color) style.Style {
 	return base
 }
 
+func (inst *Instance) progressRunes() (rune, rune) {
+	if inst.progressGlyphStyle == ProgressGlyphStyleASCII {
+		return '#', '-'
+	}
+	return '█', '░'
+}
+
 func getModeProp(props rtui.Props, def Mode) Mode {
 	if v, ok := props[propMode]; ok {
 		if mode, ok := v.(Mode); ok {
 			return mode
+		}
+	}
+	return def
+}
+
+func getProgressGlyphStyleProp(props rtui.Props, def ProgressGlyphStyle) ProgressGlyphStyle {
+	if v, ok := props[propProgressGlyphStyle]; ok {
+		if glyphStyle, ok := v.(ProgressGlyphStyle); ok {
+			return glyphStyle
 		}
 	}
 	return def

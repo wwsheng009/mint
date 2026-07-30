@@ -202,7 +202,7 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 	}
 	defer app.Close()
 
-	if err := app.AssertVisible(ByText("[======----]")); err != nil {
+	if err := app.AssertVisible(ByText("[━━━━━━····]")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("Uploading: 60%")); err != nil {
@@ -229,19 +229,19 @@ func TestE2EProgressLineBlockCircleAndDashboardRender(t *testing.T) {
 	if err := app.AssertVisible(ByText("Resolving: ...")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText(" ### ")); err != nil {
+	if err := app.AssertVisible(ByText(" ███ ")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText("#   #")); err != nil {
+	if err := app.AssertVisible(ByText("█   █")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("100%")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText(" ##### ")); err != nil {
+	if err := app.AssertVisible(ByText(" █████ ")); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.AssertVisible(ByText("#     #")); err != nil {
+	if err := app.AssertVisible(ByText("█     █")); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.AssertVisible(ByText("CPU")); err != nil {
@@ -256,7 +256,7 @@ func TestE2EProgressStatusStylesRender(t *testing.T) {
 	}
 	defer app.Close()
 
-	if err := app.AssertStyle(ByText("[======----]"), StyleExpect{
+	if err := app.AssertStyle(ByText("[━━━━━━····]"), StyleExpect{
 		HasFG: true,
 		FG:    fwtheme.Success(),
 	}); err != nil {

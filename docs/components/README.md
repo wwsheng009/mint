@@ -28,7 +28,7 @@ project-local equivalents:
 | Popups and overlays | `modal`, `confirmdialog`, `drawer`, `popover`, `popconfirm`, `tooltip` | Use modal/confirm for high-risk operations, drawer for longer workflows, popover/popconfirm for contextual small tasks; `ConfirmDialog` includes danger operation presets. |
 | Transfer selection | `transfer` | Dual-list transfer with source/target search, local paging, bulk move of currently visible enabled items, controlled or uncontrolled target keys, field binding and change intents. |
 | Progress and loading | `progress`, `spin`, `skeleton`, `result`, `toast`, `notification` | `Progress` supports line/block/circle/dashboard, active/indeterminate states, warning status, operational state mapping and resource usage presets. |
-| Time state | `timer`, `clock` | Use `timer` for elapsed/countdown/auto-refresh/retry windows with optional ASCII progress. |
+| Time state | `timer`, `clock` | Use `timer` for elapsed/countdown/auto-refresh/retry windows with optional Unicode progress and ASCII fallback. |
 | Simple terminal charts | `charts/sparkline`, `charts/barchart`, `charts/linechart`, `charts/bulletchart`, `charts/heatmap`, `charts/scatterplot`, `charts/candlestick` | Use `sparkline.ASCII()` for simple ASCII trends; use bullet/bar/line/heatmap for compact monitoring views. |
 
 ## Source Layout

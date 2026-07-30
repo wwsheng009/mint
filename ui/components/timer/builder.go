@@ -112,6 +112,21 @@ func (b *Builder) ProgressWidth(width int) *Builder {
 	return b
 }
 
+func (b *Builder) ProgressGlyphStyle(glyphStyle ProgressGlyphStyle) *Builder {
+	b.node.SetProgressGlyphStyle(glyphStyle)
+	return b
+}
+
+func (b *Builder) UnicodeProgress() *Builder {
+	b.node.UnicodeProgress()
+	return b
+}
+
+func (b *Builder) ASCIIProgress() *Builder {
+	b.node.ASCIIProgress()
+	return b
+}
+
 func (b *Builder) ExpiredText(text string) *Builder {
 	b.node.SetExpiredText(text)
 	return b

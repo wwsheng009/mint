@@ -10,6 +10,8 @@
 - `value` / `max` 变化时的平滑百分比过渡
 - `active` 状态逐帧动画
 - `indeterminate` 不确定进度动画，适合 reload、reset、后台任务等待等无法得到总量的运维动作
+- 默认 Unicode 字符集：line 使用 `━/·/●`，block 使用 `█/░/▓`，circle/dashboard 使用块元素和点状轨道
+- ASCII 兼容字符集：通过 `ASCIIGlyphs()` 或 `GlyphStyle(GlyphStyleASCII)` 显式启用
 - 自定义 `label`
 - 自定义 `width`
 - `showPercent`
@@ -36,6 +38,17 @@ ui.NewProgressBuilder().
     Label("Reloading").
     Indeterminate().
     Width(24).
+    Build()
+```
+
+ASCII 兼容输出：
+
+```go
+ui.NewProgressBuilder().
+    Label("Uploading").
+    Value(60).
+    Max(100).
+    ASCIIGlyphs().
     Build()
 ```
 

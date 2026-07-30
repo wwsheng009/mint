@@ -35,6 +35,9 @@ func TestVNode_New(t *testing.T) {
 	if p.Status() != StatusNormal {
 		t.Errorf("Default status = %v, want %v", p.Status(), StatusNormal)
 	}
+	if p.GlyphStyle() != GlyphStyleUnicode {
+		t.Errorf("Default glyph style = %v, want %v", p.GlyphStyle(), GlyphStyleUnicode)
+	}
 }
 
 func TestVNode_Builder(t *testing.T) {
@@ -45,6 +48,7 @@ func TestVNode_Builder(t *testing.T) {
 		Width(40).
 		Circle().
 		Success().
+		ASCIIGlyphs().
 		ShowPercent(false).
 		ShowValue(true).
 		Unit("items").
@@ -78,6 +82,9 @@ func TestVNode_Builder(t *testing.T) {
 	}
 	if vnode.Status() != StatusSuccess {
 		t.Errorf("Status = %v, want %v", vnode.Status(), StatusSuccess)
+	}
+	if vnode.GlyphStyle() != GlyphStyleASCII {
+		t.Errorf("GlyphStyle = %v, want %v", vnode.GlyphStyle(), GlyphStyleASCII)
 	}
 }
 
@@ -187,7 +194,7 @@ func TestInstance_IndeterminateLineAnimatesWithoutPercent(t *testing.T) {
 	if len(cmds) < 2 {
 		t.Fatalf("Paint() returned %d commands, want at least 2", len(cmds))
 	}
-	if got, want := cmds[0].Text, "[>>>-------]"; got != want {
+	if got, want := cmds[0].Text, "[●●●·······]"; got != want {
 		t.Fatalf("line row = %q, want %q", got, want)
 	}
 	if got, want := cmds[1].Text, "Reloading: ..."; got != want {
@@ -212,11 +219,11 @@ func TestInstance_IndeterminateCircleAndDashboardRenderActiveSegments(t *testing
 		})
 		rows := inst.visualRows()
 		joined := strings.Join(rows, "\n")
-		if !strings.Contains(joined, "@") {
-			t.Fatalf("type %v indeterminate rows = %q, want active @ segment", typ, joined)
+		if !strings.Contains(joined, "▓") {
+			t.Fatalf("type %v indeterminate rows = %q, want active segment", typ, joined)
 		}
-		if !strings.Contains(joined, "o") {
-			t.Fatalf("type %v indeterminate rows = %q, want track o segment", typ, joined)
+		if !strings.Contains(joined, "·") {
+			t.Fatalf("type %v indeterminate rows = %q, want track segment", typ, joined)
 		}
 	}
 }
@@ -415,11 +422,28 @@ func TestInstance_Paint_Line(t *testing.T) {
 	if len(cmds) != 2 {
 		t.Fatalf("Paint returned %d commands, want 2", len(cmds))
 	}
-	if cmds[0].Text != "[=====-----]" {
-		t.Errorf("bar = %q, want %q", cmds[0].Text, "[=====-----]")
+	if cmds[0].Text != "[━━━━━·····]" {
+		t.Errorf("bar = %q, want %q", cmds[0].Text, "[━━━━━·····]")
 	}
 	if cmds[1].Text != "50%" {
 		t.Errorf("label = %q, want %q", cmds[1].Text, "50%")
+	}
+}
+
+func TestInstance_Paint_ASCIIGlyphs(t *testing.T) {
+	inst := NewInstance(rtui.Props{
+		propValue:      50,
+		propMax:        100,
+		propWidth:      12,
+		propGlyphStyle: GlyphStyleASCII,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 2 {
+		t.Fatalf("Paint returned %d commands, want 2", len(cmds))
+	}
+	if cmds[0].Text != "[=====-----]" {
+		t.Fatalf("ASCII bar = %q, want %q", cmds[0].Text, "[=====-----]")
 	}
 }
 
@@ -552,14 +576,14 @@ func TestInstance_Paint_Circle(t *testing.T) {
 	}
 
 	rows := drawCmdTexts(cmds)
-	if rows[0] != " ### " {
-		t.Errorf("row 0 = %q, want %q", rows[0], " ### ")
+	if rows[0] != " ███ " {
+		t.Errorf("row 0 = %q, want %q", rows[0], " ███ ")
 	}
-	if rows[1] != "#   #" {
-		t.Errorf("row 1 = %q, want %q", rows[1], "#   #")
+	if rows[1] != "█   █" {
+		t.Errorf("row 1 = %q, want %q", rows[1], "█   █")
 	}
-	if rows[2] != " ### " {
-		t.Errorf("row 2 = %q, want %q", rows[2], " ### ")
+	if rows[2] != " ███ " {
+		t.Errorf("row 2 = %q, want %q", rows[2], " ███ ")
 	}
 	if rows[3] != "100%" {
 		t.Errorf("row 3 = %q, want %q", rows[3], "100%")
@@ -582,11 +606,11 @@ func TestInstance_Paint_Dashboard(t *testing.T) {
 	}
 
 	rows := drawCmdTexts(cmds)
-	if rows[0] != " ##### " {
-		t.Errorf("row 0 = %q, want %q", rows[0], " ##### ")
+	if rows[0] != " █████ " {
+		t.Errorf("row 0 = %q, want %q", rows[0], " █████ ")
 	}
-	if rows[1] != "#     #" {
-		t.Errorf("row 1 = %q, want %q", rows[1], "#     #")
+	if rows[1] != "█     █" {
+		t.Errorf("row 1 = %q, want %q", rows[1], "█     █")
 	}
 	if rows[2] != "CPU" {
 		t.Errorf("row 2 = %q, want %q", rows[2], "CPU")
@@ -603,14 +627,14 @@ func TestInstance_Paint_Circle_PartialSegment(t *testing.T) {
 	})
 
 	rows := drawCmdTexts(inst.Paint(0, 0))
-	if rows[0] != " ### " {
-		t.Fatalf("row 0 = %q, want %q", rows[0], " ### ")
+	if rows[0] != " ███ " {
+		t.Fatalf("row 0 = %q, want %q", rows[0], " ███ ")
 	}
-	if rows[1] != "o   #" {
-		t.Fatalf("row 1 = %q, want %q", rows[1], "o   #")
+	if rows[1] != "·   █" {
+		t.Fatalf("row 1 = %q, want %q", rows[1], "·   █")
 	}
-	if rows[2] != " ▒## " {
-		t.Fatalf("row 2 = %q, want %q", rows[2], " ▒## ")
+	if rows[2] != " ▒██ " {
+		t.Fatalf("row 2 = %q, want %q", rows[2], " ▒██ ")
 	}
 	if rows[3] != "80%" {
 		t.Fatalf("row 3 = %q, want %q", rows[3], "80%")
@@ -627,11 +651,11 @@ func TestInstance_Paint_Dashboard_PartialSegment(t *testing.T) {
 	})
 
 	rows := drawCmdTexts(inst.Paint(0, 0))
-	if rows[0] != " ####▒ " {
-		t.Fatalf("row 0 = %q, want %q", rows[0], " ####▒ ")
+	if rows[0] != " ████▒ " {
+		t.Fatalf("row 0 = %q, want %q", rows[0], " ████▒ ")
 	}
-	if rows[1] != "#     o" {
-		t.Fatalf("row 1 = %q, want %q", rows[1], "#     o")
+	if rows[1] != "█     ·" {
+		t.Fatalf("row 1 = %q, want %q", rows[1], "█     ·")
 	}
 	if rows[2] != "80%" {
 		t.Fatalf("row 2 = %q, want %q", rows[2], "80%")
@@ -648,10 +672,10 @@ func TestInstance_Paint_StatusStyles(t *testing.T) {
 		wantBlink bool
 		wantBar   string
 	}{
-		{name: "success", status: StatusSuccess, wantFG: string(theme.Success()), wantBar: "[=====-----]"},
-		{name: "exception", status: StatusException, wantFG: string(theme.Error()), wantBar: "[=====-----]"},
-		{name: "warning", status: StatusWarning, wantFG: string(theme.Warning()), wantBar: "[=====-----]"},
-		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[>====-----]"},
+		{name: "success", status: StatusSuccess, wantFG: string(theme.Success()), wantBar: "[━━━━━·····]"},
+		{name: "exception", status: StatusException, wantFG: string(theme.Error()), wantBar: "[━━━━━·····]"},
+		{name: "warning", status: StatusWarning, wantFG: string(theme.Warning()), wantBar: "[━━━━━·····]"},
+		{name: "active", status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[●━━━━·····]"},
 		{name: "block active", props: rtui.Props{propType: TypeBlock}, status: StatusActive, wantFG: string(theme.Focus()), wantBold: true, wantBlink: true, wantBar: "[▓████░░░░░]"},
 	}
 
@@ -744,24 +768,24 @@ func TestInstance_Tick_AnimatesLineActiveProgress(t *testing.T) {
 	})
 
 	before := inst.Paint(0, 0)
-	if got := before[0].Text; got != "[>====-----]" {
-		t.Fatalf("initial bar = %q, want %q", got, "[>====-----]")
+	if got := before[0].Text; got != "[●━━━━·····]" {
+		t.Fatalf("initial bar = %q, want %q", got, "[●━━━━·····]")
 	}
 
 	if changed := inst.Tick(time.Unix(0, 0)); !changed {
 		t.Fatal("first Tick should advance animation")
 	}
 	after := inst.Paint(0, 0)
-	if got := after[0].Text; got != "[=>===-----]" {
-		t.Fatalf("bar after tick = %q, want %q", got, "[=>===-----]")
+	if got := after[0].Text; got != "[━●━━━·····]" {
+		t.Fatalf("bar after tick = %q, want %q", got, "[━●━━━·····]")
 	}
 
 	if changed := inst.Tick(time.Unix(0, int64(activeTickInterval/2))); changed {
 		t.Fatal("tick before interval should not advance animation")
 	}
 	still := inst.Paint(0, 0)
-	if got := still[0].Text; got != "[=>===-----]" {
-		t.Fatalf("bar after short tick = %q, want %q", got, "[=>===-----]")
+	if got := still[0].Text; got != "[━●━━━·····]" {
+		t.Fatalf("bar after short tick = %q, want %q", got, "[━●━━━·····]")
 	}
 }
 
@@ -807,8 +831,8 @@ func TestInstance_Tick_AnimatesCircleActiveProgress(t *testing.T) {
 	if before[0] == after[0] && before[1] == after[1] && before[2] == after[2] {
 		t.Fatal("circle active animation should change painted rows")
 	}
-	if !strings.HasPrefix(after[0], " #@# ") {
-		t.Fatalf("circle active row 0 after tick = %q, want prefix %q", after[0], " #@# ")
+	if !strings.HasPrefix(after[0], " █▓█ ") {
+		t.Fatalf("circle active row 0 after tick = %q, want prefix %q", after[0], " █▓█ ")
 	}
 }
 
@@ -830,8 +854,8 @@ func TestInstance_Tick_AnimatesDashboardActiveProgress(t *testing.T) {
 	if before[0] == after[0] && before[1] == after[1] {
 		t.Fatal("dashboard active animation should change painted rows")
 	}
-	if !strings.HasPrefix(after[0], " @##▓o ") {
-		t.Fatalf("dashboard active row 0 after tick = %q, want prefix %q", after[0], " @##▓o ")
+	if !strings.HasPrefix(after[0], " ▓██▓· ") {
+		t.Fatalf("dashboard active row 0 after tick = %q, want prefix %q", after[0], " ▓██▓· ")
 	}
 }
 

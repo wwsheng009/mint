@@ -6,6 +6,7 @@ import (
 )
 
 type ProgressStatus = progress.Status
+type ProgressGlyphStyle = progress.GlyphStyle
 
 const (
 	ProgressStatusNormal    = progress.StatusNormal
@@ -13,6 +14,9 @@ const (
 	ProgressStatusException = progress.StatusException
 	ProgressStatusActive    = progress.StatusActive
 	ProgressStatusWarning   = progress.StatusWarning
+
+	ProgressGlyphStyleUnicode = progress.GlyphStyleUnicode
+	ProgressGlyphStyleASCII   = progress.GlyphStyleASCII
 )
 
 // ProgressStatusForState maps common operational state strings to a Progress status.

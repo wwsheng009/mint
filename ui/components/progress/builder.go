@@ -35,6 +35,11 @@ func (b *Builder) Status(status Status) *Builder {
 	return b
 }
 
+func (b *Builder) GlyphStyle(glyphStyle GlyphStyle) *Builder {
+	b.node.SetGlyphStyle(glyphStyle)
+	return b
+}
+
 func (b *Builder) Line() *Builder {
 	b.node.Line()
 	return b
@@ -82,6 +87,16 @@ func (b *Builder) Warning() *Builder {
 
 func (b *Builder) State(state string) *Builder {
 	b.node.State(state)
+	return b
+}
+
+func (b *Builder) UnicodeGlyphs() *Builder {
+	b.node.UnicodeGlyphs()
+	return b
+}
+
+func (b *Builder) ASCIIGlyphs() *Builder {
+	b.node.ASCIIGlyphs()
 	return b
 }
 

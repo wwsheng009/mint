@@ -28,6 +28,9 @@ func TestVNodeDefaults(t *testing.T) {
 	if v.ProgressWidth() != 12 {
 		t.Fatalf("ProgressWidth = %d, want 12", v.ProgressWidth())
 	}
+	if v.ProgressGlyphStyle() != ProgressGlyphStyleUnicode {
+		t.Fatalf("ProgressGlyphStyle = %v, want unicode", v.ProgressGlyphStyle())
+	}
 }
 
 func TestBuilderCountdown(t *testing.T) {
@@ -41,6 +44,7 @@ func TestBuilderCountdown(t *testing.T) {
 		Static().
 		ShowProgress(true).
 		ProgressWidth(10).
+		ASCIIProgress().
 		WarningBelow(5 * time.Second).
 		BuildTyped()
 
@@ -62,6 +66,9 @@ func TestBuilderCountdown(t *testing.T) {
 	if !v.ShowProgress() || v.ProgressWidth() != 10 {
 		t.Fatalf("progress config = show:%v width:%d", v.ShowProgress(), v.ProgressWidth())
 	}
+	if v.ProgressGlyphStyle() != ProgressGlyphStyleASCII {
+		t.Fatalf("progress glyph style = %v, want ASCII", v.ProgressGlyphStyle())
+	}
 }
 
 func TestInstancePaintCountdownWithProgress(t *testing.T) {
@@ -81,11 +88,34 @@ func TestInstancePaintCountdownWithProgress(t *testing.T) {
 	if len(cmds) != 1 {
 		t.Fatalf("Paint command count = %d, want 1", len(cmds))
 	}
-	if cmds[0].Text != "Refresh: 00:45 [##--------]" {
+	if cmds[0].Text != "Refresh: 00:45 [██░░░░░░░░]" {
 		t.Fatalf("Text = %q", cmds[0].Text)
 	}
 	if got := cmds[0].Style.FG; got != theme.Primary() {
 		t.Fatalf("FG = %q, want primary", got)
+	}
+}
+
+func TestInstancePaintCountdownWithASCIIProgress(t *testing.T) {
+	startedAt := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
+	inst := NewInstance(rtui.Props{
+		propMode:               ModeCountdown,
+		propLabel:              "Refresh",
+		propDuration:           time.Minute,
+		propStartedAt:          startedAt,
+		propNow:                startedAt.Add(15 * time.Second),
+		propShowProgress:       true,
+		propProgressWidth:      12,
+		propProgressGlyphStyle: ProgressGlyphStyleASCII,
+		propLive:               false,
+	})
+
+	cmds := inst.Paint(0, 0)
+	if len(cmds) != 1 {
+		t.Fatalf("Paint command count = %d, want 1", len(cmds))
+	}
+	if cmds[0].Text != "Refresh: 00:45 [##--------]" {
+		t.Fatalf("Text = %q", cmds[0].Text)
 	}
 }
 

@@ -56,7 +56,7 @@ func TestE2ETimerStaticRender(t *testing.T) {
 
 	for _, text := range []string{
 		"Timer E2E Fixture",
-		"Refresh: 00:45 [##--------]",
+		"Refresh: 00:45 [██░░░░░░░░]",
 		"Uptime: 01:30",
 		"Retry: ready",
 	} {
@@ -73,7 +73,7 @@ func TestE2ETimerSemanticStyles(t *testing.T) {
 	}
 	defer app.Close()
 
-	if err := app.AssertStyle(ByText("Refresh: 00:45 [##--------]"), StyleExpect{
+	if err := app.AssertStyle(ByText("Refresh: 00:45 [██░░░░░░░░]"), StyleExpect{
 		HasFG: true,
 		FG:    fwtheme.Primary(),
 	}); err != nil {

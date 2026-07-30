@@ -10,10 +10,14 @@ import (
 type TimerBuilder = timer.Builder
 type TimerVNode = timer.VNode
 type TimerMode = timer.Mode
+type TimerProgressGlyphStyle = timer.ProgressGlyphStyle
 
 const (
 	TimerModeElapsed   = timer.ModeElapsed
 	TimerModeCountdown = timer.ModeCountdown
+
+	TimerProgressGlyphStyleUnicode = timer.ProgressGlyphStyleUnicode
+	TimerProgressGlyphStyleASCII   = timer.ProgressGlyphStyleASCII
 )
 
 // NewTimerBuilder creates a Timer builder.

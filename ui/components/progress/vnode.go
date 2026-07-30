@@ -18,6 +18,7 @@ const (
 	propLabel         = "label"
 	propMax           = "max"
 	propStatus        = "status"
+	propGlyphStyle    = "glyphStyle"
 	propShowPercent   = "showPercent"
 	propShowValue     = "showValue"
 	propStyle         = "style"
@@ -52,6 +53,16 @@ const (
 	StatusWarning
 )
 
+// GlyphStyle controls the character set used to render progress visuals.
+type GlyphStyle int
+
+const (
+	// GlyphStyleUnicode uses box-drawing and block characters for a denser TUI bar.
+	GlyphStyleUnicode GlyphStyle = iota
+	// GlyphStyleASCII uses plain ASCII glyphs for terminals or logs that cannot render Unicode well.
+	GlyphStyleASCII
+)
+
 // =============================================================================
 // VNode - Description Only (No State, No Closures, No Paint)
 // =============================================================================
@@ -68,6 +79,7 @@ type VNode struct {
 	indeterminate bool
 	progressType  Type
 	status        Status
+	glyphStyle    GlyphStyle
 	showPercent   bool
 	showValue     bool
 	unit          string
@@ -84,6 +96,7 @@ func New() *VNode {
 		ElementVNode: rtui.NewElement("progress"),
 		progressType: TypeLine,
 		status:       StatusNormal,
+		glyphStyle:   GlyphStyleUnicode,
 		max:          100,
 		width:        30,
 		showPercent:  true,
@@ -115,6 +128,7 @@ func (p *VNode) Props() rtui.Props {
 		propMax:           p.max,
 		propType:          p.progressType,
 		propStatus:        p.status,
+		propGlyphStyle:    p.glyphStyle,
 		propShowPercent:   p.showPercent,
 		propShowValue:     p.showValue,
 		propUnit:          p.unit,
@@ -148,6 +162,9 @@ func (p *VNode) SetProps(props rtui.Props) rtui.VNode {
 	}
 	if v, ok := props[propStatus].(Status); ok {
 		p.status = v
+	}
+	if v, ok := props[propGlyphStyle].(GlyphStyle); ok {
+		p.glyphStyle = v
 	}
 	if v, ok := props[propShowPercent].(bool); ok {
 		p.showPercent = v
@@ -186,6 +203,10 @@ func (p *VNode) SetUnit(unit string) *VNode {
 }
 func (p *VNode) SetType(t Type) *VNode          { p.progressType = t; return p }
 func (p *VNode) SetStatus(status Status) *VNode { p.status = status; return p }
+func (p *VNode) SetGlyphStyle(glyphStyle GlyphStyle) *VNode {
+	p.glyphStyle = glyphStyle
+	return p
+}
 
 func (p *VNode) Line() *VNode {
 	p.progressType = TypeLine
@@ -237,6 +258,16 @@ func (p *VNode) State(state string) *VNode {
 	return p
 }
 
+func (p *VNode) UnicodeGlyphs() *VNode {
+	p.glyphStyle = GlyphStyleUnicode
+	return p
+}
+
+func (p *VNode) ASCIIGlyphs() *VNode {
+	p.glyphStyle = GlyphStyleASCII
+	return p
+}
+
 func (p *VNode) Indeterminate() *VNode {
 	p.indeterminate = true
 	p.status = StatusActive
@@ -252,16 +283,17 @@ func (p *VNode) Determinate() *VNode {
 // Props Accessors
 // =============================================================================
 
-func (p *VNode) Label() string         { return p.label }
-func (p *VNode) Width() int            { return p.width }
-func (p *VNode) Value() int            { return p.value }
-func (p *VNode) Max() int              { return p.max }
-func (p *VNode) IsIndeterminate() bool { return p.indeterminate }
-func (p *VNode) ProgressType() Type    { return p.progressType }
-func (p *VNode) Status() Status        { return p.status }
-func (p *VNode) ShowPercent() bool     { return p.showPercent }
-func (p *VNode) ShowValue() bool       { return p.showValue }
-func (p *VNode) Unit() string          { return p.unit }
+func (p *VNode) Label() string          { return p.label }
+func (p *VNode) Width() int             { return p.width }
+func (p *VNode) Value() int             { return p.value }
+func (p *VNode) Max() int               { return p.max }
+func (p *VNode) IsIndeterminate() bool  { return p.indeterminate }
+func (p *VNode) ProgressType() Type     { return p.progressType }
+func (p *VNode) Status() Status         { return p.status }
+func (p *VNode) GlyphStyle() GlyphStyle { return p.glyphStyle }
+func (p *VNode) ShowPercent() bool      { return p.showPercent }
+func (p *VNode) ShowValue() bool        { return p.showValue }
+func (p *VNode) Unit() string           { return p.unit }
 func (p *VNode) Percent() int {
 	if p.max == 0 {
 		return 0
